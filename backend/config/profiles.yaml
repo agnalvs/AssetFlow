@@ -17,8 +17,12 @@ profiles:
       logical_width: 64
       logical_height: 64
       # Resolução em que o motor gera antes do downscale lógico.
-      render_width: 512
-      render_height: 512
+      #
+      # 1024 e não 512: medido com o SDXL, 512 fica fora da distribuição de
+      # treino e ele devolve grade de tiles em vez de um personagem. O custo
+      # é tempo de inferência (~3× em GPU com offload); a qualidade compensa.
+      render_width: 1024
+      render_height: 1024
       variations: 4
       transparent: true
     palette:
@@ -43,8 +47,8 @@ profiles:
     output:
       logical_width: 32
       logical_height: 32
-      render_width: 512
-      render_height: 512
+      render_width: 1024
+      render_height: 1024
       variations: 4
       transparent: true
     palette:
@@ -68,8 +72,8 @@ profiles:
     output:
       logical_width: 64
       logical_height: 64
-      render_width: 512
-      render_height: 512
+      render_width: 1024
+      render_height: 1024
       variations: 4
       transparent: true
     palette:
