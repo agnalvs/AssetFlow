@@ -75,6 +75,15 @@ def parse_args() -> argparse.Namespace:
         help="Tempo máximo do job em segundos (GPU com offload é lenta).",
     )
     parser.add_argument(
+        "--render",
+        type=int,
+        default=None,
+        help=(
+            "Resolução quadrada pedida ao motor, sobrepondo o profile. "
+            "SDXL foi treinado em 1024; abaixo disso a composição degrada."
+        ),
+    )
+    parser.add_argument(
         "--out",
         default=str(BACKEND_ROOT / "data" / "preview"),
         help="Pasta de saída.",
@@ -99,7 +108,11 @@ async def generate(container, args, engine_id: str | None) -> list[dict]:
         profile=args.profile,
         prompt=args.prompt,
         attributes={"view": "side", "pose": "idle"},
-        output=AssetOutputOverrides(variations=args.variations),
+        output=AssetOutputOverrides(
+            variations=args.variations,
+            render_width=args.render,
+            render_height=args.render,
+        ),
         seed=args.seed,
         quality=QualityLevel(args.quality),
     )

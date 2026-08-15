@@ -13,12 +13,18 @@ from ....generation.schemas import ImageGenerationRequest, SemanticPrompt
 __all__ = ["SDXLPromptAdapter"]
 
 #: Reforços que funcionam bem com SDXL, por meio visual.
+#:
+#: Nota de campo: a formulação anterior usava "pixel art sprite" e "16-bit
+#: game asset". Medido nesta gaveta, esses termos fazem o SDXL devolver
+#: folhas de sprite quase sempre — o acervo de treino associa "sprite" a
+#: grades de poses. "single game character" corrige o viés sem perder o meio.
 _MEDIUM_HINTS: dict[str, tuple[str, ...]] = {
     "pixel_art": (
-        "pixel art sprite",
-        "16-bit game asset",
-        "crisp pixel grid",
+        "pixel art",
+        "single game character",
+        "one subject only",
         "flat colors",
+        "hard pixel edges",
         "no anti-aliasing",
     ),
     "cartoon_2d": ("2d game art", "clean vector-like shading", "bold outlines"),
@@ -31,6 +37,12 @@ _BASE_NEGATIVE = (
     "deformed",
     "extra limbs",
     "signature",
+    # Contrapeso ao viés de folha de sprites descrito acima.
+    "sprite sheet",
+    "character sheet",
+    "multiple views",
+    "grid of characters",
+    "collage",
 )
 
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import os
 from pathlib import Path
 
 import pytest
@@ -43,9 +44,31 @@ from assetflow.generation.schemas import (
 ENGINES_ROOT = Path(__file__).resolve().parents[2] / "assetflow" / "generation" / "engines"
 DISCOVERED = discover_manifests([ENGINES_ROOT])
 
+#: Gavetas que exigem GPU baixam vários GB e levam minutos por imagem. Ficam
+#: fora da suíte padrão e entram sob demanda::
+#:
+#:     ASSETFLOW_TEST_REAL_ENGINES=1 pytest tests/contract
+RUN_REAL_ENGINES = os.environ.get("ASSETFLOW_TEST_REAL_ENGINES", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
 
 def _missing_requirements(manifest: EngineManifest) -> list[str]:
     return [name for name in manifest.requires if importlib.util.find_spec(name) is None]
+
+
+def _skip_reason(manifest: EngineManifest) -> str | None:
+    missing = _missing_requirements(manifest)
+    if missing:
+        return f"dependências ausentes: {', '.join(missing)}"
+    if manifest.resources.gpu_required and not RUN_REAL_ENGINES:
+        return (
+            "gaveta pesada (GPU + download de modelo); defina "
+            "ASSETFLOW_TEST_REAL_ENGINES=1 para exercitá-la"
+        )
+    return None
 
 
 def _make_engine(manifest: EngineManifest) -> ImageGenerationEngine:
@@ -77,10 +100,8 @@ def _context(job_id: str = "job_contract") -> EngineExecutionContext:
 def _params():
     params = []
     for entry in DISCOVERED:
-        missing = _missing_requirements(entry.manifest)
-        marks = (
-            pytest.mark.skip(reason=f"dependências ausentes: {', '.join(missing)}"),
-        ) if missing else ()
+        reason = _skip_reason(entry.manifest)
+        marks = (pytest.mark.skip(reason=reason),) if reason else ()
         params.append(pytest.param(entry.manifest, id=entry.manifest.id, marks=marks))
     return params
 

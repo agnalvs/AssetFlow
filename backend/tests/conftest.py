@@ -7,6 +7,7 @@ exatamente para permitir isso (plano §69).
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Any, Awaitable, Callable, TypeVar
 
@@ -41,6 +42,17 @@ def settings(tmp_path: Path) -> Settings:
     return load_settings(base_dir=BACKEND_ROOT, data_dir=tmp_path)
 
 
+#: Gavetas que exigem GPU baixam gigabytes e levam minutos por imagem. Ficam
+#: desligadas na suíte e entram sob demanda::
+#:
+#:     ASSETFLOW_TEST_REAL_ENGINES=1 pytest
+RUN_REAL_ENGINES = os.environ.get("ASSETFLOW_TEST_REAL_ENGINES", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+
 @pytest.fixture
 def container(settings: Settings) -> AppContainer:
     """Sistema completo montado, com o worker desligado.
@@ -51,7 +63,18 @@ def container(settings: Settings) -> AppContainer:
     settings.worker.embedded = False
     # Sem backoff: o retry é exercitado pelo comportamento, não pelo relógio.
     settings.worker.retry_base_delay_s = 0.0
-    return build_container(settings)
+    built = build_container(settings)
+
+    if not RUN_REAL_ENGINES:
+        # Trava de segurança. Não basta a gaveta pesada não ser a preferida:
+        # ela também não pode estar na **cadeia de fallback**, senão um teste
+        # que derruba o motor primário (e existem vários) acaba carregando um
+        # modelo de verdade no meio da suíte.
+        for record in built.registry.list():
+            if record.manifest.resources.gpu_required:
+                built.registry.disable(record.id)
+
+    return built
 
 
 @pytest.fixture

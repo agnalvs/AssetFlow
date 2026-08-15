@@ -125,10 +125,12 @@ def test_prompt_adapter_translates_semantic_into_sdxl_dialect():
     positive, negative = SDXLPromptAdapter().adapt(request)
 
     assert "young warrior" in positive
-    assert "pixel art sprite" in positive  # reforço específico do SDXL
+    assert "single game character" in positive  # reforço específico do SDXL
     assert "limited palette of 16 colors" in positive
     assert negative and "modern clothes" in negative
     assert "blurry" in negative  # negativo base do modelo
+    # Contrapeso ao viés de folha de sprites, medido nesta gaveta.
+    assert "sprite sheet" in negative
 
 
 def test_real_engine_is_registered_in_the_shelf(container):
@@ -142,19 +144,29 @@ def test_real_engine_is_registered_in_the_shelf(container):
 
 
 def test_test_suite_never_pulls_a_real_model(container):
-    """Trava de segurança: nenhuma capacidade roteia para a gaveta real.
+    """Trava de segurança contra download acidental de modelo na suíte.
 
-    Sem isto, habilitar o SDXL em `engines.yaml` faria a suíte baixar ~7GB na
-    primeira execução em uma máquina com GPU. As mocks precisam vir antes na
-    ordem de preferência de toda capacidade que os testes exercitam.
+    Verificar só o motor *preferido* não basta — e isso já custou caro: um
+    teste que derruba o motor primário para exercitar o retry fazia o kernel
+    cair no fallback e, com as dependências instaladas, começar a baixar o
+    SDXL de verdade no meio do `pytest`. O que precisa valer é que a gaveta
+    pesada não esteja em **nenhuma** posição da cadeia.
     """
     from assetflow.generation.schemas import Capability
 
+    heavy = {
+        record.id
+        for record in container.registry.list()
+        if record.manifest.resources.gpu_required
+    }
+    assert heavy, "o teste perdeu o sentido: nenhuma gaveta pesada registrada"
+
     for capability in ("text_to_image.pixel", "text_to_image.general"):
         resolution = run(container.resolver.resolve(Capability.parse(capability)))
-        assert resolution.primary.engine_id.startswith("mock-"), (
-            f"'{capability}' resolveria para {resolution.primary.engine_id}; "
-            "a suíte baixaria um modelo real"
+        chain = set(resolution.engine_ids)
+        assert not (chain & heavy), (
+            f"'{capability}' tem {chain & heavy} na cadeia de resolução; "
+            "um fallback baixaria um modelo real durante os testes"
         )
 
 

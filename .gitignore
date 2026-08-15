@@ -16,6 +16,7 @@ backend/data/
 
 # Testes e ferramentas
 .pytest_cache/
+backend/.pytest-tmp/
 .mypy_cache/
 .ruff_cache/
 .coverage

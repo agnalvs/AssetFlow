@@ -83,6 +83,11 @@ class PixelCharacterPromptBuilder(PromptBuilder):
     """Personagens em Pixel Art."""
 
     id = "pixel.character"
+    #: Um asset de personagem é **um** personagem. Modelos treinados em
+    #: acervos de Pixel Art tendem fortemente a devolver folhas de sprite
+    #: (várias poses em grade), porque é assim que esse material circula na
+    #: internet. Barrar isso é regra de produto do AssetFlow, não peculiaridade
+    #: de um motor — por isso mora aqui, e não dentro de uma gaveta.
     default_avoid = (
         "blur",
         "antialiasing",
@@ -92,6 +97,13 @@ class PixelCharacterPromptBuilder(PromptBuilder):
         "text",
         "watermark",
         "multiple characters",
+        "sprite sheet",
+        "character sheet",
+        "multiple poses",
+        "grid layout",
+        "collage",
+        "tiled panels",
+        "frame borders",
     )
 
     def build(

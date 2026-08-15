@@ -46,3 +46,6 @@ include = ["assetflow*"]
 testpaths = ["tests"]
 pythonpath = ["."]
 filterwarnings = ["ignore::DeprecationWarning"]
+# Mantém os diretórios temporários dos testes no disco do projeto, em vez de
+# espalhá-los pelo perfil do usuário (que costuma ser o disco pequeno).
+addopts = "--basetemp=.pytest-tmp"
