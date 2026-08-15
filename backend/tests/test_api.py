@@ -131,12 +131,18 @@ def test_full_generation_flow_over_http(client: TestClient):
     assert variant["uri"].startswith("assetflow-local://")
     assert variant["palette"]
 
-    # O arquivo é servido pela API.
-    resolved = client.get("/api/assets/resolve", params={"uri": variant["uri"]}).json()
-    image = client.get(resolved["url"])
+    # A resposta já traz a URL pronta: o cliente não precisa resolver URI.
+    assert variant["url"] == f"/api/assets/files/{variant['uri'].split('://', 1)[1]}"
+    assert variant["thumbnail_url"]
+
+    image = client.get(variant["url"])
     assert image.status_code == 200
     assert image.headers["content-type"] == "image/png"
     assert image.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+    # O caminho antigo (resolve explícito) continua valendo.
+    resolved = client.get("/api/assets/resolve", params={"uri": variant["uri"]}).json()
+    assert resolved["url"] == variant["url"]
 
 
 def test_manual_engine_selection_over_http(client: TestClient):

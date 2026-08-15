@@ -11,14 +11,14 @@
 routing:
   text_to_image.pixel:
     engines:
+      - diffusers-sdxl-v1
       - mock-pixel-alt-v1
       - mock-image-v1
-      - diffusers-sdxl-v1
 
   text_to_image.general:
     engines:
-      - mock-image-v1
       - diffusers-sdxl-v1
+      - mock-image-v1
 
   character.pixel:
     engines:
@@ -27,8 +27,8 @@ routing:
 
   character.2d:
     engines:
-      - mock-image-v1
       - diffusers-sdxl-v1
+      - mock-image-v1
 
   prop.pixel:
     engines:
@@ -37,8 +37,8 @@ routing:
 
   background.2d:
     engines:
-      - mock-image-v1
       - diffusers-sdxl-v1
+      - mock-image-v1
 
 fallback:
   # Fallback automático entre motores (plano §44).

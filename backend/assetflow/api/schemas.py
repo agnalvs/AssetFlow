@@ -8,12 +8,14 @@ permanecem idênticos.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import Field
 
 from ..generation.schemas import (
     AssetFlowModel,
+    AssetMode,
+    AssetType,
     Capability,
     EngineRef,
     GeneratedAsset,
@@ -22,9 +24,15 @@ from ..generation.schemas import (
     JobEvent,
     JobStatus,
     StageTimings,
+    ValidationReport,
 )
 
+#: Converte a URI interna de um asset em caminho HTTP servível.
+UrlResolver = Callable[[str], "str | None"]
+
 __all__ = [
+    "AssetVariantView",
+    "AssetView",
     "JobSubmissionResponse",
     "JobResponse",
     "JobListResponse",
@@ -35,6 +43,85 @@ __all__ = [
     "ErrorResponse",
     "HealthResponse",
 ]
+
+
+class AssetVariantView(AssetFlowModel):
+    """Uma variação, já com URL pronta para o ``<img src>``.
+
+    A URI interna (``assetflow-local://...``) continua exposta para
+    rastreabilidade, mas o cliente não precisa saber resolvê-la — nem
+    depender do backend de storage em uso.
+    """
+
+    id: str
+    index: int
+    uri: str
+    url: str | None = None
+    thumbnail_uri: str | None = None
+    thumbnail_url: str | None = None
+    width: int
+    height: int
+    logical_width: int | None = None
+    logical_height: int | None = None
+    seed: int | None = None
+    color_count: int | None = None
+    palette: tuple[str, ...] = ()
+    validation: ValidationReport = Field(default_factory=ValidationReport)
+
+
+class AssetView(AssetFlowModel):
+    """Asset como o cliente enxerga."""
+
+    id: str
+    project_id: str
+    job_id: str
+    type: AssetType
+    mode: AssetMode
+    name: str = ""
+    profile_id: str | None = None
+    pipeline_id: str | None = None
+    engine: EngineRef
+    variants: tuple[AssetVariantView, ...] = ()
+    created_at: datetime
+
+    @classmethod
+    def from_asset(
+        cls, asset: GeneratedAsset, url_for: UrlResolver | None = None
+    ) -> "AssetView":
+        resolve: UrlResolver = url_for or (lambda _uri: None)
+        return cls(
+            id=asset.id,
+            project_id=asset.project_id,
+            job_id=asset.job_id,
+            type=asset.type,
+            mode=asset.mode,
+            name=asset.name,
+            profile_id=asset.profile_id,
+            pipeline_id=asset.pipeline_id,
+            engine=asset.engine,
+            created_at=asset.created_at,
+            variants=tuple(
+                AssetVariantView(
+                    id=variant.id,
+                    index=variant.index,
+                    uri=variant.uri,
+                    url=resolve(variant.uri),
+                    thumbnail_uri=variant.thumbnail_uri,
+                    thumbnail_url=(
+                        resolve(variant.thumbnail_uri) if variant.thumbnail_uri else None
+                    ),
+                    width=variant.width,
+                    height=variant.height,
+                    logical_width=variant.logical_width,
+                    logical_height=variant.logical_height,
+                    seed=variant.seed,
+                    color_count=variant.color_count,
+                    palette=variant.palette,
+                    validation=variant.validation,
+                )
+                for variant in asset.variants
+            ),
+        )
 
 
 class JobSubmissionResponse(AssetFlowModel):
@@ -78,7 +165,7 @@ class JobResponse(AssetFlowModel):
     engine: EngineRef | None = None
     fallback_used: bool = False
 
-    asset: GeneratedAsset | None = None
+    asset: AssetView | None = None
     error: JobErrorInfo | None = None
     timings: StageTimings = Field(default_factory=StageTimings)
     warnings: tuple[str, ...] = ()
@@ -90,7 +177,13 @@ class JobResponse(AssetFlowModel):
     events: tuple[JobEvent, ...] = ()
 
     @classmethod
-    def from_job(cls, job: Job, *, include_events: bool = False) -> "JobResponse":
+    def from_job(
+        cls,
+        job: Job,
+        *,
+        include_events: bool = False,
+        url_for: UrlResolver | None = None,
+    ) -> "JobResponse":
         return cls(
             job_id=job.id,
             status=job.status,
@@ -102,7 +195,7 @@ class JobResponse(AssetFlowModel):
             pipeline=job.pipeline_id,
             engine=job.engine,
             fallback_used=job.fallback_used,
-            asset=job.asset,
+            asset=AssetView.from_asset(job.asset, url_for) if job.asset else None,
             error=job.error,
             timings=job.timings,
             warnings=job.warnings,
