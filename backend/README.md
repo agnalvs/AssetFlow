@@ -213,10 +213,45 @@ Todas as variáveis usam o prefixo `ASSETFLOW_` e têm precedência sobre o YAML
 
 ---
 
+## Ver o que o motor está gerando
+
+Os testes provam que o sistema funciona, mas escrevem em diretórios
+temporários. Para **olhar** o resultado, use o script de preview:
+
+```bash
+python scripts/preview_engine.py                     # a gaveta ligada hoje
+python scripts/preview_engine.py --engine all        # compara todas as gavetas
+python scripts/preview_engine.py --profile pixel_character_32 -n 4 --seed 7
+python scripts/preview_engine.py --profile studio_character \
+    --prompt "cartoon knight with a red cape"
+```
+
+Ele imprime, por variação, o tamanho lógico, a contagem de cores, a seed, os
+tempos por etapa e o **caminho absoluto** do PNG — mais um `_thumb.png`
+ampliado, porque 64×64 é pequeno demais para julgar a olho.
+
+Saída em `backend/data/preview/` (ignorado pelo git). Motores indisponíveis
+são pulados com o motivo:
+
+```text
+── gerando com diffusers-sdxl-v1 ──
+  ⊘ indisponível: dependências ausentes: torch, diffusers, transformers
+── gerando com mock-image-v1 ──
+  #0   64x64  lógico 64x64   14 cores  seed 7
+      .../jobs/job_ae98.../000.png
+```
+
+Também dá para inspecionar pela API (`uvicorn assetflow.main:app --reload`) —
+o job devolve a URI de cada variação e `/api/assets/files/{key}` entrega o PNG.
+
+---
+
 ## Testes
 
 ```bash
 pytest                                       # tudo
+pytest -v                                    # nome de cada caso
+pytest tests/test_pixel_pipeline.py -v -s    # o que o pós-processamento fez
 pytest tests/contract                        # contrato obrigatório de toda gaveta
 pytest tests/test_engine_swap.py             # Definition of Done arquitetural
 pytest tests/test_architecture_boundaries.py # regras de ouro §73/§74
