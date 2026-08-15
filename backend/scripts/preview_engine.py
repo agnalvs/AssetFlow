@@ -38,6 +38,7 @@ from assetflow.generation.schemas import (  # noqa: E402
     AssetGenerationRequest,
     AssetOutputOverrides,
     JobStatus,
+    QualityLevel,
 )
 from assetflow.settings import load_settings  # noqa: E402
 
@@ -61,6 +62,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("-n", "--variations", type=int, default=2, help="Quantas variações.")
     parser.add_argument("--seed", type=int, default=None, help="Seed (fixa = resultado repetível).")
+    parser.add_argument(
+        "--quality",
+        choices=[level.value for level in QualityLevel],
+        default=QualityLevel.STANDARD.value,
+        help="Knob abstrato de qualidade; cada gaveta traduz do seu jeito.",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=3600.0,
+        help="Tempo máximo do job em segundos (GPU com offload é lenta).",
+    )
     parser.add_argument(
         "--out",
         default=str(BACKEND_ROOT / "data" / "preview"),
@@ -88,10 +101,11 @@ async def generate(container, args, engine_id: str | None) -> list[dict]:
         attributes={"view": "side", "pose": "idle"},
         output=AssetOutputOverrides(variations=args.variations),
         seed=args.seed,
+        quality=QualityLevel(args.quality),
     )
 
     job = await container.service.submit(request)
-    await container.worker.run_once(timeout=120)
+    await container.worker.run_once(timeout=args.timeout + 60)
     job = await container.service.get_job(job.id)
 
     if job.status is not JobStatus.COMPLETED:
@@ -136,8 +150,17 @@ async def main() -> int:
     if out_dir.exists() and not args.keep:
         shutil.rmtree(out_dir)
 
-    settings = load_settings(data_dir=out_dir)
+    # Atenção: só os *assets* vão para a pasta de preview, que é apagada a
+    # cada execução. O `data_dir` continua sendo o do projeto, porque é dele
+    # que sai `engines/<id>/` — onde mora o modelo baixado (vários GB). Um
+    # rmtree em cima disso significaria rebaixar o SDXL toda vez.
+    settings = load_settings()
+    settings.storage.root = str(out_dir / "assets")
+    settings.storage.history_file = str(out_dir / "history" / "generations.jsonl")
     settings.worker.embedded = False  # o script controla quando o job roda
+    # O worker mata o job antes do motor se este teto for menor que o timeout
+    # da gaveta — em GPU com offload, os dois precisam ser generosos.
+    settings.worker.job_timeout_s = args.timeout
     container = build_container(settings)
 
     if args.engine == "all":

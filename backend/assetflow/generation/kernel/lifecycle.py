@@ -57,7 +57,10 @@ class EngineHandle:
         self._factory = factory
         self._config = config
         self._health_cache_ttl_s = health_cache_ttl_s
-        self._load_timeout_s = load_timeout_s or manifest.timeouts.load_timeout_s
+        # Precedência: argumento explícito > configuração de ambiente > manifesto.
+        self._load_timeout_s = (
+            load_timeout_s or config.load_timeout_s or manifest.timeouts.load_timeout_s
+        )
 
         self._instance: ImageGenerationEngine | None = None
         self._state: EngineState = EngineState.REGISTERED

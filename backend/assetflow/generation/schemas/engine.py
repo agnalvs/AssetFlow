@@ -256,3 +256,9 @@ class EngineRuntimeConfig(AssetFlowModel):
     options: dict[str, Any] = Field(default_factory=dict)
     #: Diretório de trabalho isolado para caches do motor.
     workspace_dir: str | None = None
+
+    #: Sobrescrevem os tempos do manifesto. O manifesto diz o que é razoável
+    #: no hardware de referência; o ambiente sabe o que é razoável *aqui*
+    #: (uma GPU modesta com offload pode precisar de bem mais tempo).
+    timeout_s: float | None = Field(default=None, gt=0)
+    load_timeout_s: float | None = Field(default=None, gt=0)

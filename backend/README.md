@@ -159,8 +159,27 @@ Ver [`assetflow/generation/engines/README.md`](assetflow/generation/engines/READ
 
 Para usar a gaveta real:
 
-```bash
-pip install -e ".[diffusers]"        # torch, diffusers, transformers, accelerate
+```powershell
+# 1. torch com CUDA — instale ANTES dos extras, do índice certo
+pip install "torch==2.6.0" --index-url https://download.pytorch.org/whl/cu126
+# 2. o resto
+pip install -e ".[diffusers]"        # diffusers, transformers, accelerate
+```
+
+A escolha do índice não é livre — depende do seu Python e da sua GPU:
+
+| Índice | Python 3.13 | Pascal (GTX 10xx, `sm_61`) |
+|---|---|---|
+| `cu121` | ❌ não publica wheels | — |
+| `cu124` | apenas torch 2.6.0 | ✅ |
+| `cu126` | 2.6 → 2.13 | ✅ na série 2.6 |
+| `cu128` | 2.7+ | ❌ suporte removido |
+
+Se sua GPU for Ampere ou mais nova, `pip install torch` sem índice já basta.
+Confira depois com:
+
+```powershell
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_arch_list())"
 ```
 
 ```yaml
@@ -176,6 +195,31 @@ engines:
 
 Sem as dependências instaladas, a gaveta continua **listada** na API, reporta
 `unavailable` no health check e o resolver usa outra — o sistema não quebra.
+
+### Manter os downloads pesados no disco do projeto
+
+O modelo já vai para o disco do projeto: a gaveta recebe `workspace_dir` da
+configuração e o usa como `cache_dir` do Diffusers
+(`backend/data/engines/<engine_id>/`).
+
+O que o AssetFlow **não** controla são os caches do pip, do HuggingFace Hub e
+o `TEMP` da instalação — todos apontam para o perfil do usuário por padrão.
+Antes de instalar o torch, redirecione:
+
+```powershell
+. .\scripts\use-local-cache.ps1          # note o ponto: precisa ser dot-sourced
+```
+
+```text
+PIP_CACHE_DIR          ...\backend\data\cache\pip           (~2,5 GB com torch)
+HF_HOME                ...\backend\data\cache\huggingface   (~7 GB por modelo)
+TORCH_HOME             ...\backend\data\cache\torch
+TMP / TEMP             ...\backend\data\cache\tmp
+```
+
+Vale só na janela atual; use `-Persist` para gravar no perfil do usuário.
+Tudo cai em `backend/data/`, que é ignorado pelo git — apagar a pasta libera
+o espaço inteiro de volta.
 
 ---
 
@@ -203,7 +247,7 @@ Todas as variáveis usam o prefixo `ASSETFLOW_` e têm precedência sobre o YAML
 
 | Variável | Efeito |
 |---|---|
-| `ASSETFLOW_CONFIG_DIR` / `ASSETFLOW_DATA_DIR` | onde ficam configuração e dados |
+| `ASSETFLOW_CONFIG_DIR` / `ASSETFLOW_DATA_DIR` | onde ficam configuração e dados (inclusive o cache dos modelos) |
 | `ASSETFLOW_ENGINES_ENABLED` / `ASSETFLOW_ENGINES_DISABLED` | liga/desliga gavetas (lista separada por vírgula) |
 | `ASSETFLOW_WORKER_EMBEDDED` | `false` para separar API e worker (recomendado com GPU) |
 | `ASSETFLOW_WORKER_CONCURRENCY` | jobs simultâneos por worker |

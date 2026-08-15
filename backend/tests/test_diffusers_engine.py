@@ -131,11 +131,31 @@ def test_prompt_adapter_translates_semantic_into_sdxl_dialect():
     assert "blurry" in negative  # negativo base do modelo
 
 
-def test_engine_is_registered_but_disabled_by_default(container):
-    """A gaveta real está instalada na estante e desligada por configuração."""
+def test_real_engine_is_registered_in_the_shelf(container):
+    """A gaveta real está instalada e compatível, ligada ou não."""
     record = container.registry.get("diffusers-sdxl-v1")
-    assert record.enabled is False
-    assert record.manifest.status == "disabled"
+    assert record.manifest.is_api_compatible
+    assert record.manifest.resources.gpu_required is True
+    # Registrar jamais carrega modelo (plano §36) — é isso que permite deixar
+    # a gaveta ligada no config sem penalizar o boot.
+    assert record.handle.is_loaded is False
+
+
+def test_test_suite_never_pulls_a_real_model(container):
+    """Trava de segurança: nenhuma capacidade roteia para a gaveta real.
+
+    Sem isto, habilitar o SDXL em `engines.yaml` faria a suíte baixar ~7GB na
+    primeira execução em uma máquina com GPU. As mocks precisam vir antes na
+    ordem de preferência de toda capacidade que os testes exercitam.
+    """
+    from assetflow.generation.schemas import Capability
+
+    for capability in ("text_to_image.pixel", "text_to_image.general"):
+        resolution = run(container.resolver.resolve(Capability.parse(capability)))
+        assert resolution.primary.engine_id.startswith("mock-"), (
+            f"'{capability}' resolveria para {resolution.primary.engine_id}; "
+            "a suíte baixaria um modelo real"
+        )
 
 
 def test_system_works_while_the_real_engine_is_unavailable(container):

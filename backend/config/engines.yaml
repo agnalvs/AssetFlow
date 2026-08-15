@@ -54,9 +54,12 @@ engines:
   # -------------------------------------------------------------------------
   # Primeira gaveta real. Desabilitada por padrão: exige GPU + `pip install
   # -e .[diffusers]`. Habilitar aqui NÃO exige alterar uma linha de código.
+  #
+  # PERFIL PADRÃO — GPU com 12GB+ de VRAM.
+  # Para GPUs pequenas (4-6GB), veja o bloco comentado logo abaixo.
   # -------------------------------------------------------------------------
   diffusers-sdxl-v1:
-    enabled: false
+    enabled: true
     model:
       id: "stabilityai/stable-diffusion-xl-base-1.0"
       revision: null
@@ -68,8 +71,19 @@ engines:
     runtime:
       enable_attention_slicing: true
       enable_vae_slicing: true
+      # Offload: mova para a GPU só o que estiver em uso (plano §38).
+      #   model_cpu_offload      → precisa caber o maior componente (~5GB)
+      #   sequential_cpu_offload → cabe em ~2GB, porém bem mais lento
+      #
+      # Ligado porque a UNet do SDXL em fp16 (~5GB) não cabe nos 4GB desta
+      # GPU. Em uma placa de 12GB+, desligue os dois e ganhe muita velocidade.
       enable_model_cpu_offload: false
-      enable_sequential_cpu_offload: false
+      enable_sequential_cpu_offload: true
+    timeouts:
+      # Sobrescrevem o manifesto quando este hardware for mais lento que o
+      # de referência. Omitir = usar o que a gaveta declara.
+      timeout_s: 3600       # offload sequencial é lento; 1h de folga
+      load_timeout_s: 7200  # inclui o download de ~7GB na primeira execução
     options:
       # Mapeamento do knob abstrato `quality` para passos de inferência.
       # O contrato universal NUNCA carrega `steps` (plano §20).
@@ -78,3 +92,25 @@ engines:
         standard: 30
         high: 45
       guidance_scale: 6.5
+
+    # -----------------------------------------------------------------------
+    # PERFIL PARA GPU PEQUENA (ex.: GTX 1050 Ti, 4GB) — copie por cima do
+    # bloco acima. Usa SDXL-Turbo, que gera em 1-4 passos em vez de 30.
+    #
+    #   model:
+    #     id: "stabilityai/sdxl-turbo"
+    #     variant: "fp16"
+    #   device:   { type: "cuda" }
+    #   precision: { type: "fp16" }
+    #   runtime:
+    #     enable_attention_slicing: true
+    #     enable_vae_slicing: true
+    #     enable_model_cpu_offload: false
+    #     enable_sequential_cpu_offload: true    # obrigatório com 4GB
+    #   timeouts:
+    #     timeout_s: 1800        # 30 min: offload sequencial é lento
+    #     load_timeout_s: 3600   # inclui o download de ~7GB na 1ª vez
+    #   options:
+    #     quality_steps: { draft: 1, standard: 2, high: 4 }
+    #     guidance_scale: 0.0    # SDXL-Turbo exige guidance 0
+    # -----------------------------------------------------------------------

@@ -229,6 +229,7 @@ def engine_runtime_configs(settings: Settings) -> dict[str, EngineRuntimeConfig]
         if engine_id in forced_disabled:
             enabled = False
 
+        timeouts = raw.get("timeouts") or {}
         configs[engine_id] = EngineRuntimeConfig(
             engine_id=engine_id,
             enabled=enabled,
@@ -238,5 +239,11 @@ def engine_runtime_configs(settings: Settings) -> dict[str, EngineRuntimeConfig]
             runtime=dict(raw.get("runtime") or {}),
             options=dict(raw.get("options") or {}),
             workspace_dir=str(settings.engine_workspace(engine_id)),
+            timeout_s=_optional_float(timeouts.get("timeout_s")),
+            load_timeout_s=_optional_float(timeouts.get("load_timeout_s")),
         )
     return configs
+
+
+def _optional_float(value: Any) -> float | None:
+    return None if value is None else float(value)

@@ -236,7 +236,13 @@ class GenerationKernel:
             # e para que o prompt efetivo fique registrado no histórico.
             request = _apply_prompt_adapter(engine, request, manifest.id)
 
-            timeout_s = float(manifest.timeouts.recommended_timeout_s or self._default_timeout_s)
+            # O ambiente pode alargar o tempo declarado no manifesto: a mesma
+            # gaveta é rápida em uma A100 e lenta em uma GPU com offload.
+            timeout_s = float(
+                handle.config.timeout_s
+                or manifest.timeouts.recommended_timeout_s
+                or self._default_timeout_s
+            )
             context = EngineExecutionContext(
                 job_id=execution.job_id,
                 cancellation=execution.cancellation,
