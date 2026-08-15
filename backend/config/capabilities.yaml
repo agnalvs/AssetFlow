@@ -1,0 +1,55 @@
+# ---------------------------------------------------------------------------
+# AssetFlow — Política de roteamento por capacidade (plano §13)
+# ---------------------------------------------------------------------------
+# O AssetFlow nunca pede "SDXL". Ele pede uma CAPACIDADE.
+# A ordem abaixo é a ordem de preferência; o EngineResolver percorre a lista
+# e usa o primeiro motor registrado, habilitado, compatível e saudável.
+#
+# Substituir o motor de Pixel Art = reordenar esta lista. Nada mais.
+# ---------------------------------------------------------------------------
+
+routing:
+  text_to_image.pixel:
+    engines:
+      - mock-pixel-alt-v1
+      - mock-image-v1
+      - diffusers-sdxl-v1
+
+  text_to_image.general:
+    engines:
+      - mock-image-v1
+      - diffusers-sdxl-v1
+
+  character.pixel:
+    engines:
+      - mock-pixel-alt-v1
+      - mock-image-v1
+
+  character.2d:
+    engines:
+      - mock-image-v1
+      - diffusers-sdxl-v1
+
+  prop.pixel:
+    engines:
+      - mock-pixel-alt-v1
+      - mock-image-v1
+
+  background.2d:
+    engines:
+      - mock-image-v1
+      - diffusers-sdxl-v1
+
+fallback:
+  # Fallback automático entre motores (plano §44).
+  enabled: true
+  # Número máximo de motores tentados por request (o primeiro + N-1 fallbacks).
+  max_engine_attempts: 3
+  # Se `true`, motores DEGRADED entram como último recurso quando não há
+  # nenhuma alternativa saudável.
+  allow_degraded_as_last_resort: true
+
+# Motores não listados em `routing` ainda podem ser resolvidos: o resolver
+# completa a lista com qualquer engine que declare a capacidade no manifesto,
+# ordenado alfabeticamente, depois dos motores explicitamente priorizados.
+allow_unlisted_engines: true

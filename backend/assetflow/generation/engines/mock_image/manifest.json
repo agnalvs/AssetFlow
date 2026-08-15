@@ -1,0 +1,51 @@
+{
+  "id": "mock-image-v1",
+  "name": "Mock Image Engine",
+  "version": "1.0.0",
+  "engine_api_version": "1",
+  "type": "image_generation",
+  "provider": "local_cpu",
+  "description": "Gaveta de referência sem IA. Gera imagens determinísticas a partir da seed para validar toda a arquitetura antes de envolver GPU (plano §69).",
+  "entrypoint": "assetflow.generation.engines.mock_image.engine:MockImageEngine",
+  "capabilities": [
+    "text_to_image.general",
+    "text_to_image.pixel",
+    "character.pixel",
+    "character.2d",
+    "prop.pixel",
+    "background.2d"
+  ],
+  "supports": {
+    "seed": true,
+    "negative_prompt": true,
+    "batch": true,
+    "transparency": true,
+    "progress_reporting": true,
+    "cancellation": true,
+    "lora": false,
+    "controlnet": false,
+    "image_reference": false,
+    "inpainting": false
+  },
+  "limits": {
+    "min_width": 8,
+    "min_height": 8,
+    "max_width": 2048,
+    "max_height": 2048,
+    "max_variations": 8,
+    "dimension_multiple_of": null
+  },
+  "resources": {
+    "gpu_required": false,
+    "recommended_vram_mb": 0,
+    "minimum_vram_mb": 0,
+    "supports_offloading": false,
+    "supports_quantization": false
+  },
+  "timeouts": {
+    "recommended_timeout_s": 60,
+    "load_timeout_s": 30
+  },
+  "status": "enabled",
+  "requires": []
+}

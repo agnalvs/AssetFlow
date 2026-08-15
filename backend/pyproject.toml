@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "assetflow-backend"
+version = "0.1.0"
+description = "AssetFlow — infraestrutura modular de geração de assets para jogos 2D (Pixel Art e arte 2D convencional)"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "pydantic>=2.7",
+    "fastapi>=0.111",
+    "uvicorn>=0.30",
+    "PyYAML>=6.0",
+    "Pillow>=10.3",
+]
+
+[project.optional-dependencies]
+# Dependências de desenvolvimento e testes.
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+]
+# Dependências do engine `diffusers-sdxl-v1`.
+#
+# IMPORTANTE (regra de ouro §74 do plano): estas bibliotecas só podem ser
+# importadas de dentro de `assetflow/generation/engines/diffusers_sdxl/`.
+# O teste `tests/test_architecture_boundaries.py` falha se isso for violado.
+diffusers = [
+    "torch>=2.2",
+    "diffusers>=0.29",
+    "transformers>=4.41",
+    "accelerate>=0.30",
+    "safetensors>=0.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["assetflow*"]
+
+[tool.setuptools.package-data]
+"assetflow" = ["**/manifest.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = ["ignore::DeprecationWarning"]

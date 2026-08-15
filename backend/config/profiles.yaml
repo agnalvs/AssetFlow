@@ -1,0 +1,128 @@
+# ---------------------------------------------------------------------------
+# AssetFlow — Generation Profiles (plano §25)
+# ---------------------------------------------------------------------------
+# Um profile descreve O QUE deve ser produzido, nunca COM QUAL MOTOR.
+# Repare que nenhuma linha deste arquivo cita SDXL, FLUX ou qualquer modelo.
+# ---------------------------------------------------------------------------
+
+profiles:
+  pixel_character_64:
+    display_name: "Personagem Pixel Art 64×64"
+    capability: "text_to_image.pixel"
+    pipeline: "pixel.character"
+    asset:
+      type: "character"
+      mode: "pixel"
+    output:
+      logical_width: 64
+      logical_height: 64
+      # Resolução em que o motor gera antes do downscale lógico.
+      render_width: 512
+      render_height: 512
+      variations: 4
+      transparent: true
+    palette:
+      size: 16
+      strategy: "adaptive"     # adaptive | fixed
+      fixed_colors: []
+    postprocessing:
+      pixel_cleanup: true
+      antialiasing: false
+      alpha_threshold: 128
+      validate_color_count: true
+      validate_grid: true
+      thumbnail_scale: 4
+
+  pixel_character_32:
+    display_name: "Personagem Pixel Art 32×32"
+    capability: "text_to_image.pixel"
+    pipeline: "pixel.character"
+    asset:
+      type: "character"
+      mode: "pixel"
+    output:
+      logical_width: 32
+      logical_height: 32
+      render_width: 512
+      render_height: 512
+      variations: 4
+      transparent: true
+    palette:
+      size: 12
+      strategy: "adaptive"
+    postprocessing:
+      pixel_cleanup: true
+      antialiasing: false
+      alpha_threshold: 128
+      validate_color_count: true
+      validate_grid: true
+      thumbnail_scale: 8
+
+  pixel_prop_64:
+    display_name: "Prop Pixel Art 64×64"
+    capability: "text_to_image.pixel"
+    pipeline: "pixel.character"
+    asset:
+      type: "prop"
+      mode: "pixel"
+    output:
+      logical_width: 64
+      logical_height: 64
+      render_width: 512
+      render_height: 512
+      variations: 4
+      transparent: true
+    palette:
+      size: 16
+      strategy: "adaptive"
+    postprocessing:
+      pixel_cleanup: true
+      antialiasing: false
+      alpha_threshold: 128
+      validate_color_count: true
+      validate_grid: true
+      thumbnail_scale: 4
+
+  studio_character:
+    display_name: "Personagem 2D convencional"
+    capability: "text_to_image.general"
+    pipeline: "studio.character"
+    asset:
+      type: "character"
+      mode: "studio"
+    output:
+      render_width: 1024
+      render_height: 1024
+      variations: 2
+      transparent: true
+    postprocessing:
+      thumbnail_scale: 0.25
+
+  studio_background:
+    display_name: "Background 2D convencional"
+    capability: "text_to_image.general"
+    pipeline: "studio.character"
+    asset:
+      type: "background"
+      mode: "studio"
+    output:
+      render_width: 1024
+      render_height: 576
+      variations: 2
+      transparent: false
+    postprocessing:
+      thumbnail_scale: 0.25
+
+  raw_image:
+    display_name: "Geração bruta (diagnóstico de motor)"
+    capability: "text_to_image.general"
+    pipeline: "raw.image"
+    asset:
+      type: "raw"
+      mode: "studio"
+    output:
+      render_width: 512
+      render_height: 512
+      variations: 1
+      transparent: false
+    postprocessing: {}

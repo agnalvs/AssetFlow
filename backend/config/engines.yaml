@@ -1,0 +1,80 @@
+# ---------------------------------------------------------------------------
+# AssetFlow — Configuração de motores (gavetas)
+# ---------------------------------------------------------------------------
+# Este arquivo controla QUAIS gavetas existem e COMO elas são configuradas.
+# Nada aqui pode estar hardcoded no código (plano §65).
+#
+# Trocar um motor por outro é uma alteração de CONFIGURAÇÃO, não de código.
+# ---------------------------------------------------------------------------
+
+# Versão do Engine API que este backend implementa (plano §10).
+# Motores que declarem outra versão são rejeitados pelo EngineRegistry.
+engine_api_version: "1"
+
+discovery:
+  # Diretórios varridos em busca de `manifest.json` de engines.
+  paths:
+    - "assetflow/generation/engines"
+  # Allowlist de segurança (plano §64): somente estes engine ids podem ser
+  # carregados. `null` desativa a verificação (apenas para desenvolvimento).
+  allowlist:
+    - "mock-image-v1"
+    - "mock-pixel-alt-v1"
+    - "diffusers-sdxl-v1"
+
+defaults:
+  # Tempo máximo padrão de uma geração, quando o manifesto não declara o seu.
+  timeout_s: 300
+  # TTL do cache de health check por engine.
+  health_cache_ttl_s: 15
+  # Lazy loading (plano §36): o modelo só é carregado no primeiro job.
+  lazy_load: true
+
+engines:
+  # -------------------------------------------------------------------------
+  # Gaveta de referência sem IA — valida toda a arquitetura antes da GPU.
+  # -------------------------------------------------------------------------
+  mock-image-v1:
+    enabled: true
+    options:
+      # Latência simulada, para exercitar progresso/cancelamento/timeout.
+      simulated_latency_ms: 120
+      palette: "spectrum"
+
+  # -------------------------------------------------------------------------
+  # Segunda gaveta — existe para provar a substituição de motores (plano §67).
+  # Desabilitada por padrão; o Swap Engine Test liga/desliga em runtime.
+  # -------------------------------------------------------------------------
+  mock-pixel-alt-v1:
+    enabled: false
+    options:
+      simulated_latency_ms: 80
+      symmetry: true
+
+  # -------------------------------------------------------------------------
+  # Primeira gaveta real. Desabilitada por padrão: exige GPU + `pip install
+  # -e .[diffusers]`. Habilitar aqui NÃO exige alterar uma linha de código.
+  # -------------------------------------------------------------------------
+  diffusers-sdxl-v1:
+    enabled: false
+    model:
+      id: "stabilityai/stable-diffusion-xl-base-1.0"
+      revision: null
+      variant: "fp16"
+    device:
+      type: "auto"        # auto | cuda | mps | cpu
+    precision:
+      type: "fp16"        # fp16 | bf16 | fp32
+    runtime:
+      enable_attention_slicing: true
+      enable_vae_slicing: true
+      enable_model_cpu_offload: false
+      enable_sequential_cpu_offload: false
+    options:
+      # Mapeamento do knob abstrato `quality` para passos de inferência.
+      # O contrato universal NUNCA carrega `steps` (plano §20).
+      quality_steps:
+        draft: 18
+        standard: 30
+        high: 45
+      guidance_scale: 6.5

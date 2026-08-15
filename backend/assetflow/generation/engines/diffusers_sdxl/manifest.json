@@ -1,0 +1,52 @@
+{
+  "id": "diffusers-sdxl-v1",
+  "name": "SDXL Diffusers Engine",
+  "version": "1.0.0",
+  "engine_api_version": "1",
+  "type": "image_generation",
+  "provider": "local_gpu",
+  "description": "Primeira gaveta real, baseada em Diffusers/SDXL. É uma implementação de referência — não o fundamento permanente do AssetFlow (plano §15).",
+  "entrypoint": "assetflow.generation.engines.diffusers_sdxl.engine:DiffusersSDXLEngine",
+  "capabilities": [
+    "text_to_image.general",
+    "text_to_image.pixel"
+  ],
+  "supports": {
+    "seed": true,
+    "negative_prompt": true,
+    "batch": true,
+    "transparency": false,
+    "progress_reporting": true,
+    "cancellation": true,
+    "lora": true,
+    "controlnet": false,
+    "image_reference": false,
+    "inpainting": false
+  },
+  "limits": {
+    "min_width": 512,
+    "min_height": 512,
+    "max_width": 2048,
+    "max_height": 2048,
+    "max_variations": 4,
+    "dimension_multiple_of": 8
+  },
+  "resources": {
+    "gpu_required": true,
+    "recommended_vram_mb": 12000,
+    "minimum_vram_mb": 8000,
+    "supports_offloading": true,
+    "supports_quantization": false
+  },
+  "timeouts": {
+    "recommended_timeout_s": 300,
+    "load_timeout_s": 1800
+  },
+  "status": "disabled",
+  "requires": [
+    "torch",
+    "diffusers",
+    "transformers",
+    "accelerate"
+  ]
+}
