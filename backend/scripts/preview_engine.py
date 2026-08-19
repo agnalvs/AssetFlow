@@ -33,6 +33,14 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_ROOT))
 
+# O console do Windows abre em cp1252, que não codifica os caracteres de
+# moldura usados na saída (`──`, `⊘`). Sem isto o script morre com
+# UnicodeEncodeError antes de gerar qualquer coisa — e também quando a saída
+# é redirecionada para arquivo, caso em que o Python usa o encoding da locale.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 from assetflow.bootstrap import build_container  # noqa: E402
 from assetflow.generation.schemas import (  # noqa: E402
     AssetGenerationRequest,
