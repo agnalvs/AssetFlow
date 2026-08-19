@@ -66,6 +66,10 @@ class ApiSettings(AssetFlowModel):
     root_path: str = ""
     cors_origins: tuple[str, ...] = ("*",)
     serve_local_assets: bool = True
+    #: Endpoints de diagnóstico (`/api/dev/...`). Desligados por padrão: eles
+    #: aceitam imagem arbitrária e existem para pesquisa, não para produção
+    #: (plano Pixel §78). Ligue com `ASSETFLOW_DEV_ENDPOINTS=1`.
+    dev_endpoints: bool = False
 
 
 class Settings(AssetFlowModel):
@@ -83,6 +87,9 @@ class Settings(AssetFlowModel):
     engines_config: dict[str, Any] = Field(default_factory=dict)
     capabilities_config: dict[str, Any] = Field(default_factory=dict)
     profiles_config: dict[str, Any] = Field(default_factory=dict)
+    #: `pixel_profiles.yaml` — o contrato Pixel Exact de cada profile
+    #: (resolução lógica, paleta, alpha, canvas, preview). Plano Pixel §64.
+    pixel_profiles_config: dict[str, Any] = Field(default_factory=dict)
 
     # ------------------------------------------------------------------
     @property
@@ -159,6 +166,7 @@ def load_settings(
     engines_config = _read_yaml(configs / "engines.yaml")
     capabilities_config = _read_yaml(configs / "capabilities.yaml")
     profiles_config = _read_yaml(configs / "profiles.yaml")
+    pixel_profiles_config = _read_yaml(configs / "pixel_profiles.yaml")
 
     storage = StorageSettings(
         root=_env("STORAGE_ROOT") or str(data / "assets"),
@@ -177,6 +185,7 @@ def load_settings(
         title=_env("API_TITLE") or "AssetFlow Generation API",
         root_path=_env("API_ROOT_PATH") or "",
         cors_origins=tuple((_env("CORS_ORIGINS") or "*").split(",")),
+        dev_endpoints=_env_bool("DEV_ENDPOINTS", False),
     )
 
     return Settings(
@@ -189,6 +198,7 @@ def load_settings(
         engines_config=engines_config,
         capabilities_config=capabilities_config,
         profiles_config=profiles_config,
+        pixel_profiles_config=pixel_profiles_config,
     )
 
 

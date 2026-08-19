@@ -34,6 +34,7 @@ from .jobs import (
     QueueRouter,
     RetryPolicy,
 )
+from .pixel import PixelProfileRegistry
 from .settings import Settings, engine_runtime_configs, load_settings
 from .storage import (
     AssetStorageService,
@@ -57,6 +58,7 @@ class AppContainer:
     resolver: EngineResolver
     kernel: GenerationKernel
     profiles: ProfileRegistry
+    pixel_profiles: PixelProfileRegistry
     pipelines: PipelineRegistry
     prompt_builders: PromptBuilderRegistry
     storage: AssetStorageService
@@ -126,7 +128,11 @@ def build_container(settings: Settings | None = None) -> AppContainer:
 
     # -- Produto: profiles, pipelines, prompts ---------------------------
     profiles = ProfileRegistry.from_config(settings.profiles_config)
-    pipelines = PipelineRegistry.with_defaults()
+    # Profiles Pixel Exact: o contrato do arquivo final (resolução lógica,
+    # paleta, alpha, canvas, preview). Vive em YAML pelo mesmo motivo dos
+    # outros — trocar a regra não pode exigir alterar código (plano Pixel §64).
+    pixel_profiles = PixelProfileRegistry.from_config(settings.pixel_profiles_config)
+    pipelines = PipelineRegistry.with_defaults(pixel_profiles)
     prompt_builders = PromptBuilderRegistry.with_defaults()
 
     # -- Storage ----------------------------------------------------------
@@ -172,9 +178,10 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     )
 
     _LOG.info(
-        "AssetFlow pronto: %s gaveta(s), %s profile(s), %s pipeline(s)",
+        "AssetFlow pronto: %s gaveta(s), %s profile(s), %s profile(s) Pixel, %s pipeline(s)",
         len(registry),
         len(profiles),
+        len(pixel_profiles),
         len(pipelines.ids()),
     )
 
@@ -184,6 +191,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         resolver=resolver,
         kernel=kernel,
         profiles=profiles,
+        pixel_profiles=pixel_profiles,
         pipelines=pipelines,
         prompt_builders=prompt_builders,
         storage=storage,

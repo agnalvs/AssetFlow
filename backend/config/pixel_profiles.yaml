@@ -1,0 +1,271 @@
+# ---------------------------------------------------------------------------
+# AssetFlow — Pixel Profiles (plano Pixel §64, §65 e §66)
+# ---------------------------------------------------------------------------
+# Um Pixel Profile descreve O QUE o arquivo final precisa ser: resolução
+# lógica real, quantidade de cores, alpha binário, escala do preview e o que
+# a validação técnica vai exigir.
+#
+# Nenhuma linha deste arquivo cita motor, modelo, checkpoint, LoRA ou
+# biblioteca. Trocar o motor que produziu a imagem não muda um caractere aqui
+# (plano Pixel §5 e §105) — o módulo Pixel recebe `(imagem, PixelOutputSpec)`
+# e não faz ideia de quem gerou a imagem.
+#
+# É também o ÚNICO lugar onde 64, 16 e 128 podem aparecer (plano Pixel §64):
+# esses números não existem no código. Os profiles adicionais previstos pelo
+# §66 (sprite sheet, tileset maior, portrait, ícone) entram acrescentando um
+# bloco aqui embaixo — sem tocar em nenhum `.py`.
+#
+# Cada bloco vira um `PixelOutputSpec`; a chave do bloco é o `id` do profile.
+# Campos omitidos assumem o padrão do contrato. Os valores de texto vão entre
+# aspas porque o YAML 1.1 leria `off` como booleano.
+# ---------------------------------------------------------------------------
+
+pixel_profiles:
+
+  # -------------------------------------------------------------------------
+  # O exemplo literal do plano Pixel §65: personagem 64×64 estrito.
+  # -------------------------------------------------------------------------
+  pixel_character_64_strict:
+    version: "1.0.0"
+    mode: "pixel_exact"
+    metadata:
+      display_name: "Personagem Pixel Art 64×64 (estrito)"
+    logical_size:
+      width: 64
+      height: 64
+    alpha:
+      mode: "binary"
+      # 128 é o meio do caminho: abaixo disso o pixel some, acima ele fica
+      # opaco. No Pixel Exact não existe meio-termo (plano Pixel §21).
+      threshold: 128
+    palette:
+      mode: "max_colors"
+      max_colors: 16
+    dithering:
+      # Dithering é escolha artística, não correção técnica (§26). Desligado
+      # por padrão: ele espalha cores intermediárias e come justamente o
+      # orçamento de paleta que o profile acabou de limitar.
+      enabled: false
+    logical_reduction:
+      method: "box_then_quantize"
+    canvas:
+      # Nunca esticar: 1024×1024 vira 64×64 mantendo o aspect (§13).
+      mode: "contain"
+    cleanup:
+      mode: "conservative"
+    preview:
+      enabled: true
+      # 64 × 8 = 512 px. Escala inteira: fracionária deixaria as linhas de
+      # pixel com larguras diferentes e o sprite pareceria defeituoso (§34).
+      scale: 8
+    validation:
+      require_exact_dimensions: true
+      require_binary_alpha: true
+      require_palette_limit: true
+      require_non_empty: true
+      # Só morde em paleta LOCKED/PROJECT; com `max_colors` o check se pula
+      # sozinho, e um check pulado não conta como aprovação.
+      require_locked_palette: true
+      boundary_touch: "warn"
+      quality_threshold: 70
+
+  # -------------------------------------------------------------------------
+  # A mesma regra em 32×32. Menos pixels significam menos espaço para nuance:
+  # 12 cores e não 16, senão o quantizador gasta entradas em variações que
+  # ninguém percebe nesse tamanho.
+  # -------------------------------------------------------------------------
+  pixel_character_32_strict:
+    version: "1.0.0"
+    mode: "pixel_exact"
+    metadata:
+      display_name: "Personagem Pixel Art 32×32 (estrito)"
+    logical_size:
+      width: 32
+      height: 32
+    alpha:
+      mode: "binary"
+      threshold: 128
+    palette:
+      mode: "max_colors"
+      max_colors: 12
+    dithering:
+      enabled: false
+    logical_reduction:
+      method: "box_then_quantize"
+    canvas:
+      mode: "contain"
+    cleanup:
+      mode: "conservative"
+    preview:
+      enabled: true
+      # 32 × 16 = 512 px: o mesmo tamanho de tela do profile de 64×64.
+      scale: 16
+    validation:
+      require_exact_dimensions: true
+      require_binary_alpha: true
+      require_palette_limit: true
+      require_non_empty: true
+      require_locked_palette: true
+      boundary_touch: "warn"
+      quality_threshold: 70
+
+  # -------------------------------------------------------------------------
+  # Props (espada, poção, baú) usam o mesmo canvas do personagem 64×64, mas
+  # ocupam bem menos dele — um item pequeno e centralizado é o resultado
+  # correto, não um defeito.
+  # -------------------------------------------------------------------------
+  pixel_prop_64_strict:
+    version: "1.0.0"
+    mode: "pixel_exact"
+    metadata:
+      display_name: "Prop Pixel Art 64×64 (estrito)"
+    logical_size:
+      width: 64
+      height: 64
+    alpha:
+      mode: "binary"
+      threshold: 128
+    palette:
+      mode: "max_colors"
+      max_colors: 16
+    dithering:
+      enabled: false
+    logical_reduction:
+      method: "box_then_quantize"
+    canvas:
+      mode: "contain"
+    cleanup:
+      mode: "conservative"
+    preview:
+      enabled: true
+      scale: 8
+    validation:
+      require_exact_dimensions: true
+      require_binary_alpha: true
+      require_palette_limit: true
+      require_non_empty: true
+      require_locked_palette: true
+      boundary_touch: "warn"
+      # Ocupação mínima menor que a do personagem (§53): com 0.05 uma moeda
+      # ou um anel geraria aviso de "quase vazio" em toda geração.
+      min_occupancy: 0.03
+      quality_threshold: 70
+
+  # -------------------------------------------------------------------------
+  # Tile de terreno 16×16. É o profile que mais foge do padrão, e cada desvio
+  # tem o motivo declarado abaixo.
+  # -------------------------------------------------------------------------
+  pixel_tileset_16:
+    version: "1.0.0"
+    mode: "pixel_exact"
+    metadata:
+      display_name: "Tile de terreno 16×16"
+    logical_size:
+      width: 16
+      height: 16
+    alpha:
+      mode: "binary"
+      threshold: 128
+    palette:
+      # 16×16 são 256 pixels no total: acima de 8 cores vira ruído, não
+      # detalhe.
+      mode: "max_colors"
+      max_colors: 8
+    dithering:
+      enabled: false
+    logical_reduction:
+      method: "box_then_quantize"
+    canvas:
+      # `stretch` deforma de propósito: um tile precisa preencher exatamente
+      # a célula da grade. A sobra transparente que `contain` produziria
+      # quebraria o encaixe com os tiles vizinhos.
+      mode: "stretch"
+    cleanup:
+      # Em 16×16 um único pixel já é uma feição inteira da textura; a limpeza
+      # conservadora apagaria detalhe legítimo (plano Pixel §106).
+      mode: "off"
+    preview:
+      enabled: true
+      # 16 × 16 = 256 px.
+      scale: 16
+    validation:
+      require_exact_dimensions: true
+      require_binary_alpha: true
+      require_palette_limit: true
+      require_non_empty: true
+      require_locked_palette: true
+      # Um tile PRECISA sangrar até a borda: é assim que ele emenda com o
+      # tile do lado. Encostar na borda aqui não é sintoma de nada.
+      boundary_touch: "ignore"
+      # Pelo mesmo motivo, um tile que preenche 100% do canvas está certo —
+      # o teto padrão de 0.95 daria aviso em toda geração.
+      min_occupancy: 0.50
+      max_occupancy: 1.0
+      quality_threshold: 70
+
+  # -------------------------------------------------------------------------
+  # Exemplos desligados — copie o bloco, descomente e ajuste.
+  # -------------------------------------------------------------------------
+  #
+  # Paleta LOCKED (§11): só as cores listadas sobrevivem ao quantizador. É o
+  # modo para arte nova que precisa casar com um asset que já existe.
+  #
+  # pixel_character_64_locked:
+  #   version: "1.0.0"
+  #   mode: "pixel_exact"
+  #   metadata:
+  #     display_name: "Personagem 64×64 com paleta travada"
+  #   logical_size:
+  #     width: 64
+  #     height: 64
+  #   palette:
+  #     mode: "locked"
+  #     colors: ["#12151c", "#3a5a40", "#a3b18a", "#dad7cd"]
+  #   preview:
+  #     scale: 8
+  #   validation:
+  #     require_locked_palette: true
+  #     quality_threshold: 70
+  #
+  # Paleta PROJECT (§11): o profile cita a paleta pelo nome e o
+  # PixelProfileRegistry a resolve para LOCKED ainda no boot, usando a tabela
+  # `palettes:` no fim do arquivo. É assim que personagem, inimigo e tile do
+  # mesmo mundo ficam coerentes sem repetir os mesmos hex em quatro blocos.
+  #
+  # pixel_prop_64_forest:
+  #   version: "1.0.0"
+  #   mode: "pixel_exact"
+  #   metadata:
+  #     display_name: "Prop 64×64 — paleta do mundo Floresta"
+  #   logical_size:
+  #     width: 64
+  #     height: 64
+  #   palette:
+  #     mode: "project_palette"
+  #     palette_id: "forest_world_v1"
+  #   preview:
+  #     scale: 8
+  #   validation:
+  #     require_locked_palette: true
+  #     min_occupancy: 0.03
+  #     quality_threshold: 70
+
+
+# ---------------------------------------------------------------------------
+# Paletas do projeto (plano Pixel §11, modo PROJECT)
+# ---------------------------------------------------------------------------
+# Tabela nomeada de cores, compartilhada por vários profiles. Ela só tem
+# efeito quando algum profile pede `mode: "project_palette"` com o
+# `palette_id` correspondente. Um `palette_id` inexistente não derruba o
+# boot: vira aviso no log e reprovação no check PX-PALETTE-001, onde a falha
+# aparece no relatório do asset em vez de sumir em um erro de configuração.
+# ---------------------------------------------------------------------------
+
+palettes:
+  forest_world_v1:
+    - "#12151c"   # contorno
+    - "#2f4a35"   # sombra da folhagem
+    - "#4f7942"   # folhagem
+    - "#8bab5a"   # luz na folhagem
+    - "#6b4a2f"   # tronco e madeira
+    - "#c9b27c"   # terra batida

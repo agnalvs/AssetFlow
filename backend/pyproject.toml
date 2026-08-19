@@ -14,6 +14,10 @@ dependencies = [
     "uvicorn>=0.30",
     "PyYAML>=6.0",
     "Pillow>=10.3",
+    # Representação RGBA, máscaras, contagem de cores e análise de vizinhança
+    # do módulo Pixel Exact (plano Pixel §108). Não é biblioteca de IA: é
+    # álgebra sobre arrays, e por isso pode viver fora das gavetas.
+    "numpy>=1.26",
 ]
 
 [project.optional-dependencies]

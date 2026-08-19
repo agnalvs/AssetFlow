@@ -1,0 +1,58 @@
+"""Contratos do módulo Pixel — os objetos que atravessam todas as camadas."""
+
+from .output_spec import (
+    AlphaSpec,
+    AttemptsSpec,
+    BackgroundSpec,
+    CanvasSpec,
+    CleanupSpec,
+    DitheringSpec,
+    HexColor,
+    LogicalReductionSpec,
+    LogicalSize,
+    PaletteSpec,
+    PixelOutputSpec,
+    PreviewSpec,
+    ValidationSpec,
+    normalize_hex,
+)
+from .processing_report import ProcessingReport, ProcessingStepReport
+from .validation_report import (
+    AcceptanceDecision,
+    CheckStatus,
+    HardCheckResult,
+    PixelAssetStatus,
+    PixelValidationReport,
+    QualityMetrics,
+    QualityReport,
+    QualityWarning,
+    TechnicalSummary,
+)
+
+__all__ = [
+    "AcceptanceDecision",
+    "AlphaSpec",
+    "AttemptsSpec",
+    "BackgroundSpec",
+    "CanvasSpec",
+    "CheckStatus",
+    "CleanupSpec",
+    "DitheringSpec",
+    "HardCheckResult",
+    "HexColor",
+    "LogicalReductionSpec",
+    "LogicalSize",
+    "PaletteSpec",
+    "PixelAssetStatus",
+    "PixelOutputSpec",
+    "PixelValidationReport",
+    "PreviewSpec",
+    "ProcessingReport",
+    "ProcessingStepReport",
+    "QualityMetrics",
+    "QualityReport",
+    "QualityWarning",
+    "TechnicalSummary",
+    "ValidationSpec",
+    "normalize_hex",
+]

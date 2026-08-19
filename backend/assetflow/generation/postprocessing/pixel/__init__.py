@@ -1,16 +1,15 @@
-"""Pós-processamento de Pixel Art — o conhecimento proprietário do AssetFlow."""
+"""Encaixe do Pixel Exact na cadeia de pós-processamento.
 
-from .alpha import AlphaCleanup
-from .palette import PaletteQuantizer
+A tecnologia mora em ``assetflow.pixel``; este pacote só a conecta ao
+pipeline de geração e traduz os relatórios para o vocabulário do asset.
+"""
+
+from .exact import PixelExactProcessor
 from .processor import build_pixel_chain
-from .resize import LogicalResize
-from .validators import ColorCountValidator, GridValidator
+from .spec import spec_from_profile
 
 __all__ = [
-    "AlphaCleanup",
-    "ColorCountValidator",
-    "GridValidator",
-    "LogicalResize",
-    "PaletteQuantizer",
+    "PixelExactProcessor",
     "build_pixel_chain",
+    "spec_from_profile",
 ]

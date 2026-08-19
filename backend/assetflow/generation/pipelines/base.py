@@ -209,7 +209,13 @@ class ImageAssetPipeline(AssetPipeline):
 
         # --- Pós-processamento + storage --------------------------------
         chain = self.build_postprocessing_chain(context)
-        post_context = PostProcessContext(profile=profile, logger=context.logger)
+        post_context = PostProcessContext(
+            profile=profile,
+            logger=context.logger,
+            # Ajustes do próprio pedido (resolução lógica, paleta) precisam
+            # chegar ao pós-processamento; o profile sozinho não os conhece.
+            extra={"output_overrides": request.output},
+        )
 
         postprocess_watch = Stopwatch()
         buffers: list[tuple[int, ImageBuffer, bytes]] = []
@@ -242,6 +248,19 @@ class ImageAssetPipeline(AssetPipeline):
                 thumbnail_scale=profile.postprocessing.thumbnail_scale,
                 image=buffer.image,
             )
+            # `logical.png` já foi persistido acima como a variação em si; os
+            # demais arquivos do plano Pixel §70 (raw, preview, palette,
+            # processing, validation) viram arquivos irmãos.
+            artifacts = await context.storage.persist_artifacts(
+                project_id=request.project_id,
+                job_id=context.job_id,
+                index=index,
+                artifacts={
+                    name: payload
+                    for name, payload in buffer.artifacts.items()
+                    if name != "logical.png"
+                },
+            )
             variants.append(
                 AssetVariant(
                     index=index,
@@ -255,6 +274,11 @@ class ImageAssetPipeline(AssetPipeline):
                     color_count=buffer.metadata.get("color_count"),
                     palette=buffer.palette,
                     validation=ValidationReport(issues=tuple(buffer.issues)),
+                    pixel_exact=buffer.metadata.get("pixel_exact"),
+                    quality_score=buffer.metadata.get("quality_score"),
+                    status=buffer.metadata.get("status"),
+                    preview_uri=artifacts.get("preview.png"),
+                    artifacts=artifacts,
                     metadata={
                         **buffer.metadata,
                         "size_bytes": stored.size_bytes,
@@ -315,7 +339,10 @@ def _process_image(
     data: bytes, chain: PostProcessingChain, context: PostProcessContext
 ) -> ImageBuffer:
     """Executa a cadeia em thread separada (trabalho de CPU)."""
-    buffer = ImageBuffer(image=decode_image(data))
+    # `source_data` preserva a saída crua do motor: é o `raw.png` que permite
+    # comparar depois o que o motor entregou com o que o AssetFlow produziu
+    # (plano Pixel §71 e §94).
+    buffer = ImageBuffer(image=decode_image(data), source_data=data)
     return chain.run(buffer, context)
 
 
@@ -332,6 +359,20 @@ def _build_record(
     # O prompt registrado é o que foi *efetivamente* enviado ao motor: se a
     # gaveta tiver um adapter próprio, é o texto no dialeto dela.
     effective = (result.metadata.get("engine_metadata") or {}).get("effective_prompt") or {}
+
+    # Observabilidade do plano Pixel §93: tempos, dimensões, contagem de cores
+    # antes/depois, órfãos, microclusters e nota entram no histórico. É com
+    # isso que se compara motor A × motor B pela quantidade de correção que a
+    # saída exigiu, e não pela imagem bonita (plano Pixel §94).
+    metadata = dict(result.metadata)
+    pixel_metrics = {
+        str(variant.index): variant.metadata["pixel_metrics"]
+        for variant in asset.variants
+        if variant.metadata.get("pixel_metrics")
+    }
+    if pixel_metrics:
+        metadata["pixel"] = pixel_metrics
+
     return GenerationRecord(
         job_id=context.job_id,
         project_id=context.request.project_id,
@@ -367,11 +408,15 @@ def _build_record(
                 seed=variant.seed,
                 color_count=variant.color_count,
                 palette=variant.palette,
+                pixel_exact=variant.pixel_exact,
+                quality_score=variant.quality_score,
+                status=variant.status,
+                preview_uri=variant.preview_uri,
             )
             for variant in asset.variants
         ),
         timings=timings,
         warnings=result.warnings,
-        metadata=result.metadata,
+        metadata=metadata,
         **GenerationRecord.engine_fields(result.engine),
     )

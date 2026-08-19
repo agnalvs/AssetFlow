@@ -19,7 +19,7 @@ from ..bootstrap import AppContainer, build_container
 from ..generation.kernel.exceptions import ErrorCode, GenerationError
 from ..settings import Settings
 from ..version import __version__
-from .routers import assets, capabilities, engines, jobs
+from .routers import assets, capabilities, dev_pixel, engines, jobs
 from .schemas import ErrorResponse, HealthResponse
 
 __all__ = ["create_app"]
@@ -133,4 +133,14 @@ def create_app(
     app.include_router(capabilities.router)
     app.include_router(jobs.router)
     app.include_router(assets.router)
+
+    # Diagnóstico do Pixel Exact (plano Pixel §78). Quem decide se ele
+    # responde é o próprio endpoint, lendo `api.dev_endpoints` do container em
+    # tempo de requisição — aqui a configuração pode nem estar carregada
+    # ainda. Desligado, ele devolve 404 e some da documentação; o fluxo normal
+    # de geração continua sendo `POST /api/generation/jobs` (plano Pixel §77).
+    app.include_router(
+        dev_pixel.router,
+        include_in_schema=bool(api_settings and api_settings.dev_endpoints),
+    )
     return app

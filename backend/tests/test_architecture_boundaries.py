@@ -13,6 +13,9 @@ Regras verificadas:
    estante passaria a depender das gavetas).
 5. Kernel e schemas não dependem de camadas superiores (jobs, api, storage).
 6. Nenhum nome de pipeline de fornecedor aparece fora das gavetas.
+7. ``assetflow/pixel/`` é uma ilha: não conhece camada de cima nem biblioteca
+   de IA, e dentro de ``generation/`` só a ponte Pixel o importa
+   (plano Pixel §105).
 """
 
 from __future__ import annotations
@@ -213,3 +216,212 @@ def test_every_engine_has_a_manifest():
         assert (directory / "manifest.json").exists(), (
             f"a gaveta '{directory.name}' não tem manifest.json e nunca será descoberta"
         )
+
+
+# ---------------------------------------------------------------------------
+# 7. O módulo Pixel é uma ilha (plano Pixel §105)
+# ---------------------------------------------------------------------------
+# ``assetflow/pixel/`` é a tecnologia Pixel Exact: entra ``(imagem,
+# PixelOutputSpec)``, sai ``(imagem, relatórios)``. Ele não sabe qual motor
+# produziu a imagem, nem que existem job, projeto ou storage — é por isso que
+# ele pertence à **estante** do AssetFlow e nunca a uma gaveta.
+#
+# Essa promessa some com um único ``import`` mal colocado, e some em silêncio:
+# o sistema continua funcionando, só que o módulo Pixel deixa de ser reusável
+# fora do pipeline de geração. Os testes desta seção medem as duas direções da
+# fronteira — o que o Pixel enxerga, e quem enxerga o Pixel.
+
+PIXEL_ROOT = PACKAGE_ROOT / "pixel"
+GENERATION_ROOT = PACKAGE_ROOT / "generation"
+
+PIXEL_FILES = _python_files(PIXEL_ROOT)
+GENERATION_FILES = _python_files(GENERATION_ROOT)
+
+#: Camadas que o módulo Pixel não pode enxergar. ``generation.schemas`` fica
+#: de fora de propósito: é a camada neutra de contratos (``AssetFlowModel``,
+#: ``Stopwatch``), sem motor e sem produto dentro.
+LAYERS_FORBIDDEN_TO_PIXEL = (
+    "assetflow.generation.engines",
+    "assetflow.generation.pipelines",
+    "assetflow.jobs",
+    "assetflow.api",
+    "assetflow.storage",
+)
+
+#: A ponte: os únicos pacotes de ``generation/`` que podem importar
+#: ``assetflow.pixel``. Um traduz ``GenerationProfile`` -> ``PixelOutputSpec``
+#: e roda o processador; o outro é o pipeline que os usa.
+PIXEL_BRIDGE_PACKAGES = (
+    GENERATION_ROOT / "postprocessing" / "pixel",
+    GENERATION_ROOT / "pipelines" / "pixel",
+)
+
+#: Onde o nome ``assetflow.pixel`` não pode aparecer de jeito nenhum: o núcleo
+#: (kernel, schemas, prompting) e as gavetas.
+PIXEL_FREE_PACKAGES = (
+    GENERATION_ROOT / "kernel",
+    GENERATION_ROOT / "schemas",
+    GENERATION_ROOT / "prompting",
+    ENGINES_ROOT,
+)
+
+PIXEL_FREE_FILES = [
+    path for package in PIXEL_FREE_PACKAGES for path in _python_files(package)
+]
+
+
+def _module_name(path: Path) -> str:
+    """``assetflow/pixel/service.py`` -> ``assetflow.pixel.service``."""
+    parts = path.relative_to(PACKAGE_ROOT.parent).with_suffix("").parts
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join(parts)
+
+
+def _package_name(path: Path) -> str:
+    """O pacote a partir do qual os imports relativos do arquivo resolvem."""
+    module = _module_name(path)
+    return module if path.name == "__init__.py" else module.rpartition(".")[0]
+
+
+def _resolved_imports(path: Path) -> list[tuple[str, int]]:
+    """Todos os imports do arquivo **em forma absoluta**, com a linha.
+
+    Resolver o relativo é o que dá valor a esta seção: ``from .pixel import``
+    dentro de ``generation/pipelines/`` é o subpacote de pipelines, enquanto
+    ``from ....pixel import`` é o módulo Pixel. Comparar texto não distingue
+    os dois — só a contagem de níveis distingue.
+
+    Os nomes importados entram como módulos candidatos (``from ... import
+    pixel`` vira ``assetflow.pixel``); um nome que na verdade é uma classe
+    apenas gera um candidato que ninguém casa.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    package = _package_name(path).split(".")
+    found: list[tuple[str, int]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.extend((alias.name, node.lineno) for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                # `level=1` é o próprio pacote; cada nível a mais sobe um.
+                kept = max(0, len(package) - (node.level - 1))
+                prefix = [*package[:kept], *(node.module.split(".") if node.module else [])]
+            else:
+                prefix = node.module.split(".") if node.module else []
+            if not prefix:
+                continue
+            base = ".".join(prefix)
+            found.append((base, node.lineno))
+            found.extend((f"{base}.{alias.name}", node.lineno) for alias in node.names)
+    return found
+
+
+def _imports_any(module: str, prefixes: tuple[str, ...]) -> bool:
+    return any(module == prefix or module.startswith(f"{prefix}.") for prefix in prefixes)
+
+
+def _inside(path: Path, package: Path) -> bool:
+    return package in path.parents
+
+
+def test_there_are_pixel_files_to_inspect():
+    """Guarda da própria seção: parametrização vazia passa sem provar nada."""
+    assert len(PIXEL_FILES) > 20
+    assert len(PIXEL_FREE_FILES) > 10
+
+
+@pytest.mark.parametrize(
+    "path", PIXEL_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT))
+)
+def test_pixel_module_does_not_import_upper_layers(path: Path):
+    """Plano Pixel §105: o Pixel é estante, e estante não olha para cima.
+
+    Ele recebe imagem e contrato, devolve imagem e relatório. Job, API,
+    storage, gaveta e pipeline são a camada que **chama** o Pixel; se ele
+    passasse a chamá-los de volta, deixaria de ser utilizável fora do pipeline
+    de geração — e o pacote inteiro, que hoje é uma tecnologia isolada,
+    viraria mais um pedaço acoplado ao produto.
+    """
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, LAYERS_FORBIDDEN_TO_PIXEL)
+    ]
+    assert not violations, (
+        "assetflow/pixel/ não pode depender da camada de cima:\n" + "\n".join(violations)
+    )
+
+
+@pytest.mark.parametrize(
+    "path", PIXEL_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT))
+)
+def test_pixel_module_has_no_ai_library(path: Path):
+    """Plano Pixel §5 e §105: o Pixel não faz ideia de quem gerou a imagem.
+
+    A regra §74 já proíbe biblioteca de IA fora das gavetas, mas aqui ela vale
+    por um motivo próprio: o Pixel Exact precisa continuar medindo do mesmo
+    jeito a saída do SDXL de hoje e a de um motor que ainda não existe. Basta
+    um ``import torch`` para que trocar de motor passe a exigir mexer na
+    tecnologia Pixel.
+    """
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if module.split(".")[0] in AI_LIBRARIES
+    ]
+    assert not violations, (
+        "biblioteca de IA dentro do módulo Pixel:\n" + "\n".join(violations)
+    )
+
+
+def test_only_the_pixel_bridge_imports_the_pixel_module():
+    """A outra direção: dentro de ``generation/``, só a ponte conhece o Pixel.
+
+    O acesso ao módulo Pixel é concentrado em dois pacotes — o
+    pós-processamento (``generation/postprocessing/pixel/``) e o pipeline
+    (``generation/pipelines/pixel/``). Espalhar esse import pelo resto de
+    ``generation/`` tornaria a tecnologia Pixel uma dependência difusa do
+    motor de geração, e não uma peça plugada em um ponto conhecido
+    (plano Pixel §105).
+    """
+    importers = {
+        path
+        for path in GENERATION_FILES
+        for module, _line in _resolved_imports(path)
+        if _imports_any(module, ("assetflow.pixel",))
+    }
+    assert importers, (
+        "ninguém em generation/ importa assetflow.pixel — a detecção quebrou "
+        "(ou a ponte sumiu), e o teste passaria vazio"
+    )
+
+    outsiders = sorted(
+        str(path.relative_to(PACKAGE_ROOT))
+        for path in importers
+        if not any(_inside(path, package) for package in PIXEL_BRIDGE_PACKAGES)
+    )
+    assert not outsiders, (
+        "assetflow.pixel importado fora da ponte Pixel:\n" + "\n".join(outsiders)
+    )
+
+
+@pytest.mark.parametrize(
+    "path", PIXEL_FREE_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT))
+)
+def test_kernel_schemas_prompting_and_engines_ignore_the_pixel_module(path: Path):
+    """O núcleo e as gavetas não sabem que Pixel Exact existe (plano Pixel §105).
+
+    O Kernel resolve capacidade e chama motor; a gaveta gera imagem. Nenhum
+    dos dois decide o que é Pixel Art — quem sabe disso é o produto, acima
+    deles. Um ``import assetflow.pixel`` no Kernel significaria um kernel com
+    opinião sobre modo de arte; na gaveta, significaria uma gaveta obrigada a
+    entregar Pixel Exact por conta própria, exatamente a divisão de trabalho
+    que o plano §18 desfaz.
+    """
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, ("assetflow.pixel",))
+    ]
+    assert not violations, "\n".join(violations)

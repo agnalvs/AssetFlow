@@ -26,6 +26,9 @@ __all__ = ["StoredVariant", "AssetStorageService"]
 
 _LOG = logging.getLogger("assetflow.storage")
 
+#: Content-type por extensão dos arquivos auxiliares.
+_CONTENT_TYPES = {"png": "image/png", "json": "application/json"}
+
 
 @dataclass(frozen=True, slots=True)
 class StoredVariant:
@@ -99,6 +102,45 @@ class AssetStorageService:
             size_bytes=stored.size,
             key=key,
         )
+
+    async def persist_artifacts(
+        self,
+        *,
+        project_id: str,
+        job_id: str,
+        index: int,
+        artifacts: dict[str, bytes],
+    ) -> dict[str, str]:
+        """Grava os arquivos irmãos de uma variação (plano Pixel §70).
+
+        Um asset de Pixel Art não é só um PNG: ele vem acompanhado de
+        ``raw.png`` (a saída crua do motor), ``preview.png`` (ampliação só
+        para visualizar), ``palette.json``, ``processing.json`` e
+        ``validation.json``. Sem esses arquivos não há como depurar nem
+        comparar motores depois (plano Pixel §71 a §75).
+
+        Devolve ``{"preview.png": "assetflow-local://...", ...}``.
+        """
+        stored: dict[str, str] = {}
+        for name in sorted(artifacts):
+            data = artifacts[name]
+            if not data:
+                continue
+            key = self.artifact_key(project_id, job_id, index, name)
+            content_type = _CONTENT_TYPES.get(name.rsplit(".", 1)[-1].lower(), "application/octet-stream")
+            try:
+                result = await self._backend.put(key, data, content_type=content_type)
+            except Exception as exc:  # pragma: no cover - arquivo auxiliar nunca derruba job
+                _LOG.warning("falha ao gravar o artefato '%s' do job %s: %s", name, job_id, exc)
+                continue
+            stored[name] = result.uri
+        return stored
+
+    @staticmethod
+    def artifact_key(project_id: str, job_id: str, index: int, name: str) -> str:
+        """``projects/p/jobs/j/000_preview.png`` — irmão determinístico da variação."""
+        safe = name.replace("/", "_").replace("\\", "_")
+        return f"projects/{project_id}/jobs/{job_id}/{index:03d}_{safe}"
 
     async def read(self, uri: str) -> bytes:
         """Lê os bytes de uma URI produzida por este serviço."""

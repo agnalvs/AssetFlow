@@ -150,16 +150,23 @@ Nearest-neighbor é usado onde ele é obrigatório: ao **ampliar** (thumbnails).
 
 ### 3.4 O pós-processamento é o produto
 
-`generation/postprocessing/pixel/` concentra o conhecimento do AssetFlow sobre
-Pixel Art: resize lógico, paleta, limpeza de alpha, validação de contagem de
-cores e de grid.
+O conhecimento do AssetFlow sobre Pixel Art mora em `assetflow/pixel/`:
+enquadramento, redução para a resolução lógica, paleta, alpha binário, limpeza
+conservadora, validação técnica e política de aceitação.
+`generation/postprocessing/pixel/` é só a ponte que liga esse módulo à cadeia
+de pós-processamento — veja [PIXEL_EXACT.md](PIXEL_EXACT.md).
 
 Isso é deliberado (§24 e §58): mesmo que um modelo produza Pixel Art
 convincente sozinho, o comportamento do produto **não pode** depender do
 checkpoint. Trocar o gerador não pode custar a propriedade intelectual.
 
-Validação anota, não reprova: um asset com 27 cores em um profile de 16 chega
-ao usuário com um aviso registrado, e a decisão é dele.
+Medir e reprovar são coisas separadas. Os **hard checks** são objetivos: 27
+cores em um profile de 16 reprova `PX-COLOR-001`, o asset sai com
+`pixel_exact: false` e status `rejected`, e o relatório diz *esperado <=16,
+obtido 23*. Os **indicadores de qualidade** (pixels órfãos, microclusters,
+ocupação) nunca reprovam sozinhos: viram aviso e nota. O job termina nos dois
+casos — quem decide o que fazer com um asset reprovado é a camada de cima, com
+o diagnóstico em mãos.
 
 ### 3.5 Prompt fora do motor, dialeto dentro
 
@@ -224,8 +231,13 @@ GenerationWorker.run_once()
              → EngineHandle.acquire()            lazy load, BUSY
              → engine.generate()                 ← única chamada ao motor
              → normalização + timings + fallback
-        → PostProcessingChain                    64×64, paleta, alpha, validação
-        → AssetStorageService                    PNG + thumbnail + asset.json
+        → PostProcessingChain
+             → PixelExactProcessor               ponte para `assetflow/pixel/`
+                  → PixelPostProcessor           64×64, paleta, alpha binário
+                  → PixelValidator               hard checks + qualidade
+                  → PixelAcceptancePolicy        approved / warning / rejected
+        → AssetStorageService                    logical.png + preview.png +
+                                                 palette/processing/validation.json
         → GenerationRecord                       histórico (§41/§42)
    → JobManager.complete()                       COMPLETED
 
@@ -242,6 +254,12 @@ Cada geração registra `queue_ms`, `model_load_ms`, `inference_ms`,
 revisão, seed, prompts e avisos (§48). É esse registro que, adiante, alimenta o
 Engine Benchmark (§49) e permite responder com dados "qual motor é melhor para
 Pixel Art?".
+
+No modo Pixel Art o registro vai além do tempo: cada variação guarda contagem
+de cores antes e depois, órfãos, microclusters, ocupação, nota de qualidade e
+`pixel_exact`. A pergunta que esses números respondem não é "qual motor gera a
+imagem mais bonita", e sim **qual motor exige menos correção para virar um
+asset tecnicamente válido**. Detalhes em [PIXEL_EXACT.md](PIXEL_EXACT.md).
 
 ---
 
@@ -272,6 +290,7 @@ Pixel Art?".
 | §48 Observabilidade | `schemas/common.py` (`StageTimings`), `storage/records.py` |
 | §51–55 API | `assetflow/api/` |
 | §56–59 Pipeline Pixel e pós-processamento | `pipelines/pixel/`, `postprocessing/pixel/` |
+| Plano Pixel §1–110 Pixel Exact | `assetflow/pixel/`, `config/pixel_profiles.yaml` — ver [PIXEL_EXACT.md](PIXEL_EXACT.md) |
 | §60–61 Studio 2D | `pipelines/studio/` |
 | §63–65 Plugins e configuração | `kernel/discovery.py`, `config/`, `settings.py` |
 | §66–68 Testes de contrato e substituição | `tests/contract/`, `tests/test_engine_swap.py` |

@@ -88,6 +88,20 @@ export interface AssetVariant {
   height: number;
   logical_width: number | null;
   logical_height: number | null;
+  /**
+   * Selo técnico do Pixel Exact (plano Pixel §79). `null` em arte 2D
+   * convencional, onde a pergunta não faz sentido.
+   *
+   * Repare que a interface continua sem saber o que é um motor: ela recebe um
+   * veredito já calculado pelo backend e apenas o mostra.
+   */
+  pixel_exact: boolean | null;
+  quality_score: number | null;
+  status: string | null;
+  color_count: number | null;
+  palette: string[];
+  /** Ampliação inteira só para visualizar — nunca é o asset (plano Pixel §73). */
+  preview_url: string | null;
 }
 
 export interface Asset {

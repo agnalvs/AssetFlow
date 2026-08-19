@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Any, Iterable
 
 from ..kernel.exceptions import PipelineNotFound
 from .base import AssetPipeline
@@ -19,14 +19,22 @@ class PipelineRegistry:
         }
 
     @classmethod
-    def with_defaults(cls) -> "PipelineRegistry":
+    def with_defaults(cls, pixel_profiles: Any = None) -> "PipelineRegistry":
+        """Registro padrão do produto.
+
+        Args:
+            pixel_profiles: :class:`~assetflow.pixel.PixelProfileRegistry` com
+                os profiles Pixel Exact. Fica opcional de propósito — sem ele
+                o pipeline deriva o spec do próprio Generation Profile, e
+                todo teste que monta um registro à mão continua valendo.
+        """
         from .pixel import PixelCharacterPipeline
         from .raw import RawImagePipeline
         from .studio import StudioCharacterPipeline
 
         return cls(
             (
-                PixelCharacterPipeline(),
+                PixelCharacterPipeline(pixel_profiles),
                 StudioCharacterPipeline(),
                 RawImagePipeline(),
             )

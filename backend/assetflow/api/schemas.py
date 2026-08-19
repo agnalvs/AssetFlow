@@ -68,6 +68,18 @@ class AssetVariantView(AssetFlowModel):
     palette: tuple[str, ...] = ()
     validation: ValidationReport = Field(default_factory=ValidationReport)
 
+    # -- Selo Pixel Exact (plano Pixel §79) ------------------------------
+    # É com estes campos que a interface consegue afirmar "64 × 64, 16 cores,
+    # PIXEL EXACT ✓" em vez de perguntar se a imagem parece Pixel Art.
+    # `None` em arte 2D convencional, onde a pergunta não faz sentido.
+    pixel_exact: bool | None = None
+    quality_score: int | None = None
+    status: str | None = None
+    preview_uri: str | None = None
+    preview_url: str | None = None
+    #: Arquivos auxiliares já resolvidos para URL (plano Pixel §70).
+    artifacts: dict[str, str] = Field(default_factory=dict)
+
 
 class AssetView(AssetFlowModel):
     """Asset como o cliente enxerga."""
@@ -118,6 +130,17 @@ class AssetView(AssetFlowModel):
                     color_count=variant.color_count,
                     palette=variant.palette,
                     validation=variant.validation,
+                    pixel_exact=variant.pixel_exact,
+                    quality_score=variant.quality_score,
+                    status=variant.status,
+                    preview_uri=variant.preview_uri,
+                    preview_url=(
+                        resolve(variant.preview_uri) if variant.preview_uri else None
+                    ),
+                    artifacts={
+                        name: resolve(uri) or uri
+                        for name, uri in sorted(variant.artifacts.items())
+                    },
                 )
                 for variant in asset.variants
             ),

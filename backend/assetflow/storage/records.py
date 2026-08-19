@@ -40,6 +40,15 @@ class GenerationRecordOutput(AssetFlowModel):
     color_count: int | None = None
     palette: tuple[str, ...] = ()
 
+    # -- Benchmark de Pixel Art (plano Pixel §93 e §94) ------------------
+    # Guardados no histórico porque é com eles que se compara motor A × motor
+    # B: não pela imagem bonita, mas pela quantidade de correção que a saída
+    # exigiu para virar um asset tecnicamente válido.
+    pixel_exact: bool | None = None
+    quality_score: int | None = None
+    status: str | None = None
+    preview_uri: str | None = None
+
 
 class GenerationRecord(AssetFlowModel):
     """Linha do histórico de gerações."""

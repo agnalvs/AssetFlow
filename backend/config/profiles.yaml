@@ -10,6 +10,12 @@ profiles:
     display_name: "Personagem Pixel Art 64×64"
     capability: "text_to_image.pixel"
     pipeline: "pixel.character"
+    # Contrato Pixel Exact deste profile (config/pixel_profiles.yaml).
+    # Ele é a fonte única da verdade técnica do arquivo final: resolução
+    # lógica real, paleta, alpha binário, canvas, preview e quais requisitos
+    # são obrigatórios. Os campos abaixo continuam descrevendo o produto e
+    # alimentando a API; um teste garante que os dois não divergem.
+    pixel_profile: "pixel_character_64_strict"
     asset:
       type: "character"
       mode: "pixel"
@@ -41,6 +47,7 @@ profiles:
     display_name: "Personagem Pixel Art 32×32"
     capability: "text_to_image.pixel"
     pipeline: "pixel.character"
+    pixel_profile: "pixel_character_32_strict"
     asset:
       type: "character"
       mode: "pixel"
@@ -66,6 +73,7 @@ profiles:
     display_name: "Prop Pixel Art 64×64"
     capability: "text_to_image.pixel"
     pipeline: "pixel.character"
+    pixel_profile: "pixel_prop_64_strict"
     asset:
       type: "prop"
       mode: "pixel"

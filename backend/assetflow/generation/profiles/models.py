@@ -88,6 +88,14 @@ class GenerationProfile(AssetFlowModel):
     #: Prompt builder a usar; `None` deixa o pipeline escolher o seu padrão.
     prompt_builder: str | None = None
 
+    #: Profile Pixel Exact de `config/pixel_profiles.yaml` (plano Pixel §64).
+    #:
+    #: Quando presente, ele é a fonte única da verdade técnica do arquivo
+    #: final — resolução lógica real, paleta, alpha binário, canvas, preview e
+    #: quais requisitos são obrigatórios. Sem ele, o pós-processamento deriva
+    #: um spec dos campos abaixo, e profiles antigos continuam funcionando.
+    pixel_profile: str | None = None
+
     #: Opções por motor associadas ao profile (plano §20). Continuam sendo
     #: ignoradas por qualquer motor que não se reconheça na chave.
     engine_options: dict[str, dict[str, Any]] = Field(default_factory=dict)

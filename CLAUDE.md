@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (~355 passed, 10 skipped)
+pytest -q                                # suíte completa (~795 passed, 10 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -100,12 +100,28 @@ Peças-chave:
 - **`settings.py`** — precedência **env (`ASSETFLOW_*`) > YAML > padrão**.
   Nada de motor/modelo/device/precisão fica hardcoded.
 
+### Pixel Exact (`backend/assetflow/pixel/`)
+
+No modo Pixel Art, "parecer Pixel Art" não basta: o asset só é entregue como
+Pixel Exact com resolução lógica real, alpha binário, paleta dentro do limite e
+validação técnica aprovada. Essa tecnologia mora em `assetflow/pixel/` — na
+estante, **fora das gavetas**: ela recebe `(imagem, PixelOutputSpec)` e não
+conhece motor, job nem storage. O encaixe com a cadeia de pós-processamento é
+o `PixelExactProcessor` (`generation/postprocessing/pixel/exact.py`), a única
+peça que conhece as duas pontas. Detalhes em
+[backend/docs/PIXEL_EXACT.md](backend/docs/PIXEL_EXACT.md).
+
 ### Configuração (`backend/config/`)
 
 - `engines.yaml` — quais gavetas existem, modelo, device, precisão, offload.
   Um profile de hardware ativo + alternativas comentadas.
 - `profiles.yaml` — Generation Profiles: descrevem **o que** produzir
   (resolução lógica, paleta, variações), nunca **com qual motor**.
+- `pixel_profiles.yaml` — contratos Pixel Exact (`PixelOutputSpec`): fonte dos
+  valores concretos dos profiles oficiais. Um `pixel_profile` do
+  `profiles.yaml` aponta para um bloco daqui. Defaults conservadores ainda
+  existem nos modelos para compatibilidade com profiles antigos sem essa
+  referência.
 - `capabilities.yaml` — catálogo descritivo, não restritivo.
 
 ### Fronteiras verificadas por teste
@@ -149,3 +165,9 @@ os imports são bare specifiers que só o Vite resolve.
   e o cache do modelo (vários GB) moram lá. Nunca faça `rmtree` na pasta toda.
 - **Diferenças de hardware vão em env var, não no YAML.** `engines.yaml` é
   versionado e compartilhado; editar direto gera conflito de merge a cada pull.
+- **Com `pixel_profile` declarado, o profile Pixel é a fonte única da verdade
+  técnica.** Mexer em `output.logical_*` ou `palette.size` só no `profiles.yaml`
+  não muda um pixel do arquivo gerado — muda apenas a vitrine da API
+  (`GET /api/generation/profiles`). O que vale é o bloco correspondente em
+  `pixel_profiles.yaml`; mude os dois juntos (existe teste para essa
+  coerência).

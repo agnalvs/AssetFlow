@@ -5,12 +5,20 @@ saber — qual tecnologia está produzindo os pixels.
 
     capability: text_to_image.pixel
 
-Se amanhã o `text_to_image.pixel` for atendido por um modelo especializado
-novo, este arquivo continua idêntico.
+Fluxo completo depois do Pixel Exact (plano Pixel §67)::
+
+    PixelAssetRequest -> PromptBuilder -> Kernel -> Engine -> Raw Image
+        -> PixelPostProcessor -> PixelValidator -> PixelAcceptancePolicy
+        -> AssetStorage
+
+Repare no que continua ausente: o contrato do motor não mudou nada para isso
+acontecer (plano Pixel §68). O motor continua sabendo apenas ``generate()``;
+o conhecimento Pixel Exact é do AssetFlow.
 """
 
 from __future__ import annotations
 
+from ....pixel import PixelProfileRegistry
 from ...postprocessing import PostProcessingChain, build_pixel_chain
 from ..base import ImageAssetPipeline, PipelineContext
 
@@ -23,7 +31,17 @@ class PixelCharacterPipeline(ImageAssetPipeline):
     id = "pixel.character"
     display_name = "Pixel Character Pipeline"
 
+    def __init__(self, pixel_profiles: PixelProfileRegistry | None = None) -> None:
+        # Os profiles Pixel entram por injeção porque são configuração
+        # (`config/pixel_profiles.yaml`), não código: nenhum 64, 16 ou 128
+        # pode ficar escrito aqui dentro (plano Pixel §64).
+        self._pixel_profiles = pixel_profiles
+
+    @property
+    def pixel_profiles(self) -> PixelProfileRegistry | None:
+        return self._pixel_profiles
+
     def build_postprocessing_chain(self, context: PipelineContext) -> PostProcessingChain:
         # Toda a inteligência de Pixel Art do AssetFlow vive nesta cadeia,
         # e não dentro de um checkpoint (plano §24 e §58).
-        return build_pixel_chain()
+        return build_pixel_chain(self._pixel_profiles)

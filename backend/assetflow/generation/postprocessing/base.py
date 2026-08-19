@@ -36,6 +36,13 @@ class ImageBuffer:
     issues: list[ValidationIssue] = field(default_factory=list)
     palette: tuple[str, ...] = ()
     logical_size: tuple[int, int] | None = None
+    #: Bytes originais entregues pelo motor, quando disponíveis. O Pixel Exact
+    #: os preserva como ``raw.png`` para debug e benchmark (plano Pixel §71).
+    source_data: bytes | None = field(default=None, repr=False)
+    #: Arquivos auxiliares produzidos pela cadeia, por nome
+    #: (``preview.png``, ``palette.json``, ``validation.json``...). Quem os
+    #: persiste é o pipeline; a cadeia só os produz (plano Pixel §70).
+    artifacts: dict[str, bytes] = field(default_factory=dict, repr=False)
 
     @property
     def size(self) -> tuple[int, int]:

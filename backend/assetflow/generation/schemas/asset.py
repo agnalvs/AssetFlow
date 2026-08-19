@@ -56,6 +56,25 @@ class AssetVariant(AssetFlowModel):
     color_count: int | None = None
     palette: tuple[str, ...] = ()
     validation: ValidationReport = Field(default_factory=ValidationReport)
+
+    # -- Veredito Pixel Exact (plano Pixel §56, §58 e §79) ---------------
+    # `None` em arte 2D convencional: lá a pergunta não faz sentido.
+    #
+    # Estes campos são o resumo — o relatório completo vai para os arquivos
+    # `validation.json`/`processing.json` referenciados em `artifacts`. Note
+    # que `pixel_exact` e `quality_score` moram separados de propósito: um
+    # asset pode ser tecnicamente exato e artisticamente ruim, ou o contrário
+    # (plano Pixel §57).
+    pixel_exact: bool | None = None
+    quality_score: int | None = None
+    #: Valor de ``PixelAssetStatus`` (plano Pixel §58). Fica como `str` porque
+    #: os schemas são a camada neutra e não podem importar `assetflow.pixel`.
+    status: str | None = None
+    #: Ampliação inteira só para visualização — nunca é o asset (plano Pixel §73).
+    preview_uri: str | None = None
+    #: ``{"raw.png": "assetflow-local://...", ...}`` (plano Pixel §70).
+    artifacts: dict[str, str] = Field(default_factory=dict)
+
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

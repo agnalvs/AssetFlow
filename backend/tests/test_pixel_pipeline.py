@@ -60,12 +60,16 @@ def test_pixel_pipeline_applies_palette_and_alpha_rules(
         assert variant.palette, "a paleta precisa ser registrada no asset"
         assert variant.color_count is not None
         assert variant.color_count <= 16, "profile pixel_character_64 limita 16 cores"
-        assert variant.metadata["postprocessing"] == [
-            "pixel.logical_resize",
-            "pixel.palette_quantize",
-            "pixel.alpha_cleanup",
-            "pixel.validate_color_count",
-            "pixel.validate_grid",
+        # A cadeia tem um elo só: o Pixel Exact inteiro (estágios, validação e
+        # política de aceitação) mora em `assetflow.pixel` (plano Pixel §63).
+        assert variant.metadata["postprocessing"] == ["pixel.exact"]
+        assert variant.metadata["pixel_steps"] == [
+            "pixel.input_normalizer",
+            "pixel.canvas_normalizer",
+            "pixel.logical_reducer",
+            "pixel.alpha_normalizer",
+            "pixel.palette_quantizer",
+            "pixel.conservative_cleaner",
         ]
         assert variant.validation.ok
 
@@ -169,14 +173,49 @@ def test_pixel_chain_reduces_resolution_and_colors(container: AppContainer):
     assert alpha_values <= {0, 255}
 
 
-def test_grid_validator_reports_mismatch(container: AppContainer):
-    """A validação anota o problema em vez de reprovar o asset."""
-    from assetflow.generation.postprocessing.pixel import GridValidator
-
+def test_pixel_chain_records_the_pixel_exact_verdict(container: AppContainer):
+    """O veredito técnico chega ao asset, não fica preso no módulo Pixel."""
     profile = container.profiles.get("pixel_character_64")
-    buffer = ImageBuffer(image=Image.new("RGBA", (48, 48), (10, 20, 30, 255)))
-    result = GridValidator().process(buffer, PostProcessContext(profile=profile))
+    chain = build_pixel_chain(container.pixel_profiles)
+    buffer = ImageBuffer(image=_gradient(512, 512))
 
-    codes = [issue.code for issue in result.issues]
-    assert "grid_size_mismatch" in codes
-    assert any(issue.severity == "error" for issue in result.issues)
+    result = chain.run(buffer, PostProcessContext(profile=profile))
+
+    assert result.metadata["pixel_exact"] is True
+    assert result.metadata["status"] in {"approved", "quality_warning"}
+    assert 0 <= result.metadata["quality_score"] <= 100
+    assert result.metadata["hard_checks"]["PX-DIM-001"] == "pass"
+    # Plano Pixel §70: o asset não vem sozinho — os arquivos de diagnóstico
+    # acompanham a variação.
+    assert {"preview.png", "palette.json", "processing.json", "validation.json"} <= set(
+        result.artifacts
+    )
+
+
+def test_pixel_variant_carries_the_pixel_exact_seal(container: AppContainer, make_request):
+    """Plano Pixel §79: a interface precisa poder dizer "PIXEL EXACT ✓"."""
+    job = _completed_job(container, make_request())
+
+    for variant in job.asset.variants:
+        assert variant.pixel_exact is True
+        assert variant.quality_score is not None
+        assert variant.status in {"approved", "quality_warning"}
+        assert variant.preview_uri, "o preview ampliado precisa ser persistido"
+        assert "raw.png" in variant.artifacts, "o bruto do motor fica guardado (§71)"
+
+
+def test_studio_asset_has_no_pixel_verdict(container: AppContainer):
+    """Arte 2D não tem grid lógico — perguntar se é Pixel Exact não faz sentido."""
+    job = _completed_job(
+        container,
+        AssetGenerationRequest(
+            project_id="project_test",
+            profile="studio_character",
+            prompt="cartoon knight",
+            output=AssetOutputOverrides(variations=1),
+        ),
+    )
+    variant = job.asset.variants[0]
+    assert variant.pixel_exact is None
+    assert variant.status is None
+    assert not variant.artifacts
