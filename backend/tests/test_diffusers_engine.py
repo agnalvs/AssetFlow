@@ -171,7 +171,13 @@ def test_test_suite_never_pulls_a_real_model(container):
 
 
 def test_system_works_while_the_real_engine_is_unavailable(container):
-    """O resolver ignora a gaveta indisponível e usa outra (plano §43/§44)."""
+    """O resolver ignora a gaveta indisponível e usa outra (plano §43/§44).
+
+    O que vale nos dois ambientes é que **existe cadeia**: nunca sobra uma
+    capacidade sem motor. Qual gaveta fica na ponta depende das dependências
+    instaladas, então cada caso é verificado no seu próprio ramo — resolver
+    só monta a cadeia, não carrega modelo, então nada é baixado aqui.
+    """
     from assetflow.generation.schemas import Capability
 
     container.service.enable_engine("diffusers-sdxl-v1")
@@ -179,7 +185,12 @@ def test_system_works_while_the_real_engine_is_unavailable(container):
         container.resolver.resolve(Capability.parse("text_to_image.general"))
     )
 
-    if not TORCH_INSTALLED:
+    if TORCH_INSTALLED:
+        # Gaveta disponível de verdade: é ela que deve ser escolhida, com a
+        # mock permanecendo atrás como alternativa.
+        assert resolution.primary.engine_id == "diffusers-sdxl-v1"
+        assert "mock-image-v1" in resolution.engine_ids
+    else:
         assert "diffusers-sdxl-v1" not in resolution.engine_ids
         assert "diffusers-sdxl-v1" in dict(resolution.rejected)
-    assert resolution.primary.engine_id == "mock-image-v1"
+        assert resolution.primary.engine_id == "mock-image-v1"

@@ -6,6 +6,13 @@ __pycache__/
 build/
 dist/
 
+# Node
+# Reconstruído por `npm ci` a partir do package-lock.json, que é versionado.
+node_modules/
+# Cache incremental do tsc e do bundler.
+*.tsbuildinfo
+.vite/
+
 # Ambientes virtuais
 .venv/
 venv/

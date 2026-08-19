@@ -29,15 +29,26 @@ def _completed_job(container: AppContainer, request):
 
 
 def test_pixel_pipeline_produces_logical_resolution(container: AppContainer, make_request):
-    """O motor gera 512×512; o asset é 64×64 — quem reduz é o AssetFlow."""
-    job = _completed_job(container, make_request())
+    """O motor gera na resolução do profile; o asset é 64×64 — quem reduz é o AssetFlow.
+
+    A resolução de render é uma decisão de qualidade do profile e já mudou uma
+    vez (512 → 1024, porque o SDXL devolvia grade de tiles em 512). Por isso o
+    valor esperado vem do próprio profile: o que este teste fixa é o contrato
+    ``render ≠ lógico``, não o número.
+    """
+    request = make_request()
+    profile = container.profiles.get(request.profile)
+    render_size = [profile.output.render_width, profile.output.render_height]
+
+    job = _completed_job(container, request)
     asset = job.asset
 
+    assert render_size != [64, 64], "sem downscale o teste não prova nada"
     assert asset.variants
     for variant in asset.variants:
         assert (variant.width, variant.height) == (64, 64)
         assert (variant.logical_width, variant.logical_height) == (64, 64)
-        assert variant.metadata["render_size"] == [512, 512]
+        assert variant.metadata["render_size"] == render_size
 
 
 def test_pixel_pipeline_applies_palette_and_alpha_rules(
