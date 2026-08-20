@@ -17,13 +17,20 @@ from pydantic import Field
 from .capability import Capability
 from .common import AssetFlowModel, AssetMode, AssetType, QualityLevel, new_id
 from .request import EngineSelector, ReferenceImage, StructuralControl
+from .resolved_spec import SpecOverrides
 from .semantic_prompt import SemanticPrompt
 
 __all__ = ["AssetOutputOverrides", "AssetGenerationRequest"]
 
 
 class AssetOutputOverrides(AssetFlowModel):
-    """Ajustes pontuais sobre o que o profile já define."""
+    """O que a **interface** selecionou (plano T→J §9, nível 3).
+
+    São os controles da tela: resolução, paleta, fundo, quantas variações.
+    Ficam acima do profile e da leitura do AssetFlow na precedência, e abaixo
+    de uma restrição escrita na descrição ou de uma correção manual do spec
+    (``AssetGenerationRequest.spec_overrides``).
+    """
 
     variations: int | None = Field(default=None, ge=1, le=32)
     logical_width: int | None = Field(default=None, ge=8, le=1024)
@@ -32,6 +39,14 @@ class AssetOutputOverrides(AssetFlowModel):
     render_height: int | None = Field(default=None, ge=64, le=4096)
     palette_size: int | None = Field(default=None, ge=2, le=256)
     transparent: bool | None = None
+    #: Vista escolhida no controle de perspectiva (plano T→J §18 e §19).
+    #:
+    #: Fica neste objeto — e não em ``spec_overrides`` — porque é uma escolha
+    #: de *interface*, e a interface é o nível 3 da precedência: uma vista
+    #: escrita na descrição ("vista lateral") continua ganhando dela. O nome
+    #: da classe fala de saída e esta é a exceção; a alternativa era um quinto
+    #: objeto de pedido só para carregar um campo.
+    view: str | None = Field(default=None, max_length=40)
 
 
 class AssetGenerationRequest(AssetFlowModel):
@@ -74,6 +89,18 @@ class AssetGenerationRequest(AssetFlowModel):
     semantic_prompt: SemanticPrompt | None = None
 
     output: AssetOutputOverrides = Field(default_factory=AssetOutputOverrides)
+
+    #: Correção manual do Final Resolved Spec (plano T→J §9, nível 1).
+    #:
+    #: É o que a interface envia quando alguém edita o JSON do spec: o nível
+    #: de precedência mais alto que existe. O que estiver aqui ganha da
+    #: descrição, dos controles da tela, da leitura do AssetFlow e do profile
+    #: — e nenhuma camada posterior pode desfazer.
+    #:
+    #: Diferente de ``semantic_prompt``, que substitui o builder inteiro,
+    #: este objeto é **esparso**: o que ele não disser continua sendo
+    #: resolvido normalmente pelas camadas de baixo.
+    spec_overrides: SpecOverrides | None = None
     seed: int | None = Field(default=None, ge=0, le=2**63 - 1)
     quality: QualityLevel = QualityLevel.STANDARD
 

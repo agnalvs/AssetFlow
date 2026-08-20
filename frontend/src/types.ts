@@ -99,10 +99,107 @@ export interface SemanticPrompt {
   extra: Record<string, unknown>;
 }
 
+// ---------------------------------------------------------------------------
+// Final Resolved Spec — o contrato que a geração executa (plano T→J §15)
+// ---------------------------------------------------------------------------
+
+/**
+ * De onde veio cada valor do spec (plano T→J §16).
+ *
+ * A tela usa isto para não mentir: mostrar "32 × 32" sem dizer se o número
+ * foi pedido ou herdado do profile é o que fazia ninguém perceber que o
+ * pedido tinha sido ignorado.
+ */
+export type SpecSource =
+  | "manual_override"
+  | "explicit_prompt"
+  | "ui_selection"
+  | "inference"
+  | "profile_default"
+  | "global_default";
+
+export type AssetTypeId =
+  | "character"
+  | "prop"
+  | "background"
+  | "tile"
+  | "tileset"
+  | "spritesheet"
+  | "icon"
+  | "effect"
+  | "ui"
+  | "raw";
+
+export interface ResolvedAsset {
+  type: AssetTypeId;
+  subject: string;
+  category: string | null;
+  mode: string;
+}
+
+export interface Resolution {
+  width: number;
+  height: number;
+}
+
+export interface ResolvedPalette {
+  mode: "max_colors" | "locked";
+  max_colors: number | null;
+  colors: string[];
+}
+
+/**
+ * Espelha o `FinalResolvedSpec` do backend.
+ *
+ * É o objeto que a aba "Interpretação" lê e o que a aba "JSON final" mostra —
+ * e são o mesmo objeto de propósito (plano T→J §32 e §33): o resumo legível
+ * não pode ser uma segunda leitura, feita do lado do cliente, que envelhece
+ * em silêncio quando o backend mudar.
+ */
+export interface FinalResolvedSpec {
+  spec_id: string;
+  spec_hash: string;
+  profile_id: string;
+  pipeline_id: string;
+  capability: string;
+  asset: ResolvedAsset;
+  logical_resolution: Resolution | null;
+  render_resolution: Resolution;
+  palette: ResolvedPalette | null;
+  background: { mode: "transparent" | "solid" };
+  composition: { view: string | null; centered: boolean; margin_ratio: number | null };
+  generation: { variations: number; seed: number | null; quality: string };
+  sources: Record<string, SpecSource>;
+  notes: string[];
+}
+
+/**
+ * Correção manual do spec — o nível de precedência mais alto (plano T→J §9).
+ *
+ * Esparso de propósito: o que não estiver aqui continua sendo resolvido pelo
+ * backend. É o que a edição do JSON envia de volta.
+ */
+export interface SpecOverrides {
+  asset_type?: AssetTypeId | null;
+  subject?: string | null;
+  category?: string | null;
+  mode?: string | null;
+  logical_width?: number | null;
+  logical_height?: number | null;
+  render_width?: number | null;
+  render_height?: number | null;
+  palette_max_colors?: number | null;
+  background?: "transparent" | "solid" | null;
+  view?: string | null;
+  variations?: number | null;
+}
+
 /** Resposta de `POST /api/generation/prompt/preview`, e o campo `prompt` do job. */
 export interface PromptPreview {
   profile: string;
   capability: string;
+  /** O contrato final: o que será realmente executado. */
+  resolved: FinalResolvedSpec;
   semantic: SemanticPrompt;
   /**
    * Renderização neutra, para conferência humana. Um motor com dialeto
@@ -114,12 +211,26 @@ export interface PromptPreview {
   source: "builder" | "request";
 }
 
+/** O que os controles da tela selecionaram (plano T→J §18, nível 3). */
+export interface OutputSelection {
+  variations?: number;
+  logical_width?: number;
+  logical_height?: number;
+  palette_size?: number;
+  transparent?: boolean;
+  view?: string;
+}
+
 export interface CreateJobPayload {
   project_id: string;
   capability: string;
   profile: string;
   prompt: string;
-  output?: { variations?: number };
+  /** Tipo escolhido no dropdown; ausente = automático (classificador decide). */
+  asset_type?: AssetTypeId;
+  output?: OutputSelection;
+  /** Correção manual do spec — ganha de tudo, inclusive dos controles acima. */
+  spec_overrides?: SpecOverrides;
   /** Semântica corrigida à mão. Presente, ela substitui o PromptBuilder. */
   semantic_prompt?: SemanticPrompt;
   engine?: { mode: "auto" | "manual"; engine_id?: string };
@@ -196,6 +307,8 @@ export interface HistoryEntry {
   variant: AssetVariant;
   /** A leitura que produziu esta imagem, para poder reabri-la exatamente. */
   preview: PromptPreview | null;
+  /** Reabrir uma geração antiga precisa reabrir o aviso junto com ela. */
+  fallbackUsed: boolean;
   createdAt: number;
 }
 

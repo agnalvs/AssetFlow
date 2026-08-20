@@ -1,5 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 
+import {
+  type AssetSelection,
+  AssetControls,
+  EMPTY_SELECTION,
+} from "./components/AssetControls";
 import { EmptyResult } from "./components/EmptyResult";
 import { GenerateButton } from "./components/GenerateButton";
 import { GenerationError } from "./components/GenerationError";
@@ -12,6 +17,7 @@ import { PromptInput } from "./components/PromptInput";
 import { PromptInspector } from "./components/PromptInspector";
 import { SessionHistory } from "./components/SessionHistory";
 import { useGenerationJob } from "./hooks/useGenerationJob";
+import { userChoicesOf } from "./specOverrides";
 import { type PromptEdit, usePromptPreview } from "./hooks/usePromptPreview";
 import { type GenerationMode, type HistoryEntry, MODES } from "./types";
 
@@ -28,13 +34,16 @@ export function App() {
   const [mode, setMode] = useState<GenerationMode>("pixel");
   const [prompt, setPrompt] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  // Os controles explícitos (tipo, resolução, paleta, fundo). Começam todos
+  // em automático: quem só quer um sprite não deve precisar preencher nada.
+  const [selection, setSelection] = useState<AssetSelection>(EMPTY_SELECTION);
   // A correção da leitura mora aqui, e não dentro do painel: ela precisa
   // sobreviver ao painel fechado e acompanhar o pedido até a geração.
   const [edit, setEdit] = useState<PromptEdit | null>(null);
 
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const { state, error, result, isBusy, generate, reset, showResult } = useGenerationJob();
-  const inspector = usePromptPreview(mode, prompt, edit, setEdit);
+  const inspector = usePromptPreview(mode, prompt, selection, edit, setEdit);
 
   const canGenerate = prompt.trim().length > 0 && !isBusy;
 
@@ -46,10 +55,12 @@ export function App() {
       await generate({
         mode: targetMode,
         prompt: cleaned,
+        selection,
+        spec: edit?.spec ?? null,
         semantic: edit?.semantic ?? null,
       });
     },
-    [edit, generate, isBusy],
+    [edit, generate, isBusy, selection],
   );
 
   // O histórico é alimentado quando uma geração conclui.
@@ -64,6 +75,7 @@ export function App() {
         prompt: result.prompt,
         variant: result.variant,
         preview: result.preview,
+        fallbackUsed: result.fallbackUsed,
         createdAt: Date.now(),
       };
       return [entry, ...current].slice(0, MAX_HISTORY);
@@ -72,6 +84,7 @@ export function App() {
 
   const handleNewPrompt = useCallback(() => {
     setPrompt("");
+    setSelection(EMPTY_SELECTION);
     setEdit(null);
     reset();
     lastRecorded.current = null;
@@ -97,14 +110,24 @@ export function App() {
             onSubmit={() => void runGeneration(mode, prompt)}
           />
 
+          <AssetControls
+            selection={selection}
+            resolved={inspector.preview?.resolved ?? null}
+            pixel={mode === "pixel"}
+            disabled={isBusy}
+            onChange={setSelection}
+          />
+
           <PromptInspector
             preview={inspector.preview}
             loading={inspector.loading}
             error={inspector.error}
-            edited={inspector.edited}
+            specEdited={inspector.specEdited}
+            semanticEdited={inspector.semanticEdited}
             stale={inspector.stale}
             disabled={isBusy}
-            onEdit={inspector.setEdit}
+            onEditSpec={inspector.setSpecEdit}
+            onEditSemantic={inspector.setSemanticEdit}
           />
 
           <GenerateButton
@@ -145,9 +168,17 @@ export function App() {
             // Reabrir uma geração antiga traz de volta a leitura dela, e não
             // só a frase: é o que permite pegar um acerto e mexer em um campo
             // sem torcer para o builder interpretar igual de novo.
+            setSelection(EMPTY_SELECTION);
+            // Reabrir uma geração antiga traz de volta as decisões dela —
+            // só as decisões. O que veio do profile continua automático, para
+            // que trocar de estilo depois volte a ter efeito (plano T→J §16).
             setEdit(
               entry.preview
-                ? { semantic: entry.preview.semantic, basePrompt: entry.prompt }
+                ? {
+                    spec: userChoicesOf(entry.preview.resolved),
+                    semantic: entry.preview.semantic,
+                    basePrompt: entry.prompt,
+                  }
                 : null,
             );
             showResult(entry);

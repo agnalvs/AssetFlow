@@ -18,6 +18,7 @@ O caminho correto é sempre::
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -44,6 +45,7 @@ from ..schemas import (
     AssetSpec,
     AssetVariant,
     EngineSelector,
+    FinalResolvedSpec,
     GeneratedAsset,
     GenerationParams,
     GenerationResult,
@@ -68,6 +70,11 @@ class PipelineContext:
     job_id: str
     request: AssetGenerationRequest
     profile: GenerationProfile
+    #: O contrato resolvido do job (plano T→J §15). É a fonte da verdade de
+    #: tipo de asset, resolução lógica, paleta e fundo — o profile continua
+    #: aqui para o que ele ainda descreve sozinho (thumbnail, engine_options),
+    #: e nunca mais para responder o que o spec já respondeu (§37).
+    resolved: FinalResolvedSpec
     kernel: GenerationKernel
     storage: AssetStorageService
     prompt_builders: PromptBuilderRegistry
@@ -144,7 +151,10 @@ class ImageAssetPipeline(AssetPipeline):
         possam discordar.
         """
         return resolve_semantic_prompt(
-            context.request, context.profile, context.prompt_builders
+            context.request,
+            context.resolved,
+            context.prompt_builders,
+            prompt_builder=context.profile.prompt_builder,
         )
 
     def build_generation_request(
@@ -157,29 +167,25 @@ class ImageAssetPipeline(AssetPipeline):
         """
         profile = context.profile
         request = context.request
-        overrides = request.output
+        resolved = context.resolved
 
         positive, negative = render_semantic_prompt(semantic)
 
-        width = overrides.render_width or profile.output.render_width
-        height = overrides.render_height or profile.output.render_height
-        variations = overrides.variations or profile.output.variations
-        transparent = (
-            overrides.transparent
-            if overrides.transparent is not None
-            else profile.output.transparent
-        )
+        # Nenhuma destas quatro linhas consulta o profile: os valores já foram
+        # resolvidos uma vez, com precedência, e reabrir a negociação aqui era
+        # justamente como o pedido do usuário se perdia (plano T→J §37).
+        width = resolved.render_resolution.width
+        height = resolved.render_resolution.height
+        variations = resolved.generation.variations
+        transparent = resolved.background.transparent
 
         engine_options = {**profile.engine_options}
         for engine_id, options in request.engine_options.items():
             engine_options[engine_id] = {**engine_options.get(engine_id, {}), **options}
 
         return ImageGenerationRequest(
-            capability=request.capability or profile.capability,
-            asset=AssetSpec(
-                type=request.asset_type or profile.asset.type,
-                mode=request.mode or profile.asset.mode,
-            ),
+            capability=resolved.capability,
+            asset=AssetSpec(type=resolved.asset.type, mode=resolved.asset.mode),
             prompt=PromptSpec(positive=positive, negative=negative, semantic=semantic),
             output=OutputSpec(
                 width=width,
@@ -187,7 +193,9 @@ class ImageAssetPipeline(AssetPipeline):
                 variations=variations,
                 transparent=transparent,
             ),
-            generation=GenerationParams(seed=request.seed, quality=request.quality),
+            generation=GenerationParams(
+                seed=resolved.generation.seed, quality=resolved.generation.quality
+            ),
             engine=request.engine or EngineSelector(),
             reference_images=request.reference_images,
             structural_controls=request.structural_controls,
@@ -197,6 +205,8 @@ class ImageAssetPipeline(AssetPipeline):
                 "profile_id": profile.id,
                 "pipeline_id": self.id,
                 "job_id": context.job_id,
+                "spec_id": resolved.spec_id,
+                "spec_hash": resolved.spec_hash,
             },
         )
 
@@ -228,9 +238,11 @@ class ImageAssetPipeline(AssetPipeline):
         post_context = PostProcessContext(
             profile=profile,
             logger=context.logger,
-            # Ajustes do próprio pedido (resolução lógica, paleta) precisam
-            # chegar ao pós-processamento; o profile sozinho não os conhece.
-            extra={"output_overrides": request.output},
+            # O spec resolvido é o que manda no pós-processamento: resolução
+            # lógica, paleta e fundo saem daqui, e não do profile (plano T→J
+            # §9 e §14). É esta linha que faz um pedido de 32×32 produzir um
+            # arquivo de 32×32.
+            extra={"resolved_spec": context.resolved},
         )
 
         postprocess_watch = Stopwatch()
@@ -272,9 +284,16 @@ class ImageAssetPipeline(AssetPipeline):
                 job_id=context.job_id,
                 index=index,
                 artifacts={
-                    name: payload
-                    for name, payload in buffer.artifacts.items()
-                    if name != "logical.png"
+                    **{
+                        name: payload
+                        for name, payload in buffer.artifacts.items()
+                        if name != "logical.png"
+                    },
+                    # O contrato que produziu este arquivo, gravado ao lado
+                    # dele (plano T→J §35). Sem ele, descobrir depois por que
+                    # um asset saiu 64×64 exige reconstruir o pedido inteiro
+                    # de memória.
+                    "resolved_spec.json": _spec_document(context),
                 },
             )
             variants.append(
@@ -318,6 +337,9 @@ class ImageAssetPipeline(AssetPipeline):
                 "capability": str(generation_request.capability),
                 "fallback_used": result.fallback_used,
                 "user_prompt": request.prompt,
+                # Prova de qual configuração gerou este asset (plano T→J §34).
+                "spec_id": context.resolved.spec_id,
+                "spec_hash": context.resolved.spec_hash,
             },
         )
         await context.storage.persist_asset_metadata(asset)
@@ -352,6 +374,18 @@ class ImageAssetPipeline(AssetPipeline):
         )
 
 
+def _spec_document(context: PipelineContext) -> bytes:
+    """``resolved_spec.json`` — o contrato deste job, como arquivo.
+
+    Guarda o spec inteiro, inclusive ``sources`` e ``notes``: o valor sozinho
+    responde "o que foi gerado", e só a origem responde "por que" — que é a
+    pergunta de quem está depurando.
+    """
+    payload = context.resolved.model_dump(mode="json")
+    payload["raw_prompt"] = context.request.prompt
+    return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+
+
 def _process_image(
     data: bytes, chain: PostProcessingChain, context: PostProcessContext
 ) -> ImageBuffer:
@@ -382,6 +416,9 @@ def _build_record(
     # isso que se compara motor A × motor B pela quantidade de correção que a
     # saída exigiu, e não pela imagem bonita (plano Pixel §94).
     metadata = dict(result.metadata)
+    # O spec inteiro entra no histórico, e não só o hash: comparar duas
+    # gerações do mesmo asset é comparar dois specs (plano T→J §34 e §35).
+    metadata["resolved_spec"] = context.resolved.model_dump(mode="json")
     pixel_metrics = {
         str(variant.index): variant.metadata["pixel_metrics"]
         for variant in asset.variants

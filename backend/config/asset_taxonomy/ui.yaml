@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------------------
+# Taxonomia — UI (plano Text→JSON §3)
+# ---------------------------------------------------------------------------
+# `ui` é o componente de tela (botão, painel, barra de vida). A peça isolada
+# que representa uma coisa — o ícone de item, o emblema — é `icon`, e mora em
+# icon.yaml: são contratos de saída diferentes, e o §19 mostra controles
+# diferentes para cada um.
+# ---------------------------------------------------------------------------
+type: ui
+priority: 70
+
+markers:
+  en: [ui, hud, interface, user interface, ui element]
+  pt: [ui, hud, interface, elemento de interface]
+
+keywords:
+  en:
+    - button
+    - panel
+    - health bar
+    - mana bar
+    - progress bar
+    - inventory slot
+    - dialog box
+    - frame
+    - cursor
+    - minimap
+  pt:
+    - botao
+    - botão
+    - painel
+    - barra de vida
+    - barra de mana
+    - barra de progresso
+    - slot de inventario
+    - slot de inventário
+    - caixa de dialogo
+    - caixa de diálogo
+    - moldura
+    - cursor
+    - minimapa
+
+categories:
+  control:
+    - button
+    - cursor
+    - botao
+    - botão
+  display:
+    - panel
+    - health bar
+    - mana bar
+    - progress bar
+    - dialog box
+    - frame
+    - minimap
+    - painel
+    - barra de vida
+    - barra de mana
+    - barra de progresso
+    - caixa de dialogo
+    - caixa de diálogo
+    - moldura
+    - minimapa
+  inventory:
+    - inventory slot
+    - slot de inventario
+    - slot de inventário

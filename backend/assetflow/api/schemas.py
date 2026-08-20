@@ -246,17 +246,23 @@ def _prompt_view(job: Job) -> PromptPreview | None:
     aqui — reexecutando o builder na hora de responder — daria uma resposta
     plausível e possivelmente diferente da que gerou o asset.
 
+    O ``resolved`` que acompanha a resposta é o spec **do job**, o mesmo que o
+    pipeline executou (plano T→J §33). Ele existe desde a submissão, então na
+    prática quem atrasa a resposta é sempre a semântica.
+
     ``positive``/``negative`` são a renderização neutra do AssetFlow. Um motor
     com adapter próprio recebe outro texto (plano §27), e é justamente por
     isso que o campo que manda é o ``semantic``: ele é o mesmo para todos.
     """
     semantic = job.semantic_prompt
-    if semantic is None:
+    resolved = job.resolved_spec
+    if semantic is None or resolved is None:
         return None
     positive, negative = render_semantic_prompt(semantic)
     return PromptPreview(
         profile=job.profile_id or "",
         capability=str(job.capability),
+        resolved=resolved,
         semantic=semantic,
         positive=positive,
         negative=negative,

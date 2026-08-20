@@ -1,0 +1,169 @@
+# ---------------------------------------------------------------------------
+# Taxonomia — BACKGROUND (plano Text→JSON §4 e §5)
+# ---------------------------------------------------------------------------
+# ATENÇÃO ao termo "background": ele também aparece em "transparent
+# background", que é uma restrição de FUNDO, não um pedido de cenário. Quem
+# desfaz essa ambiguidade é o ExplicitConstraintExtractor: ele consome
+# "transparent background"/"sem fundo" ANTES da classificação, e o que sobra
+# para o classificador já não tem o termo. Por isso "tree, transparent
+# background" continua sendo um prop.
+# ---------------------------------------------------------------------------
+type: background
+priority: 50
+
+markers:
+  en: [background, backdrop, scenery, landscape, environment, panorama, skybox]
+  pt: [fundo, cenario, cenário, paisagem, ambiente, panorama]
+
+keywords:
+  en:
+    - forest
+    - jungle
+    - desert
+    - beach
+    - ocean
+    - sea
+    - lake
+    - river
+    - swamp
+    - cave
+    - dungeon
+    - mountain
+    - mountains
+    - hills
+    - valley
+    - canyon
+    - sky
+    - clouds
+    - city
+    - town
+    - village
+    - castle interior
+    - throne room
+    - street
+    - ruins
+    - graveyard
+    - temple
+    - dojo
+    - tavern
+    - space
+    - nebula
+    - sunset
+    - horizon
+  pt:
+    - floresta
+    - selva
+    - deserto
+    - praia
+    - oceano
+    - mar
+    - lago
+    - rio
+    - pantano
+    - pântano
+    - caverna
+    - masmorra
+    - montanha
+    - montanhas
+    - colinas
+    - vale
+    - canion
+    - cânion
+    - ceu
+    - céu
+    - nuvens
+    - cidade
+    - vila
+    - vilarejo
+    - sala do trono
+    - rua
+    - ruinas
+    - ruínas
+    - cemiterio
+    - cemitério
+    - templo
+    - taverna
+    - espaco
+    - espaço
+    - nebulosa
+    - por do sol
+    - pôr do sol
+    - horizonte
+
+categories:
+  nature:
+    - forest
+    - jungle
+    - desert
+    - beach
+    - ocean
+    - sea
+    - lake
+    - river
+    - swamp
+    - mountain
+    - mountains
+    - hills
+    - valley
+    - canyon
+    - sky
+    - clouds
+    - sunset
+    - horizon
+    - floresta
+    - selva
+    - deserto
+    - praia
+    - oceano
+    - mar
+    - lago
+    - rio
+    - pantano
+    - pântano
+    - montanha
+    - montanhas
+    - colinas
+    - vale
+    - canion
+    - cânion
+    - ceu
+    - céu
+    - nuvens
+    - por do sol
+    - pôr do sol
+    - horizonte
+  urban:
+    - city
+    - town
+    - village
+    - street
+    - tavern
+    - cidade
+    - vila
+    - vilarejo
+    - rua
+    - taverna
+  interior:
+    - cave
+    - dungeon
+    - castle interior
+    - throne room
+    - temple
+    - dojo
+    - caverna
+    - masmorra
+    - sala do trono
+    - templo
+  ruins:
+    - ruins
+    - graveyard
+    - ruinas
+    - ruínas
+    - cemiterio
+    - cemitério
+  space:
+    - space
+    - nebula
+    - espaco
+    - espaço
+    - nebulosa

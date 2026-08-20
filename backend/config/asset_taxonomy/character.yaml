@@ -1,0 +1,273 @@
+# ---------------------------------------------------------------------------
+# Taxonomia — CHARACTER (plano Text→JSON §3 a §5)
+# ---------------------------------------------------------------------------
+# `markers` são termos que nomeiam o PRÓPRIO tipo de asset ("personagem",
+# "npc"). `keywords` são sujeitos que pertencem ao tipo ("cavaleiro", "mago").
+# Um marker sempre ganha de uma keyword — quem escreve "floresta de fundo"
+# quer um cenário, mesmo que "floresta" também seja um sujeito conhecido.
+#
+# `priority` só desempata entre matches da mesma classe e do mesmo tamanho.
+# Character vem primeiro de propósito: "guerreiro na floresta" é um
+# personagem em pé numa floresta, não uma floresta com um guerreiro dentro.
+# ---------------------------------------------------------------------------
+type: character
+priority: 100
+
+markers:
+  en: [character, npc, playable character, player character, hero unit, sprite character]
+  pt: [personagem, protagonista, herói, heroi, npc]
+
+keywords:
+  en:
+    - warrior
+    - knight
+    - mage
+    - wizard
+    - witch
+    - sorcerer
+    - archer
+    - ranger
+    - rogue
+    - thief
+    - assassin
+    - paladin
+    - druid
+    - bard
+    - monk
+    - berserker
+    - samurai
+    - ninja
+    - pirate
+    - viking
+    - soldier
+    - guard
+    - king
+    - queen
+    - princess
+    - prince
+    - villager
+    - merchant
+    - blacksmith
+    - farmer
+    - man
+    - woman
+    - boy
+    - girl
+    - person
+    - enemy
+    - boss
+    - monster
+    - goblin
+    - orc
+    - troll
+    - skeleton
+    - zombie
+    - dragon
+    - slime
+    - ghost
+    - demon
+    - elf
+    - dwarf
+    - fairy
+    - robot
+    - android
+    - astronaut
+    - cat
+    - dog
+    - wolf
+    - bird
+    - horse
+  pt:
+    - guerreiro
+    - guerreira
+    - cavaleiro
+    - cavaleira
+    - mago
+    - maga
+    - bruxa
+    - bruxo
+    - feiticeiro
+    - feiticeira
+    - arqueiro
+    - arqueira
+    - ladino
+    - ladrao
+    - ladrão
+    - assassino
+    - paladino
+    - druida
+    - bardo
+    - monge
+    - samurai
+    - pirata
+    - viking
+    - soldado
+    - guarda
+    - rei
+    - rainha
+    - princesa
+    - principe
+    - príncipe
+    - aldeao
+    - aldeão
+    - mercador
+    - ferreiro
+    - fazendeiro
+    - homem
+    - mulher
+    - menino
+    - menina
+    - pessoa
+    - inimigo
+    - chefao
+    - chefão
+    - monstro
+    - goblin
+    - orc
+    - ogro
+    - esqueleto
+    - zumbi
+    - dragao
+    - dragão
+    - fantasma
+    - demonio
+    - demônio
+    - elfo
+    - anao
+    - anão
+    - fada
+    - robo
+    - robô
+    - astronauta
+    - gato
+    - cachorro
+    - lobo
+    - passaro
+    - pássaro
+    - cavalo
+
+categories:
+  humanoid:
+    - warrior
+    - knight
+    - mage
+    - wizard
+    - witch
+    - sorcerer
+    - archer
+    - ranger
+    - rogue
+    - thief
+    - assassin
+    - paladin
+    - druid
+    - bard
+    - monk
+    - berserker
+    - samurai
+    - ninja
+    - pirate
+    - viking
+    - soldier
+    - guard
+    - king
+    - queen
+    - princess
+    - prince
+    - villager
+    - merchant
+    - blacksmith
+    - farmer
+    - man
+    - woman
+    - boy
+    - girl
+    - person
+    - elf
+    - dwarf
+    - fairy
+    - astronaut
+    - guerreiro
+    - guerreira
+    - cavaleiro
+    - cavaleira
+    - mago
+    - maga
+    - bruxa
+    - bruxo
+    - feiticeiro
+    - feiticeira
+    - arqueiro
+    - arqueira
+    - ladino
+    - ladrao
+    - ladrão
+    - assassino
+    - paladino
+    - druida
+    - bardo
+    - monge
+    - pirata
+    - soldado
+    - guarda
+    - rei
+    - rainha
+    - princesa
+    - principe
+    - príncipe
+    - aldeao
+    - aldeão
+    - mercador
+    - ferreiro
+    - fazendeiro
+    - homem
+    - mulher
+    - menino
+    - menina
+    - pessoa
+    - elfo
+    - anao
+    - anão
+    - fada
+    - astronauta
+  creature:
+    - monster
+    - goblin
+    - orc
+    - troll
+    - skeleton
+    - zombie
+    - dragon
+    - slime
+    - ghost
+    - demon
+    - cat
+    - dog
+    - wolf
+    - bird
+    - horse
+    - enemy
+    - boss
+    - monstro
+    - ogro
+    - esqueleto
+    - zumbi
+    - dragao
+    - dragão
+    - fantasma
+    - demonio
+    - demônio
+    - gato
+    - cachorro
+    - lobo
+    - passaro
+    - pássaro
+    - cavalo
+    - inimigo
+    - chefao
+    - chefão
+  mechanical:
+    - robot
+    - android
+    - robo
+    - robô

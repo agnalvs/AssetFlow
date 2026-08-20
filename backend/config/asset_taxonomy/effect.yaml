@@ -1,0 +1,84 @@
+# ---------------------------------------------------------------------------
+# Taxonomia — EFFECT (plano Text→JSON §3)
+# ---------------------------------------------------------------------------
+type: effect
+priority: 80
+
+markers:
+  en: [effect, vfx, visual effect, particle effect, animation effect]
+  pt: [efeito, efeito visual, particula, partícula, particulas, partículas]
+
+keywords:
+  en:
+    - explosion
+    - fire
+    - flame
+    - smoke
+    - spark
+    - sparkle
+    - lightning
+    - magic circle
+    - slash
+    - impact
+    - splash
+    - aura
+    - portal
+    - shockwave
+  pt:
+    - explosao
+    - explosão
+    - fogo
+    - chama
+    - fumaca
+    - fumaça
+    - faisca
+    - faísca
+    - brilho
+    - raio
+    - relampago
+    - relâmpago
+    - circulo magico
+    - círculo mágico
+    - corte
+    - impacto
+    - respingo
+    - aura
+    - portal
+    - onda de choque
+
+categories:
+  combat:
+    - explosion
+    - slash
+    - impact
+    - shockwave
+    - explosao
+    - explosão
+    - corte
+    - impacto
+    - onda de choque
+  elemental:
+    - fire
+    - flame
+    - smoke
+    - lightning
+    - splash
+    - fogo
+    - chama
+    - fumaca
+    - fumaça
+    - raio
+    - relampago
+    - relâmpago
+    - respingo
+  magic:
+    - spark
+    - sparkle
+    - magic circle
+    - aura
+    - portal
+    - faisca
+    - faísca
+    - brilho
+    - circulo magico
+    - círculo mágico

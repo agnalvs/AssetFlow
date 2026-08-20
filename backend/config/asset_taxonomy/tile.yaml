@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# Taxonomia — TILE (plano Text→JSON §3)
+# ---------------------------------------------------------------------------
+# Um tile é uma célula única de terreno; um tileset é a folha inteira. São
+# tipos diferentes porque o contrato de saída é diferente: o tile precisa
+# sangrar até a borda para emendar com o vizinho (ver `pixel_tileset_16` em
+# pixel_profiles.yaml, que desliga `boundary_touch` justamente por isso).
+# ---------------------------------------------------------------------------
+type: tile
+priority: 85
+
+markers:
+  en: [tile, ground tile, floor tile, wall tile]
+  pt: [tile, ladrilho, azulejo, tile de chao, tile de chão]
+
+keywords:
+  en: [cobblestone, dirt tile, grass tile, stone tile, water tile]
+  pt: [paralelepipedo, paralelepípedo, tile de terra, tile de grama, tile de agua, tile de água]
+
+categories:
+  terrain:
+    - cobblestone
+    - dirt tile
+    - grass tile
+    - stone tile
+    - water tile
+    - paralelepipedo
+    - paralelepípedo
+    - tile de terra
+    - tile de grama
+    - tile de agua
+    - tile de água

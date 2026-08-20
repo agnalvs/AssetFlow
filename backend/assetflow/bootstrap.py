@@ -24,6 +24,11 @@ from .generation.pipelines import PipelineRegistry
 from .generation.profiles import ProfileRegistry
 from .generation.prompting import PromptBuilderRegistry
 from .generation.service import GenerationService
+from .generation.spec import (
+    AssetTaxonomy,
+    AssetTypeClassifier,
+    ConstraintResolver,
+)
 from .jobs import (
     GenerationWorker,
     InMemoryJobQueue,
@@ -61,6 +66,8 @@ class AppContainer:
     pixel_profiles: PixelProfileRegistry
     pipelines: PipelineRegistry
     prompt_builders: PromptBuilderRegistry
+    taxonomy: AssetTaxonomy
+    constraints: ConstraintResolver
     storage: AssetStorageService
     records: GenerationRecordRepository
     job_store: JobStore
@@ -135,6 +142,12 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     pipelines = PipelineRegistry.with_defaults(pixel_profiles)
     prompt_builders = PromptBuilderRegistry.with_defaults()
 
+    # Taxonomia + resolver de restrições: o caminho do texto até o Final
+    # Resolved Spec (plano T→J §11 e §15). O vocabulário é configuração, como
+    # profiles e contratos Pixel — nenhum termo mora em código.
+    taxonomy = AssetTaxonomy.from_directory(settings.asset_taxonomy_dir)
+    constraints = ConstraintResolver(AssetTypeClassifier(taxonomy))
+
     # -- Storage ----------------------------------------------------------
     backend = LocalFilesystemBackend(settings.storage_root)
     records = JsonLinesGenerationRecordRepository(settings.history_path)
@@ -162,6 +175,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         profiles=profiles,
         storage=storage,
         prompt_builders=prompt_builders,
+        constraints=constraints,
         queues=router.queues(),
         concurrency=settings.worker.concurrency,
         job_timeout_s=settings.worker.job_timeout_s,
@@ -174,16 +188,19 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         profiles=profiles,
         pipelines=pipelines,
         prompt_builders=prompt_builders,
+        constraints=constraints,
         records=records,
         default_max_attempts=settings.worker.max_attempts,
     )
 
     _LOG.info(
-        "AssetFlow pronto: %s gaveta(s), %s profile(s), %s profile(s) Pixel, %s pipeline(s)",
+        "AssetFlow pronto: %s gaveta(s), %s profile(s), %s profile(s) Pixel, "
+        "%s pipeline(s), %s vocabulário(s) de asset",
         len(registry),
         len(profiles),
         len(pixel_profiles),
         len(pipelines.ids()),
+        len(taxonomy),
     )
 
     return AppContainer(
@@ -195,6 +212,8 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         pixel_profiles=pixel_profiles,
         pipelines=pipelines,
         prompt_builders=prompt_builders,
+        taxonomy=taxonomy,
+        constraints=constraints,
         storage=storage,
         records=records,
         job_store=job_store,

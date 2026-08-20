@@ -6,7 +6,19 @@ em objetos que conhecem o produto: personagem em Pixel Art, prop, background
 
 Fluxo::
 
-    Pedido humano -> PromptBuilder -> SemanticPrompt -> Generation Request
+    Pedido humano -> ConstraintResolver -> FinalResolvedSpec
+                  -> PromptBuilder      -> SemanticPrompt -> Generation Request
+
+O que mudou com o Final Resolved Spec (plano T→J §37): o builder deixou de
+consultar o Generation Profile. Ele lê o spec já resolvido — tipo, sujeito,
+paleta, fundo — e é por isso que "tree" agora usa o vocabulário de **prop**,
+com a lista de `avoid` de prop, em vez de ser tratado como personagem só
+porque o profile pedido se chamava `pixel_character_64`.
+
+O builder continua decidindo o que ninguém disse: vista, pose, o que evitar.
+Essas decisões são *inferência*, e é assim que aparecem — no SemanticPrompt,
+que a interface mostra por inteiro, e não como se a pessoa as tivesse pedido
+(plano T→J §23).
 """
 
 from __future__ import annotations
@@ -14,30 +26,34 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Iterable
 
-from ..profiles import GenerationProfile
 from ..schemas import (
     AssetGenerationRequest,
     AssetMode,
+    FinalResolvedSpec,
     SemanticComposition,
     SemanticPrompt,
     SemanticTechnical,
 )
 
 __all__ = [
+    "PixelBackgroundPromptBuilder",
     "PixelCharacterPromptBuilder",
     "PixelPropPromptBuilder",
     "PromptBuilder",
     "PromptBuilderRegistry",
     "StudioBackgroundPromptBuilder",
     "StudioCharacterPromptBuilder",
+    "StudioPropPromptBuilder",
     "resolve_semantic_prompt",
 ]
 
 
 def resolve_semantic_prompt(
     request: AssetGenerationRequest,
-    profile: GenerationProfile,
+    spec: FinalResolvedSpec,
     builders: PromptBuilderRegistry,
+    *,
+    prompt_builder: str | None = None,
 ) -> SemanticPrompt:
     """A semântica que vale para este pedido — vinda do pedido ou do builder.
 
@@ -48,7 +64,7 @@ def resolve_semantic_prompt(
     """
     if request.semantic_prompt is not None:
         return request.semantic_prompt
-    return builders.resolve(profile).build(request, profile)
+    return builders.resolve(spec, prompt_builder=prompt_builder).build(request, spec)
 
 
 class PromptBuilder(ABC):
@@ -60,7 +76,7 @@ class PromptBuilder(ABC):
 
     @abstractmethod
     def build(
-        self, request: AssetGenerationRequest, profile: GenerationProfile
+        self, request: AssetGenerationRequest, spec: FinalResolvedSpec
     ) -> SemanticPrompt:
         ...
 
@@ -84,6 +100,36 @@ class PromptBuilder(ABC):
         if isinstance(raw, Iterable):
             return [str(item) for item in raw]
         return []
+
+    @staticmethod
+    def _subject(request: AssetGenerationRequest, spec: FinalResolvedSpec) -> str:
+        """O sujeito do spec, com a descrição bruta como último recurso.
+
+        O spec ganha porque ele já teve as restrições numéricas removidas:
+        mandar "tree 32x32, 8 colors" ao motor faria o modelo desenhar o
+        texto (plano T→J §26).
+        """
+        return spec.asset.subject.strip() or request.prompt.strip()
+
+    @staticmethod
+    def _view(request: AssetGenerationRequest, spec: FinalResolvedSpec, default: str | None):
+        """Vista resolvida > atributo do pedido > padrão do builder.
+
+        Uma vista escrita na descrição ("vista lateral") já chegou aqui dentro
+        do spec e ganha do padrão — que continua sendo inferência.
+        """
+        if spec.composition.view:
+            return spec.composition.view
+        return request.attributes.get("view", default)
+
+    @staticmethod
+    def _palette(spec: FinalResolvedSpec) -> int | None:
+        palette = spec.palette
+        if palette is None:
+            return None
+        if palette.mode == "locked":
+            return len(palette.colors) or None
+        return palette.max_colors
 
     def _avoid(self, request: AssetGenerationRequest) -> list[str]:
         avoid = list(self.default_avoid)
@@ -125,39 +171,41 @@ class PixelCharacterPromptBuilder(PromptBuilder):
     )
 
     def build(
-        self, request: AssetGenerationRequest, profile: GenerationProfile
+        self, request: AssetGenerationRequest, spec: FinalResolvedSpec
     ) -> SemanticPrompt:
         return SemanticPrompt(
-            subject=request.prompt.strip(),
+            subject=self._subject(request, spec),
             medium="pixel_art",
             style=self._attr(request, "style"),
-            view=self._attr(request, "view", "side"),
+            view=self._view(request, spec, "side"),
             pose=self._attr(request, "pose", "idle"),
             appearance=self._appearance(request),
             details=self._details(request),
             avoid=self._avoid(request),
             composition=SemanticComposition(
                 single_subject=True,
-                centered=True,
+                centered=spec.composition.centered,
                 full_body=bool(self._attr(request, "full_body", True)),
-                isolated_background=True,
-                margin_ratio=0.08,
+                isolated_background=spec.background.transparent,
+                margin_ratio=spec.composition.margin_ratio or 0.08,
             ),
             technical=SemanticTechnical(
                 clean_silhouette=True,
                 sharp_edges=True,
-                limited_palette=profile.palette.size,
-                transparent_background=profile.output.transparent,
+                limited_palette=self._palette(spec),
+                transparent_background=spec.background.transparent,
             ),
-            extra={
-                "logical_size": [profile.output.logical_width, profile.output.logical_height],
-                "asset_type": profile.asset.type.value,
-            },
         )
 
 
 class PixelPropPromptBuilder(PixelCharacterPromptBuilder):
-    """Props e objetos em Pixel Art."""
+    """Props e objetos em Pixel Art.
+
+    É o builder que o bug da árvore nunca alcançava. Repare no ``avoid``: um
+    prop não deve trazer personagem nem mão junto, e é justamente essa
+    diferença que "tree" não recebia enquanto era classificado como
+    personagem.
+    """
 
     id = "pixel.prop"
     default_avoid = (
@@ -167,17 +215,59 @@ class PixelPropPromptBuilder(PixelCharacterPromptBuilder):
         "text",
         "watermark",
         "characters",
+        "people",
         "hands",
+        "sprite sheet",
+        "multiple objects",
+        "grid layout",
     )
 
     def build(
-        self, request: AssetGenerationRequest, profile: GenerationProfile
+        self, request: AssetGenerationRequest, spec: FinalResolvedSpec
     ) -> SemanticPrompt:
-        prompt = super().build(request, profile)
+        prompt = super().build(request, spec)
+        return prompt.model_copy(
+            update={
+                # Prop não tem pose nem "corpo inteiro": os dois campos
+                # descrevem personagem, e mandá-los assim mesmo faz o motor
+                # tentar dar postura a um barril.
+                "pose": None,
+                "view": self._view(request, spec, "front"),
+                "composition": prompt.composition.model_copy(update={"full_body": None}),
+            }
+        )
+
+
+class PixelBackgroundPromptBuilder(PixelCharacterPromptBuilder):
+    """Cenários em Pixel Art."""
+
+    id = "pixel.background"
+    default_avoid = (
+        "blur",
+        "antialiasing",
+        "photorealism",
+        "text",
+        "watermark",
+        "characters in foreground",
+        "sprite sheet",
+        "grid layout",
+    )
+
+    def build(
+        self, request: AssetGenerationRequest, spec: FinalResolvedSpec
+    ) -> SemanticPrompt:
+        prompt = super().build(request, spec)
         return prompt.model_copy(
             update={
                 "pose": None,
-                "composition": prompt.composition.model_copy(update={"full_body": None}),
+                # Um cenário preenche o quadro: nada de sujeito único,
+                # centralizado e recortado do fundo.
+                "composition": SemanticComposition(
+                    single_subject=False,
+                    centered=False,
+                    full_body=None,
+                    isolated_background=False,
+                ),
             }
         )
 
@@ -196,29 +286,55 @@ class StudioCharacterPromptBuilder(PromptBuilder):
     )
 
     def build(
-        self, request: AssetGenerationRequest, profile: GenerationProfile
+        self, request: AssetGenerationRequest, spec: FinalResolvedSpec
     ) -> SemanticPrompt:
         return SemanticPrompt(
-            subject=request.prompt.strip(),
+            subject=self._subject(request, spec),
             medium=str(self._attr(request, "medium", "cartoon_2d")),
             style=self._attr(request, "style", "clean game art"),
-            view=self._attr(request, "view", "front"),
+            view=self._view(request, spec, "front"),
             pose=self._attr(request, "pose"),
             appearance=self._appearance(request),
             details=self._details(request),
             avoid=self._avoid(request),
             composition=SemanticComposition(
                 single_subject=True,
-                centered=True,
+                centered=spec.composition.centered,
                 full_body=bool(self._attr(request, "full_body", True)),
-                isolated_background=profile.output.transparent,
+                isolated_background=spec.background.transparent,
             ),
             technical=SemanticTechnical(
                 clean_silhouette=True,
                 sharp_edges=False,
-                transparent_background=profile.output.transparent,
+                limited_palette=self._palette(spec),
+                transparent_background=spec.background.transparent,
             ),
-            extra={"asset_type": profile.asset.type.value},
+        )
+
+
+class StudioPropPromptBuilder(StudioCharacterPromptBuilder):
+    """Props e objetos em arte 2D convencional."""
+
+    id = "studio.prop"
+    default_avoid = (
+        "pixel art",
+        "low resolution",
+        "text",
+        "watermark",
+        "characters",
+        "people",
+        "hands",
+    )
+
+    def build(
+        self, request: AssetGenerationRequest, spec: FinalResolvedSpec
+    ) -> SemanticPrompt:
+        prompt = super().build(request, spec)
+        return prompt.model_copy(
+            update={
+                "pose": None,
+                "composition": prompt.composition.model_copy(update={"full_body": None}),
+            }
         )
 
 
@@ -229,9 +345,9 @@ class StudioBackgroundPromptBuilder(StudioCharacterPromptBuilder):
     default_avoid = ("pixel art", "text", "watermark", "characters in foreground")
 
     def build(
-        self, request: AssetGenerationRequest, profile: GenerationProfile
+        self, request: AssetGenerationRequest, spec: FinalResolvedSpec
     ) -> SemanticPrompt:
-        prompt = super().build(request, profile)
+        prompt = super().build(request, spec)
         return prompt.model_copy(
             update={
                 "composition": SemanticComposition(
@@ -245,7 +361,7 @@ class StudioBackgroundPromptBuilder(StudioCharacterPromptBuilder):
 
 
 class PromptBuilderRegistry:
-    """Resolve o builder a partir do id do profile/pipeline ou do modo."""
+    """Resolve o builder a partir do spec resolvido."""
 
     def __init__(self, builders: Iterable[PromptBuilder] = ()) -> None:
         self._builders: dict[str, PromptBuilder] = {
@@ -258,7 +374,9 @@ class PromptBuilderRegistry:
             (
                 PixelCharacterPromptBuilder(),
                 PixelPropPromptBuilder(),
+                PixelBackgroundPromptBuilder(),
                 StudioCharacterPromptBuilder(),
+                StudioPropPromptBuilder(),
                 StudioBackgroundPromptBuilder(),
             )
         )
@@ -272,12 +390,25 @@ class PromptBuilderRegistry:
     def ids(self) -> tuple[str, ...]:
         return tuple(sorted(self._builders))
 
-    def resolve(self, profile: GenerationProfile) -> PromptBuilder:
-        """Escolhe o builder mais específico disponível para o profile."""
+    def resolve(
+        self, spec: FinalResolvedSpec, *, prompt_builder: str | None = None
+    ) -> PromptBuilder:
+        """Escolhe o builder mais específico disponível para o spec.
+
+        A chave do meio — ``"{modo}.{tipo}"`` — é onde a classificação
+        semântica encosta no prompt: um pedido resolvido como
+        ``pixel``/``prop`` cai em ``pixel.prop`` mesmo tendo sido pedido pelo
+        profile `pixel_character_64`, porque quem manda no tipo é o spec
+        (plano T→J §22 e §37).
+
+        ``prompt_builder`` continua ganhando de tudo: é a fixação explícita
+        que um Generation Profile pode declarar, e configuração explícita não
+        é sobreposta por inferência.
+        """
         candidates = [
-            profile.prompt_builder,
-            f"{profile.asset.mode.value}.{profile.asset.type.value}",
-            profile.pipeline,
+            prompt_builder,
+            f"{spec.asset.mode.value}.{spec.asset.type.value}",
+            spec.pipeline_id,
         ]
         for candidate in candidates:
             if candidate and (builder := self._builders.get(candidate)):
@@ -285,10 +416,10 @@ class PromptBuilderRegistry:
 
         fallback = (
             "pixel.character"
-            if profile.asset.mode is AssetMode.PIXEL
+            if spec.asset.mode is AssetMode.PIXEL
             else "studio.character"
         )
         builder = self._builders.get(fallback)
         if builder is None:  # pragma: no cover - registro vazio
-            raise KeyError(f"nenhum prompt builder disponível para '{profile.id}'")
+            raise KeyError(f"nenhum prompt builder disponível para '{spec.spec_id}'")
         return builder

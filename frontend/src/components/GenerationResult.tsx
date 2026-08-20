@@ -29,6 +29,7 @@ export function GenerationResult({
       <p className="result__prompt" title={outcome.prompt}>
         {outcome.prompt}
       </p>
+      {outcome.fallbackUsed ? <FallbackNotice /> : null}
       <ResultActions
         variant={outcome.variant}
         fileName={`assetflow-${outcome.jobId}.png`}
@@ -37,5 +38,29 @@ export function GenerationResult({
         onNewPrompt={onNewPrompt}
       />
     </section>
+  );
+}
+
+/**
+ * Aviso de que o asset não veio do gerador preferido (plano §44).
+ *
+ * Sem ele, uma substituição é invisível: o asset chega completo, com selo
+ * técnico e tudo, e nada distingue a arte que você pediu de um placeholder de
+ * emergência. Foi exatamente assim que um "red dragon" virou um boneco
+ * geométrico sem ninguém perceber — a informação existia no job desde sempre,
+ * só não chegava à tela.
+ *
+ * O texto é deliberadamente neutro. O backend manda junto uma frase que cita
+ * o id do motor; usá-la aqui seria mais informativo e furaria a regra de a
+ * interface não conhecer motor nenhum (§32 e §46). O que o usuário precisa
+ * saber é que **houve** substituição, não quem substituiu quem.
+ */
+function FallbackNotice() {
+  return (
+    <p className="result__fallback" role="status">
+      <span aria-hidden="true">⚠</span> O gerador principal deste modo não estava
+      disponível, e este asset saiu de um gerador alternativo — o resultado tende a
+      ser bem mais simples que o pedido. Vale gerar de novo.
+    </p>
   );
 }

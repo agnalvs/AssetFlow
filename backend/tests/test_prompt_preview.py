@@ -235,3 +235,79 @@ def test_unknown_profile_fails_the_same_way_as_generation(client: TestClient):
 
     assert response.status_code == 404
     assert response.json()["code"] == "profile_not_found"
+
+
+# ---------------------------------------------------------------------------
+# O contrato resolvido, pela API (plano T→J §32, §33 e §43)
+# ---------------------------------------------------------------------------
+def test_preview_shows_the_contract_that_will_be_executed(client: TestClient):
+    """A aba "Interpretação" existe porque este objeto passou a ser exposto.
+
+    Antes, a pré-visualização mostrava a semântica do prompt e mais nada: a
+    resolução lógica — justamente o campo que saía diferente do pedido — não
+    aparecia em lugar nenhum da tela.
+    """
+    preview = _preview(client, prompt="tree")
+    resolved = preview["resolved"]
+
+    assert resolved["asset"]["type"] == "prop"
+    assert resolved["asset"]["subject"] == "tree"
+    assert resolved["logical_resolution"] == {"width": 64, "height": 64}
+    assert resolved["sources"]["logical_resolution"] == "profile_default"
+    assert resolved["spec_hash"]
+
+
+def test_the_edited_contract_is_the_one_that_runs(client: TestClient):
+    """Plano T→J §33: o JSON mostrado é o JSON executado.
+
+    O caminho completo do bug, agora fechado: pré-visualizar, discordar da
+    resolução, mandar a correção e conferir no **arquivo**. A verificação é o
+    `logical_width` do asset, e não o que o spec diz de si mesmo — o spec
+    dizer 32 e o PNG ter 64 era exatamente o defeito.
+    """
+    body = {
+        "project_id": "project_preview",
+        "profile": "pixel_character_64",
+        "prompt": PROMPT,
+        "output": {"variations": 1},
+        "spec_overrides": {"logical_width": 32, "logical_height": 32},
+    }
+
+    preview = client.post("/api/generation/prompt/preview", json=body).json()
+    assert preview["resolved"]["logical_resolution"] == {"width": 32, "height": 32}
+    assert preview["resolved"]["sources"]["logical_resolution"] == "manual_override"
+
+    created = client.post("/api/generation/jobs", json=body)
+    assert created.status_code == 202, created.text
+    job = _wait_for_terminal(client, created.json()["job_id"])
+
+    assert job["status"] == "completed", job.get("error")
+    # Mesmo contrato dos dois lados: mesmo hash, mesma resolução, mesmo selo.
+    assert job["prompt"]["resolved"]["spec_hash"] == preview["resolved"]["spec_hash"]
+
+    variant = job["asset"]["variants"][0]
+    assert (variant["logical_width"], variant["logical_height"]) == (32, 32)
+    assert variant["pixel_exact"] is True
+
+
+def test_an_impossible_request_is_refused_with_the_reason(client: TestClient):
+    """Plano T→J §30: recusar explicando, em vez de corrigir calado.
+
+    A mensagem é escrita em português e chega ao cliente inteira — é a única
+    família de erro em que a frase do backend serve para ser lida na tela.
+    """
+    response = client.post(
+        "/api/generation/prompt/preview",
+        json={
+            "project_id": "project_preview",
+            "profile": "studio_character",
+            "prompt": PROMPT,
+            "spec_overrides": {"logical_width": 32, "logical_height": 32},
+        },
+    )
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["code"] == "invalid_request"
+    assert "Pixel Art" in body["message"]
+    assert body["detail"]["errors"][0]["campo"] == "logical_resolution"

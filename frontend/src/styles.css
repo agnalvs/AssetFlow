@@ -306,6 +306,63 @@ input {
 }
 
 /* --------------------------------------------------------------------------
+   Controles explícitos do asset (plano T→J §18 e §19)
+   --------------------------------------------------------------------------
+   Ficam sempre visíveis, mas todos em "Automático": eles precisam estar à
+   mão de quem quer mandar em 32×32 sem virar formulário para quem só quer
+   escrever uma frase. Os campos de Pixel Art (resolução, cores) somem no
+   modo 2D, porque lá eles não existem — e um campo que o backend recusa é
+   pior do que um campo ausente.
+   -------------------------------------------------------------------------- */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.controls__control {
+  display: flex;
+  flex: 1 1 130px;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.controls__label {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.controls__field {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.controls__field:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.controls__field:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.controls__field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
    Painel da leitura do prompt
    --------------------------------------------------------------------------
    Nasce fechado e discreto: é ferramenta de quando algo deu errado, não um
@@ -505,6 +562,138 @@ input {
   padding-top: 4px;
   color: var(--text-faint);
   font-size: 0.74rem;
+}
+
+/* --------------------------------------------------------------------------
+   Abas do painel e o resumo legível (plano T→J §17 e §32)
+   --------------------------------------------------------------------------
+   "Interpretação" vem primeiro e é a aba padrão. A ordem é a mensagem: o
+   JSON continua disponível inteiro, mas deixou de ser a única forma de saber
+   o que o AssetFlow entendeu.
+   -------------------------------------------------------------------------- */
+.inspector__headline {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.inspector__tabs {
+  display: flex;
+  gap: 4px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.inspector__tab {
+  padding: 7px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -3px;
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.inspector__tab:hover {
+  color: var(--text);
+}
+
+.inspector__tab--active {
+  color: var(--accent-strong);
+  border-bottom-color: var(--accent);
+}
+
+.reading {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reading__grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.reading__label {
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.reading__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  color: var(--text);
+}
+
+/* A origem do valor, discreta e sempre presente. Ela é o que separa "você
+   pediu 32×32" de "o estilo respondeu 64×64" — a distinção que faltava. */
+.reading__source {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+}
+
+.reading__source--user {
+  color: var(--accent-strong);
+}
+
+.reading__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px 10px 28px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.editor__note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.editor__note code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+}
+
+.result__fallback {
+  max-width: 46ch;
+  margin: 0 auto;
+  padding: 10px 14px;
+  border: 1px solid rgba(242, 112, 127, 0.35);
+  border-radius: var(--radius-sm);
+  background: rgba(242, 112, 127, 0.1);
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  text-align: center;
 }
 
 /* Botão principal -------------------------------------------------------- */

@@ -13,12 +13,19 @@ pertence à camada de pós-processamento, que já conhece as duas pontas.
 Precedência, na ordem em que as fontes ganham::
 
     profile Pixel (config/pixel_profiles.yaml)
-        <  overrides do pedido (AssetOutputOverrides)
+        <  Final Resolved Spec (o contrato do job)
+
+O Final Resolved Spec vem por último porque ele **já** é o resultado da
+precedência inteira do plano T→J §9 — manual, prompt, interface, inferência,
+profile. Quando ninguém pediu nada, ele carrega os próprios valores do profile
+e a sobreposição não muda um pixel; quando alguém pediu 32×32, é aqui que
+32×32 chega ao arquivo. Antes desta ligação o pedido morria no caminho e o
+profile Pixel respondia sozinho — o bug do 32×32 que sai 64×64.
 
 Quando o Generation Profile aponta um ``pixel_profile``, ele é a fonte única
-da verdade técnica — o Generation Profile não contribui com nada, justamente
-para não existirem dois lugares dizendo qual é o limiar de alpha. A coerência
-entre os dois arquivos é garantida por teste
+da verdade técnica *de partida* — o Generation Profile não contribui com nada,
+justamente para não existirem dois lugares dizendo qual é o limiar de alpha. A
+coerência entre os dois arquivos é garantida por teste
 (``tests/pixel/test_pixel_profiles_config.py``), não por convenção.
 
 Profiles antigos, que nunca ouviram falar de Pixel Exact, continuam
@@ -33,7 +40,7 @@ import logging
 from ....pixel.contracts import PixelOutputSpec
 from ....pixel.profiles import PixelProfileRegistry
 from ...profiles import GenerationProfile
-from ...schemas import AssetOutputOverrides
+from ...schemas import FinalResolvedSpec
 
 __all__ = ["spec_from_profile"]
 
@@ -47,23 +54,29 @@ def spec_from_profile(
     profile: GenerationProfile,
     registry: PixelProfileRegistry | None = None,
     *,
-    overrides: AssetOutputOverrides | None = None,
+    resolved: FinalResolvedSpec | None = None,
 ) -> PixelOutputSpec | None:
-    """Resolve o contrato Pixel Exact de um profile.
+    """Resolve o contrato Pixel Exact deste job.
 
-    Devolve ``None`` quando o profile não descreve um asset de Pixel Art — é
+    Devolve ``None`` quando o pedido não descreve um asset de Pixel Art — é
     o caso do modo Studio, que não tem resolução lógica e para o qual a
     pergunta "isto é Pixel Exact?" não faz sentido.
     """
-    spec = _base_spec(profile, registry)
+    spec = _base_spec(profile, registry, resolved)
     if spec is None:
         return None
-    return _apply_overrides(spec, overrides)
+    return _apply_resolved(spec, resolved)
 
 
 def _base_spec(
-    profile: GenerationProfile, registry: PixelProfileRegistry | None
+    profile: GenerationProfile,
+    registry: PixelProfileRegistry | None,
+    resolved: FinalResolvedSpec | None,
 ) -> PixelOutputSpec | None:
+    # Quem decide se este job é Pixel Art é o spec resolvido, não o profile:
+    # o modo pode ter sido corrigido à mão, e o profile não fica sabendo.
+    if resolved is not None and not resolved.is_pixel:
+        return None
     if profile.pixel_profile:
         found = registry.find(profile.pixel_profile) if registry else None
         if found is not None:
@@ -130,34 +143,51 @@ def _derive(profile: GenerationProfile) -> PixelOutputSpec:
     )
 
 
-def _apply_overrides(
-    spec: PixelOutputSpec, overrides: AssetOutputOverrides | None
+def _apply_resolved(
+    spec: PixelOutputSpec, resolved: FinalResolvedSpec | None
 ) -> PixelOutputSpec:
-    """Ajustes pontuais pedidos no próprio job (plano §52).
+    """Grava no contrato de saída o que o job resolveu (plano T→J §14 e §44).
 
-    São os únicos campos do pedido que fazem sentido no contrato de saída:
-    quem pede um sprite deve poder pedir 32×32 com 8 cores sem que exista um
-    profile novo para cada combinação.
+    São os três campos do spec resolvido que descrevem o *arquivo*: resolução
+    lógica, paleta e fundo. Eles chegam aqui já decididos — o pós-processador
+    não infere nada e não escolhe entre 32 e 64; ele executa.
+
+    E, porque este mesmo ``PixelOutputSpec`` alimenta o validador logo depois,
+    o selo PIXEL EXACT passa a ser conferido contra o que a pessoa pediu, e
+    não contra o padrão do profile (plano T→J §43 e §44).
     """
-    if overrides is None:
+    if resolved is None or resolved.logical_resolution is None:
         return spec
 
     updates: dict[str, object] = {}
-    width = overrides.logical_width or spec.logical_size.width
-    height = overrides.logical_height or spec.logical_size.height
-    if (width, height) != spec.target_size:
+    logical = resolved.logical_resolution
+    if logical.size != spec.target_size:
         updates["logical_size"] = spec.logical_size.model_copy(
-            update={"width": width, "height": height}
+            update={"width": logical.width, "height": logical.height}
         )
 
-    if overrides.palette_size and spec.palette.mode == "max_colors":
-        updates["palette"] = spec.palette.model_copy(
-            update={"max_colors": overrides.palette_size}
-        )
+    palette = resolved.palette
+    if palette is not None and palette.mode == "max_colors" and palette.max_colors:
+        if spec.palette.mode == "max_colors":
+            updates["palette"] = spec.palette.model_copy(
+                update={"max_colors": palette.max_colors}
+            )
+        else:
+            # Paleta travada e limite numérico são contratos incompatíveis. O
+            # resolver já recusa o pedido explícito; chegar aqui significa
+            # profile Pixel travado contra profile de produto com `size` — uma
+            # incoerência de configuração, que some no log e não no arquivo.
+            _LOG.warning(
+                "spec Pixel '%s' usa paleta travada; o limite de %s cores do "
+                "contrato resolvido foi ignorado",
+                spec.id,
+                palette.max_colors,
+            )
 
-    if overrides.transparent is not None:
+    transparent = resolved.background.transparent
+    if transparent != (spec.background.mode == "transparent"):
         updates["background"] = spec.background.model_copy(
-            update={"mode": "transparent" if overrides.transparent else "solid"}
+            update={"mode": "transparent" if transparent else "solid"}
         )
 
     return spec.model_copy(update=updates) if updates else spec

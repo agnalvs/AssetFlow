@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from ....pixel import PixelAssetProcessor, PixelProfileRegistry
 from ....pixel.contracts import CheckStatus
-from ...schemas import AssetOutputOverrides
+from ...schemas import FinalResolvedSpec
 from ..base import ImageBuffer, PostProcessContext, PostProcessor
 from .spec import spec_from_profile
 
@@ -42,10 +42,17 @@ class PixelExactProcessor(PostProcessor):
 
     # ------------------------------------------------------------------
     def _spec(self, context: PostProcessContext):
-        overrides = context.extra.get("output_overrides")
-        if not isinstance(overrides, AssetOutputOverrides):
-            overrides = None
-        return spec_from_profile(context.profile, self._registry, overrides=overrides)
+        """O contrato do arquivo final, com o spec do job por cima.
+
+        O ``resolved_spec`` é o que a pessoa vai receber: se ele disser 32×32,
+        o processador produz 32×32 e o validador cobra 32×32 (plano T→J §14).
+        Ausente — chamada direta de teste ou do endpoint de diagnóstico —,
+        vale o profile sozinho, como antes.
+        """
+        resolved = context.extra.get("resolved_spec")
+        if not isinstance(resolved, FinalResolvedSpec):
+            resolved = None
+        return spec_from_profile(context.profile, self._registry, resolved=resolved)
 
     def applies_to(self, context: PostProcessContext) -> bool:
         return self._spec(context) is not None

@@ -15,6 +15,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from .common import AssetFlowModel
+from .resolved_spec import FinalResolvedSpec
 
 __all__ = [
     "PromptPreview",
@@ -118,6 +119,16 @@ class PromptPreview(AssetFlowModel):
     #: Profile resolvido para o pedido — inclusive o ad hoc, quando é o caso.
     profile: str
     capability: str
+
+    #: O contrato final — o que a geração vai executar (plano T→J §32 e §33).
+    #:
+    #: É o campo que a aba "Interpretação" da interface lê: tipo de asset,
+    #: sujeito, categoria, resolução lógica, paleta, fundo, e a origem de cada
+    #: um desses valores. Antes dele, a tela mostrava a semântica do prompt e
+    #: deixava o resto invisível — inclusive a resolução, que era exatamente o
+    #: campo que saía diferente do pedido.
+    resolved: FinalResolvedSpec
+
     semantic: SemanticPrompt
     positive: str
     negative: str | None = None

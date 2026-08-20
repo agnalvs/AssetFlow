@@ -17,6 +17,7 @@ from .asset_request import AssetGenerationRequest
 from .capability import Capability
 from .common import AssetFlowModel, StageTimings, new_id, utcnow
 from .engine import EngineRef
+from .resolved_spec import FinalResolvedSpec
 from .semantic_prompt import SemanticPrompt
 
 __all__ = [
@@ -93,6 +94,18 @@ class Job(AssetFlowModel):
     priority: int = 0
 
     request: AssetGenerationRequest
+
+    #: O contrato resolvido deste job (plano T→J §15 e §33).
+    #:
+    #: Resolvido uma vez, na submissão, e imutável daqui em diante: é o mesmo
+    #: objeto que a pré-visualização mostrou e o mesmo que o pipeline, o
+    #: pós-processamento e o validador vão ler. Guardá-lo no job — e não
+    #: recalculá-lo no worker — é o que impede que 32×32 vire 64×64 entre a
+    #: tela e o arquivo.
+    #:
+    #: ``None`` só em job montado à mão (testes, fila legada); nesse caso o
+    #: worker resolve na hora, pelo mesmo resolver.
+    resolved_spec: FinalResolvedSpec | None = None
 
     progress: float = Field(default=0.0, ge=0.0, le=1.0)
     stage: str = ""

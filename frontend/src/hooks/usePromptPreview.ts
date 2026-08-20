@@ -2,17 +2,22 @@
  * A leitura que o AssetFlow faz da descrição, acompanhando a digitação.
  *
  * Entre a frase que a pessoa escreve e a imagem que sai existe uma
- * interpretação — vista, pose, composição, uma lista de coisas a evitar que
- * ninguém pediu. Ela sempre existiu; o que não existia era poder olhar para
- * ela **antes** de gastar uma geração, e discordar.
+ * interpretação — hoje um contrato inteiro, o `FinalResolvedSpec` — e ela
+ * sempre existiu. O que não existia era poder olhar para ela **antes** de
+ * gastar uma geração, e discordar.
  *
  * A decisão que dá forma ao hook: quem responde o que será enviado é sempre o
- * backend, inclusive quando a semântica foi corrigida à mão. O pedido de
+ * backend, inclusive quando algo foi corrigido à mão. O pedido de
  * pré-visualização leva a correção junto, e a resposta volta normalizada e
- * validada pelo mesmo contrato que a geração usaria. Guardar a correção só
- * do lado do cliente seria mais rápido e mentiria em dois casos: um JSON fora
- * do contrato (que só falharia na hora de gerar) e um campo omitido (que o
+ * validada pelo mesmo contrato que a geração usaria. Guardar a correção só do
+ * lado do cliente seria mais rápido e mentiria em dois casos: um JSON fora do
+ * contrato (que só falharia na hora de gerar) e um campo omitido (que o
  * backend preencheria com o padrão, sem o painel mostrar).
+ *
+ * São dois níveis de correção, e eles não se confundem (plano T→J §9):
+ *
+ *     spec       o contrato — resolução, paleta, tipo de asset
+ *     semantic   o prompt — vista, pose, o que evitar
  *
  * Uma correção pode envelhecer: se a descrição mudar depois dela, o hook não
  * descarta nem atualiza sozinho — ele avisa (`stale`). As duas decisões são
@@ -27,13 +32,22 @@ import {
   buildJobPayload,
   previewPrompt,
 } from "../services/generationApi";
-import type { GenerationMode, PromptPreview, SemanticPrompt } from "../types";
+import type { AssetSelection } from "../components/AssetControls";
+import type {
+  GenerationMode,
+  PromptPreview,
+  SemanticPrompt,
+  SpecOverrides,
+} from "../types";
 
 /** Espera depois da última tecla antes de perguntar ao backend. */
 const DEBOUNCE_MS = 450;
 
 export interface PromptEdit {
-  semantic: SemanticPrompt;
+  /** Correção manual do contrato (plano T→J §9, nível 1). */
+  spec: SpecOverrides | null;
+  /** Semântica corrigida à mão; substitui o PromptBuilder inteiro. */
+  semantic: SemanticPrompt | null;
   /** Descrição vigente quando a correção foi feita — base do aviso `stale`. */
   basePrompt: string;
 }
@@ -48,17 +62,18 @@ export interface UsePromptPreview {
   preview: PromptPreview | null;
   loading: boolean;
   error: PreviewError | null;
-  /** Há uma correção à mão em vigor. */
-  edited: boolean;
+  specEdited: boolean;
+  semanticEdited: boolean;
   /** A descrição mudou depois da correção — o painel está desatualizado. */
   stale: boolean;
-  /** Aplica uma semântica corrigida (ou `null` para voltar ao automático). */
-  setEdit: (semantic: SemanticPrompt | null) => void;
+  setSpecEdit: (overrides: SpecOverrides | null) => void;
+  setSemanticEdit: (semantic: SemanticPrompt | null) => void;
 }
 
 export function usePromptPreview(
   mode: GenerationMode,
   prompt: string,
+  selection: AssetSelection,
   edit: PromptEdit | null,
   onEditChange: (edit: PromptEdit | null) => void,
 ): UsePromptPreview {
@@ -68,7 +83,13 @@ export function usePromptPreview(
 
   const trimmed = prompt.trim();
   const inFlight = useRef<AbortController | null>(null);
+  const spec = edit?.spec ?? null;
   const semantic = edit?.semantic ?? null;
+
+  // Os controles são objeto novo a cada render do App; comparar por valor
+  // evita refazer a pré-visualização a cada tecla digitada em outro campo.
+  const selectionKey = JSON.stringify(selection);
+  const specKey = JSON.stringify(spec);
 
   useEffect(() => {
     if (!trimmed) {
@@ -85,7 +106,7 @@ export function usePromptPreview(
       inFlight.current = controller;
 
       previewPrompt(
-        buildJobPayload({ mode, prompt: trimmed, semantic }),
+        buildJobPayload({ mode, prompt: trimmed, selection, spec, semantic }),
         controller.signal,
       )
         .then((result) => {
@@ -97,7 +118,9 @@ export function usePromptPreview(
           if (controller.signal.aborted) return;
           if (caught instanceof GenerationApiError && caught.code === "aborted") return;
           // Falhar aqui não impede de gerar: o painel é diagnóstico, e uma
-          // leitura indisponível não é motivo para travar o botão.
+          // leitura indisponível não é motivo para travar o botão. A exceção
+          // é o pedido recusado pelo backend (uma resolução impossível, por
+          // exemplo) — aí o erro é o próprio conteúdo da resposta.
           setPreview(null);
           setError({
             message:
@@ -115,24 +138,42 @@ export function usePromptPreview(
     return () => {
       window.clearTimeout(timer);
     };
-  }, [mode, trimmed, semantic]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, trimmed, selectionKey, specKey, semantic]);
 
   // Desmontou no meio de uma busca: não deixa a requisição pendurada.
   useEffect(() => () => inFlight.current?.abort(), []);
 
-  const setEdit = useCallback(
-    (next: SemanticPrompt | null) => {
-      onEditChange(next ? { semantic: next, basePrompt: trimmed } : null);
+  const setSpecEdit = useCallback(
+    (next: SpecOverrides | null) => {
+      if (next === null && semantic === null) {
+        onEditChange(null);
+        return;
+      }
+      onEditChange({ spec: next, semantic, basePrompt: trimmed });
     },
-    [onEditChange, trimmed],
+    [onEditChange, semantic, trimmed],
+  );
+
+  const setSemanticEdit = useCallback(
+    (next: SemanticPrompt | null) => {
+      if (next === null && spec === null) {
+        onEditChange(null);
+        return;
+      }
+      onEditChange({ spec, semantic: next, basePrompt: trimmed });
+    },
+    [onEditChange, spec, trimmed],
   );
 
   return {
     preview,
     loading,
     error,
-    edited: edit !== null,
+    specEdited: spec !== null,
+    semanticEdited: semantic !== null,
     stale: edit !== null && edit.basePrompt !== trimmed,
-    setEdit,
+    setSpecEdit,
+    setSemanticEdit,
   };
 }

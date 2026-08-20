@@ -37,10 +37,12 @@ from .schemas import (
     Capability,
     EngineDescriptor,
     EngineHealth,
+    FinalResolvedSpec,
     Job,
     JobStatus,
     PromptPreview,
 )
+from .spec import ConstraintResolver, SpecResolution
 
 __all__ = ["GenerationService"]
 
@@ -58,6 +60,7 @@ class GenerationService:
         profiles: ProfileRegistry,
         pipelines: PipelineRegistry,
         prompt_builders: PromptBuilderRegistry | None = None,
+        constraints: ConstraintResolver | None = None,
         records: GenerationRecordRepository | None = None,
         catalog: CapabilityCatalog = CATALOG,
         default_max_attempts: int = 2,
@@ -70,6 +73,10 @@ class GenerationService:
         # a pré-visualização poderia responder com uma leitura que a geração
         # nunca faria — e a tela mentiria com toda a boa-fé.
         self._prompt_builders = prompt_builders or PromptBuilderRegistry.with_defaults()
+        # O mesmo resolver que o worker usa, pelo mesmo motivo dos builders:
+        # se a fachada montasse o seu, a tela poderia mostrar um spec que a
+        # geração nunca executaria — e o painel passaria a mentir com boa-fé.
+        self._constraints = constraints or ConstraintResolver()
         self._records = records
         self._catalog = catalog
         self._default_max_attempts = default_max_attempts
@@ -89,6 +96,12 @@ class GenerationService:
         if not request.prompt.strip():
             raise InvalidGenerationRequest("o pedido precisa de uma descrição (prompt)")
 
+        # O contrato é resolvido AQUI, uma vez, e viaja com o job (plano T→J
+        # §15 e §33). O worker não reinterpreta nada: ele recebe o mesmo
+        # objeto que a pré-visualização mostrou. É essa identidade que
+        # sustenta a promessa "o JSON exibido é o JSON executado".
+        resolved = self.resolve_spec(request, profile=profile, pipeline_id=pipeline_id)
+
         job = Job(
             project_id=request.project_id,
             user_id=request.user_id,
@@ -97,8 +110,13 @@ class GenerationService:
             capability=capability,
             request=request,
             max_attempts=self._default_max_attempts,
+            resolved_spec=resolved,
             queue=self._jobs.router.route(capability),
-            metadata={"profile_display_name": profile.display_name},
+            metadata={
+                "profile_display_name": profile.display_name,
+                "spec_id": resolved.spec_id,
+                "spec_hash": resolved.spec_hash,
+            },
         )
         return await self._jobs.submit(job)
 
@@ -114,16 +132,55 @@ class GenerationService:
         pela metade transformaria cada tecla em uma mensagem de erro.
         """
         profile = self.resolve_profile(request)
-        semantic = resolve_semantic_prompt(request, profile, self._prompt_builders)
+        resolved = self.resolve_spec(request, profile=profile)
+        semantic = resolve_semantic_prompt(
+            request,
+            resolved,
+            self._prompt_builders,
+            prompt_builder=profile.prompt_builder,
+        )
         positive, negative = render_semantic_prompt(semantic)
         return PromptPreview(
             profile=profile.id,
-            capability=str(request.capability or profile.capability),
+            capability=str(resolved.capability),
+            resolved=resolved,
             semantic=semantic,
             positive=positive,
             negative=negative,
             source="request" if request.semantic_prompt is not None else "builder",
         )
+
+    def resolve_spec(
+        self,
+        request: AssetGenerationRequest,
+        *,
+        profile: GenerationProfile | None = None,
+        pipeline_id: str | None = None,
+    ) -> FinalResolvedSpec:
+        """O Final Resolved Spec deste pedido (plano T→J §15).
+
+        Ponto único de resolução do sistema. Pré-visualização e submissão
+        chamam esta função, e o worker recebe o resultado pronto dentro do
+        job — ninguém resolve duas vezes, e por isso ninguém pode divergir.
+        """
+        return self.resolve_full_spec(
+            request, profile=profile, pipeline_id=pipeline_id
+        ).spec
+
+    def resolve_full_spec(
+        self,
+        request: AssetGenerationRequest,
+        *,
+        profile: GenerationProfile | None = None,
+        pipeline_id: str | None = None,
+    ) -> SpecResolution:
+        """Como :meth:`resolve_spec`, mas com a classificação e as restrições.
+
+        Serve ao diagnóstico: mostra qual termo do vocabulário decidiu o tipo
+        e quais trechos da descrição foram lidos como restrição exata.
+        """
+        profile = profile or self.resolve_profile(request)
+        return self._constraints.resolve(request, profile, pipeline_id=pipeline_id)
 
     def resolve_profile(self, request: AssetGenerationRequest) -> GenerationProfile:
         """Descobre o profile do pedido.

@@ -24,11 +24,24 @@ profiles:
       logical_height: 64
       # Resolução em que o motor gera antes do downscale lógico.
       #
-      # 1024 e não 512: medido com o SDXL, 512 fica fora da distribuição de
-      # treino e ele devolve grade de tiles em vez de um personagem. O custo
-      # é tempo de inferência (~3× em GPU com offload); a qualidade compensa.
-      render_width: 1024
-      render_height: 1024
+      # ATENÇÃO: este número é o único campo do arquivo que depende do MODELO
+      # ativo em config/engines.yaml, e o valor certo inverte entre os dois
+      # perfis que aquele arquivo oferece:
+      #
+      #   SDXL base   -> 1024. Medido: em 512 ele sai da distribuição de
+      #                  treino e devolve grade de tiles no lugar de um
+      #                  personagem.
+      #   SDXL-Turbo  -> 512.  É a resolução em que o Turbo foi destilado.
+      #                  Medido nesta máquina, mesma seed e mesmo prompt:
+      #                  em 1024 saíram dois personagens colados e cobertos
+      #                  de lâminas (órfãos 0,207 / microclusters 0,821); em
+      #                  512, um guerreiro só com silhueta limpa (0,111 /
+      #                  0,740) — e em 9,3s em vez de 21,8s.
+      #
+      # O perfil ativo hoje é o do Turbo, daí o 512. Trocando engines.yaml
+      # para o perfil de 12GB, este campo volta para 1024 junto.
+      render_width: 512
+      render_height: 512
       variations: 4
       transparent: true
     palette:
@@ -54,8 +67,9 @@ profiles:
     output:
       logical_width: 32
       logical_height: 32
-      render_width: 1024
-      render_height: 1024
+      # Ver a nota sobre render x modelo em `pixel_character_64`.
+      render_width: 512
+      render_height: 512
       variations: 4
       transparent: true
     palette:
@@ -80,8 +94,9 @@ profiles:
     output:
       logical_width: 64
       logical_height: 64
-      render_width: 1024
-      render_height: 1024
+      # Ver a nota sobre render x modelo em `pixel_character_64`.
+      render_width: 512
+      render_height: 512
       variations: 4
       transparent: true
     palette:

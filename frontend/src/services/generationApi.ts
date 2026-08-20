@@ -7,6 +7,10 @@
  */
 
 import {
+  type AssetSelection,
+  selectionToOutput,
+} from "../components/AssetControls";
+import {
   type CreateJobPayload,
   type GenerationMode,
   type Job,
@@ -14,6 +18,7 @@ import {
   MODES,
   type PromptPreview,
   type SemanticPrompt,
+  type SpecOverrides,
 } from "../types";
 
 const BASE_URL = "/api/generation";
@@ -42,18 +47,26 @@ export function getProjectId(): string {
 export function buildJobPayload(input: {
   mode: GenerationMode;
   prompt: string;
+  selection?: AssetSelection | null;
+  spec?: SpecOverrides | null;
   semantic?: SemanticPrompt | null;
 }): CreateJobPayload {
   const config = MODES[input.mode];
+  const selection = input.selection ?? null;
   return {
     project_id: getProjectId(),
     // O frontend pede uma CAPACIDADE, nunca um motor.
     capability: config.capability,
     profile: config.profile,
     prompt: input.prompt.trim(),
-    output: { variations: 1 },
-    engine: { mode: "auto" },
+    // Controles em "Automático" não entram no corpo: ausência é o que o
+    // backend lê como "não opino", e é assim que o classificador e o profile
+    // continuam podendo responder (plano T→J §23).
+    ...(selection?.assetType ? { asset_type: selection.assetType } : {}),
+    output: selection ? selectionToOutput(selection) : { variations: 1 },
+    ...(input.spec ? { spec_overrides: input.spec } : {}),
     ...(input.semantic ? { semantic_prompt: input.semantic } : {}),
+    engine: { mode: "auto" },
   };
 }
 
@@ -108,17 +121,20 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     // mensagem técnica nunca é exibida crua ao usuário (plano da tela §40).
     let code = "unknown_error";
     let fields: FieldError[] = [];
+    let reason: string | undefined;
     try {
       const body = (await response.json()) as {
         code?: string;
+        message?: string;
         detail?: { errors?: FieldError[] };
       };
       if (body?.code) code = body.code;
+      if (body?.message) reason = body.message;
       if (body?.detail?.errors) fields = body.detail.errors;
     } catch {
       /* resposta sem corpo JSON */
     }
-    throw new GenerationApiError(messageForCode(code), code, fields);
+    throw new GenerationApiError(messageForCode(code, reason), code, fields);
   }
 
   return (await response.json()) as T;
@@ -169,7 +185,15 @@ export function cancelGenerationJob(jobId: string): Promise<Job> {
  * O usuário nunca vê "CUDA OOM" nem "EngineResolverException": o detalhe
  * técnico fica no log do backend.
  */
-function messageForCode(code: string): string {
+function messageForCode(code: string, reason?: string): string {
+  // `invalid_request` é o único código cuja mensagem do backend é escrita
+  // para ser lida por quem pediu: o resolver recusa em português e explica o
+  // motivo — "resolução 4×4 fora do suportado" (plano T→J §30). Trocá-la pela
+  // frase genérica esconderia justamente a informação que o §30 existe para
+  // dar. Todos os outros continuam traduzidos aqui, porque a mensagem crua
+  // deles é técnica ("CUDA OOM") e não serve a ninguém na tela.
+  if (code === "invalid_request" && reason) return reason;
+
   switch (code) {
     case "no_engine_available":
     case "engine_unavailable":

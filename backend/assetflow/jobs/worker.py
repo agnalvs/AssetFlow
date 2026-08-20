@@ -25,7 +25,8 @@ from ..generation.kernel.service import GenerationKernel
 from ..generation.pipelines import PipelineContext, PipelineRegistry
 from ..generation.profiles import ProfileRegistry
 from ..generation.prompting import PromptBuilderRegistry
-from ..generation.schemas import Job
+from ..generation.schemas import FinalResolvedSpec, Job
+from ..generation.spec import ConstraintResolver
 from ..storage import AssetStorageService
 from .manager import JobManager
 from .queue import DEFAULT_QUEUE
@@ -47,6 +48,7 @@ class GenerationWorker:
         profiles: ProfileRegistry,
         storage: AssetStorageService,
         prompt_builders: PromptBuilderRegistry | None = None,
+        constraints: ConstraintResolver | None = None,
         queues: tuple[str, ...] = (DEFAULT_QUEUE,),
         concurrency: int = 1,
         job_timeout_s: float = 900.0,
@@ -58,6 +60,7 @@ class GenerationWorker:
         self._profiles = profiles
         self._storage = storage
         self._prompt_builders = prompt_builders or PromptBuilderRegistry.with_defaults()
+        self._constraints = constraints or ConstraintResolver()
         self._queues = queues or (DEFAULT_QUEUE,)
         self._concurrency = max(1, concurrency)
         self._job_timeout_s = job_timeout_s
@@ -127,6 +130,25 @@ class GenerationWorker:
         await self._execute(item.job_id)
         return True
 
+    def _resolved_spec(self, job: Job, profile) -> FinalResolvedSpec:
+        """O contrato do job — recebido pronto, nunca reinterpretado.
+
+        Quem resolve é o ``GenerationService``, na submissão, e o resultado
+        viaja dentro do job. O worker só o repassa: reinterpretar aqui seria
+        abrir uma segunda chance de o pedido ser trocado por um padrão, que é
+        a origem do bug que o Final Resolved Spec existe para fechar (plano
+        T→J §33).
+
+        O fallback cobre o job montado à mão — teste, fila legada, requeue de
+        um job gravado antes deste campo existir. Ele usa o **mesmo** resolver
+        do serviço, então continua sem existir uma segunda regra.
+        """
+        if job.resolved_spec is not None:
+            return job.resolved_spec
+        return self._constraints.resolve(
+            job.request, profile, pipeline_id=job.pipeline_id
+        ).spec
+
     async def _execute(self, job_id: str) -> None:
         job = await self._manager.start(job_id)
         if job is None:
@@ -143,6 +165,7 @@ class GenerationWorker:
                 job_id=job.id,
                 request=job.request,
                 profile=profile,
+                resolved=self._resolved_spec(job, profile),
                 kernel=self._kernel,
                 storage=self._storage,
                 prompt_builders=self._prompt_builders,

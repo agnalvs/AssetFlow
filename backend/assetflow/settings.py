@@ -93,6 +93,19 @@ class Settings(AssetFlowModel):
 
     # ------------------------------------------------------------------
     @property
+    def asset_taxonomy_dir(self) -> Path:
+        """``config/asset_taxonomy/`` — o vocabulário semântico (plano T→J §5).
+
+        É um diretório, e não um arquivo, porque cada tipo de asset tem o seu
+        (``prop.yaml``, ``character.yaml``...). Acrescentar um tipo é
+        acrescentar um arquivo — sem tocar em código nem nos outros.
+
+        Ausente, o classificador fica mudo e o tipo do profile prevalece: o
+        AssetFlow perde a classificação semântica, não a capacidade de gerar.
+        """
+        return self._resolve(self.config_dir / "asset_taxonomy")
+
+    @property
     def engine_discovery_paths(self) -> tuple[Path, ...]:
         discovery = self.engines_config.get("discovery") or {}
         paths = discovery.get("paths") or ["assetflow/generation/engines"]

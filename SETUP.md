@@ -169,6 +169,14 @@ Depois: **http://localhost:5173**
 > e `backend/data/` é onde os PNGs são gravados: cada geração reiniciaria o
 > servidor no meio do próprio job.
 
+> **Mexeu em `config/*.yaml`? Reinicie o backend na mão.** O reload do uvicorn
+> só observa `*.py` — `--reload-include "*.yaml"` existe, mas o próprio uvicorn
+> avisa que a flag não faz nada sem o pacote `watchfiles`, que não está entre as
+> dependências do projeto. Ou seja: o `--reload-dir config` do comando acima
+> vigia uma pasta que não contém `.py` nenhum, e uma troca de motor ou de
+> profile **não** entra em vigor sozinha. O servidor segue rodando a
+> configuração que ele leu quando subiu, sem nenhum sinal de que está velha.
+
 ### 5.1 O que você vê
 
 Dois modos — **Pixel Art** e **2D Normal** —, um campo de descrição e o botão de

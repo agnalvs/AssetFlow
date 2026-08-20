@@ -1,0 +1,29 @@
+# ---------------------------------------------------------------------------
+# Taxonomia — TILESET (plano Text→JSON §4)
+# ---------------------------------------------------------------------------
+# "grass tileset" é um tileset, não uma vegetação: o marker do tipo ganha da
+# keyword de sujeito. É exatamente a regra que este arquivo existe para
+# exercitar — sem ela, "grass" levaria o pedido para `prop`.
+# ---------------------------------------------------------------------------
+type: tileset
+priority: 90
+
+markers:
+  en: [tileset, tile set, autotile, terrain tiles, tilemap, tile sheet]
+  pt: [tileset, conjunto de tiles, mapa de tiles, tiles de terreno]
+
+keywords:
+  en: [terrain, ground tiles, wall tiles, platform tiles]
+  pt: [terreno, tiles de chao, tiles de chão, tiles de parede]
+
+categories:
+  terrain:
+    - terrain
+    - terreno
+    - ground tiles
+    - tiles de chao
+    - tiles de chão
+  structure:
+    - wall tiles
+    - platform tiles
+    - tiles de parede

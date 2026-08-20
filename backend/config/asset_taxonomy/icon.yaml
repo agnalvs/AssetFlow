@@ -1,0 +1,28 @@
+# ---------------------------------------------------------------------------
+# Taxonomia — ICON (plano Text→JSON §3)
+# ---------------------------------------------------------------------------
+# Prioridade acima de `prop` de propósito: "ícone de espada" é um ícone, e o
+# marker precisa ganhar da keyword "espada", que é prop.
+# ---------------------------------------------------------------------------
+type: icon
+priority: 60
+
+markers:
+  en: [icon, icon set, item icon, skill icon, ability icon]
+  pt: [icone, ícone, conjunto de icones, conjunto de ícones, icone de item, ícone de item]
+
+keywords:
+  en: [badge, emblem, crest, pictogram]
+  pt: [emblema, brasao, brasão, pictograma]
+
+categories:
+  emblem:
+    - badge
+    - emblem
+    - crest
+    - emblema
+    - brasao
+    - brasão
+  symbol:
+    - pictogram
+    - pictograma

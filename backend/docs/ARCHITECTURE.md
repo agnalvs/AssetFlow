@@ -148,6 +148,12 @@ Na redução usamos média de área (`BOX`), não nearest-neighbor: nearest em
 característica volta logo depois, na quantização de paleta e no corte de alpha.
 Nearest-neighbor é usado onde ele é obrigatório: ao **ampliar** (thumbnails).
 
+Os dois números vêm do `FinalResolvedSpec` do job, não do profile: o profile é
+apenas a camada mais fraca das seis que decidem a resolução lógica. Ler
+`profile.output.logical_width` diretamente do pipeline ou do pós-processamento
+é reintroduzir o bug em que um pedido de 32×32 saía 64×64 — veja
+[RESOLVED_SPEC.md](RESOLVED_SPEC.md).
+
 ### 3.4 O pós-processamento é o produto
 
 O conhecimento do AssetFlow sobre Pixel Art mora em `assetflow/pixel/`:
@@ -291,6 +297,7 @@ asset tecnicamente válido**. Detalhes em [PIXEL_EXACT.md](PIXEL_EXACT.md).
 | §51–55 API | `assetflow/api/` |
 | §56–59 Pipeline Pixel e pós-processamento | `pipelines/pixel/`, `postprocessing/pixel/` |
 | Plano Pixel §1–110 Pixel Exact | `assetflow/pixel/`, `config/pixel_profiles.yaml` — ver [PIXEL_EXACT.md](PIXEL_EXACT.md) |
+| Plano T→J §1–46 Final Resolved Spec | `generation/spec/`, `schemas/resolved_spec.py`, `config/asset_taxonomy/` — ver [RESOLVED_SPEC.md](RESOLVED_SPEC.md) |
 | §60–61 Studio 2D | `pipelines/studio/` |
 | §63–65 Plugins e configuração | `kernel/discovery.py`, `config/`, `settings.py` |
 | §66–68 Testes de contrato e substituição | `tests/contract/`, `tests/test_engine_swap.py` |

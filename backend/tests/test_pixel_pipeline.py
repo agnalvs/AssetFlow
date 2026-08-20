@@ -218,4 +218,7 @@ def test_studio_asset_has_no_pixel_verdict(container: AppContainer):
     variant = job.asset.variants[0]
     assert variant.pixel_exact is None
     assert variant.status is None
-    assert not variant.artifacts
+    # `resolved_spec.json` acompanha toda geração, inclusive esta (plano T→J
+    # §35): é o contrato que produziu o arquivo, e depurar arte 2D também
+    # precisa dele. O que não pode existir aqui é artefato do Pixel Exact.
+    assert set(variant.artifacts) == {"resolved_spec.json"}
