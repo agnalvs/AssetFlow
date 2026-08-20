@@ -154,6 +154,18 @@ pixel_profiles:
   # -------------------------------------------------------------------------
   # Tile de terreno 16×16. É o profile que mais foge do padrão, e cada desvio
   # tem o motivo declarado abaixo.
+  #
+  # ATENÇÃO: este é um contrato SEM Generation Profile. Nenhum bloco de
+  # `profiles.yaml` aponta para ele, então ele não é pedível por
+  # `POST /api/generation/jobs` — hoje só o alcançam o endpoint de diagnóstico
+  # (`ASSETFLOW_DEV_ENDPOINTS=1`) e `scripts/pixel_report.py`. É de propósito:
+  # tile ainda não é caminho de produto (a capacidade `tileset.pixel` está
+  # marcada como experimental, não existe pipeline de tile e a interface só
+  # conhece Pixel Art e 2D Normal). Ele fica aqui, vivo e testado, porque é o
+  # caso que mais estica o contrato — e é assim que se prova que o
+  # `PixelOutputSpec` já cobre o §66 antes de existir produto para ele.
+  # Para expor o tile de verdade faltam um prompt builder de tile e o bloco
+  # correspondente em `profiles.yaml`; nada disso muda uma linha daqui.
   # -------------------------------------------------------------------------
   pixel_tileset_16:
     version: "1.0.0"

@@ -16,8 +16,15 @@ __all__ = [
 ]
 
 #: Versão do conjunto (processamento + validação + aceitação).
-PIXEL_PIPELINE_VERSION = "1.0.0"
+#:
+#: 1.1.0 — recalibração da penalidade de ocupação: a distância fora da faixa
+#: passou a ser normalizada pelo espaço do lado violado, e não pela largura da
+#: faixa (ver `validation/scoring.py`). Só o validador mudou, mas a nota é
+#: dele, então o conjunto muda junto: um `quality_score` de 1.0.0 e um de
+#: 1.1.0 não são comparáveis, e é exatamente para isso que estes números
+#: viajam em todo relatório.
+PIXEL_PIPELINE_VERSION = "1.1.0"
 POSTPROCESSOR_VERSION = "1.0.0"
-VALIDATOR_VERSION = "1.0.0"
+VALIDATOR_VERSION = "1.1.0"
 ACCEPTANCE_POLICY_VERSION = "1.0.0"
 PREVIEW_GENERATOR_VERSION = "1.0.0"

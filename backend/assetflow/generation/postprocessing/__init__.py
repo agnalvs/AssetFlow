@@ -16,11 +16,11 @@ __all__ = [
     "PostProcessingChain",
     "PostProcessor",
     "build_pixel_chain",
-    "spec_from_profile",
     "build_studio_chain",
     "build_thumbnail",
     "decode_image",
     "encode_png",
+    "spec_from_profile",
     "to_hex",
     "unique_colors",
 ]

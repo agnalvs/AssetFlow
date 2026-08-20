@@ -66,7 +66,9 @@ MICROCLUSTER_FREE_RATIO = 0.20
 MICROCLUSTER_PENALTY_RATE = 100.0
 MICROCLUSTER_PENALTY_MAX = 20.0
 
-#: Ocupação: a franquia é a faixa saudável do próprio profile (§53).
+#: Ocupação: a franquia é a faixa saudável do próprio profile (§53), e o teto
+#: vale para o pior desvio que aquele profile permite existir — ver
+#: `_occupancy_penalty`.
 OCCUPANCY_PENALTY_MAX = 15.0
 
 #: Cores redundantes: cada par desperdiça uma entrada do palette budget.
@@ -176,22 +178,44 @@ def _threshold_penalty(value: float, *, free: float, rate: float, ceiling: float
 def _occupancy_penalty(occupancy: float, limits: ValidationSpec) -> float:
     """Desconto por sair da faixa de ocupação do profile (§53).
 
-    A distância é normalizada pela largura da própria faixa: um profile que
-    aceita de 5% a 95% está declarando que quase não se importa, e o mesmo
-    desvio absoluto custa pouco nele e caro em um profile estreito. Faixa
-    degenerada (``min == max``) significa exigência exata — qualquer desvio
-    leva o teto.
+    A distância é normalizada pelo **espaço que existe fora da faixa do lado
+    que foi violado**, e não pela largura da faixa. A diferença não é
+    cosmética: ocupação é uma fração de 0 a 1, então abaixo de
+    ``min_occupancy`` só cabem ``min_occupancy`` pontos percentuais e acima de
+    ``max_occupancy`` só cabem ``1 - max_occupancy``. Normalizar pela largura
+    da faixa media dois eixos diferentes e tornava o teto inalcançável: com a
+    faixa padrão ``[0.05, 0.95]``, um sprite **inteiramente vazio** — o pior
+    desvio que pode existir — descontava 0,83 de 15 pontos possíveis, e o
+    indicador virava decoração no relatório.
+
+    Assim a penalidade lê como fração do desvio máximo possível naquele
+    profile: no limite da faixa é zero, no extremo do eixo é o teto. O efeito
+    que a normalização anterior buscava continua de pé, e por um caminho mais
+    direto — um profile que exige de 50% a 100% de ocupação (o tile do §66)
+    tem meio eixo para errar, enquanto um que aceita a partir de 5% declara
+    que quase não se importa, e nele só chega perto do teto quem chega perto
+    do vazio.
+
+    Faixa degenerada (``min == max``) continua significando exigência exata:
+    qualquer desvio leva o teto.
     """
     if limits.min_occupancy <= occupancy <= limits.max_occupancy:
         return 0.0
 
-    band = limits.max_occupancy - limits.min_occupancy
-    if band <= 0.0:
+    if limits.max_occupancy - limits.min_occupancy <= 0.0:
         return OCCUPANCY_PENALTY_MAX
 
-    distance = (
-        limits.min_occupancy - occupancy
-        if occupancy < limits.min_occupancy
-        else occupancy - limits.max_occupancy
-    )
-    return min(OCCUPANCY_PENALTY_MAX, distance / band * OCCUPANCY_PENALTY_MAX)
+    if occupancy < limits.min_occupancy:
+        distance = limits.min_occupancy - occupancy
+        room = limits.min_occupancy
+    else:
+        distance = occupancy - limits.max_occupancy
+        room = 1.0 - limits.max_occupancy
+
+    # `room` só seria zero se o profile proibisse um lado que a própria escala
+    # já torna impossível (nada ocupa menos que 0% nem mais que 100%), ou seja
+    # em um desvio que não pode acontecer. Se acontecer, é o pior caso.
+    if room <= 0.0:  # pragma: no cover - inalcançável pela escala da métrica
+        return OCCUPANCY_PENALTY_MAX
+
+    return min(OCCUPANCY_PENALTY_MAX, distance / room * OCCUPANCY_PENALTY_MAX)

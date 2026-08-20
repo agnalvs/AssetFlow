@@ -331,6 +331,55 @@ def test_scorer_records_every_penalty_and_the_score_closes_with_the_sum():
     assert score == math.floor(100.0 - math.fsum(penalties.values()))
 
 
+def test_occupancy_penalty_is_measured_against_what_the_profile_lets_you_miss():
+    """§53: o teto da ocupação precisa ser alcançável em qualquer profile.
+
+    Ocupação é uma fração de 0 a 1, então o quanto dá para errar depende do
+    lado: abaixo de ``min_occupancy`` cabem ``min_occupancy`` pontos, acima de
+    ``max_occupancy`` cabem ``1 - max_occupancy``. Normalizar o desvio por
+    outra coisa — a largura da faixa, por exemplo — mistura dois eixos e
+    afunda a penalidade: com a faixa padrão ``[0.05, 0.95]``, um sprite
+    **inteiramente vazio**, que é o pior desvio que pode existir, descontaria
+    0,83 de 15 pontos possíveis e o indicador viraria decoração no relatório.
+
+    Por isso o teste fixa as âncoras da curva em vez de um número solto: na
+    borda da faixa desconta zero, no extremo do eixo desconta o teto, e no
+    meio do caminho desconta metade — em um profile largo, em um estreito e
+    na exigência exata.
+    """
+    scorer = QualityScorer()
+
+    def penalty(occupancy: float, **limits: object) -> float:
+        _, penalties = scorer.score(
+            QualityMetrics(foreground_occupancy=occupancy),
+            (),
+            _spec(64, 64, validation=limits),
+        )
+        return penalties.get("occupancy", 0.0)
+
+    # Faixa padrão: 5 pontos percentuais de espaço para errar de cada lado.
+    assert penalty(0.30) == 0.0
+    assert penalty(0.05) == 0.0
+    assert penalty(0.95) == 0.0
+    assert penalty(0.0) == OCCUPANCY_PENALTY_MAX  # canvas vazio
+    assert penalty(1.0) == OCCUPANCY_PENALTY_MAX  # canvas cheio
+    assert penalty(0.025) == OCCUPANCY_PENALTY_MAX / 2
+    assert penalty(0.975) == OCCUPANCY_PENALTY_MAX / 2
+
+    # O tile do §66 vai de 50% a 100%: não existe lado de cima para violar, e
+    # o de baixo é meio eixo — o mesmo 25% que seria irrelevante no profile
+    # de personagem custa metade do teto aqui.
+    tile = {"min_occupancy": 0.50, "max_occupancy": 1.0}
+    assert penalty(1.0, **tile) == 0.0
+    assert penalty(0.25, **tile) == OCCUPANCY_PENALTY_MAX / 2
+    assert penalty(0.0, **tile) == OCCUPANCY_PENALTY_MAX
+
+    # Faixa degenerada é exigência exata: qualquer desvio leva o teto.
+    exact = {"min_occupancy": 0.40, "max_occupancy": 0.40}
+    assert penalty(0.40, **exact) == 0.0
+    assert penalty(0.39, **exact) == OCCUPANCY_PENALTY_MAX
+
+
 def test_scorer_never_leaves_the_0_100_range():
     """A nota é uma escala fechada, mesmo com todos os indicadores no pior caso.
 

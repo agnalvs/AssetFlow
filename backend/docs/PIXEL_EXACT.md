@@ -271,7 +271,7 @@ ruim zere sozinho a nota de um asset que acerta todo o resto.
 |---|---|---|---|
 | `orphan` | ratio 0,01 | 400 | 20 |
 | `microcluster` | ratio 0,20 | 100 | 20 |
-| `occupancy` | faixa `[min_occupancy, max_occupancy]` do profile | distância normalizada pela largura da faixa | 15 |
+| `occupancy` | faixa `[min_occupancy, max_occupancy]` do profile | distância normalizada pelo espaço fora da faixa **daquele lado** | 15 |
 | `redundancy` | — | 2 por par | 10 |
 | `outline` | fragmentação 0,20 | 50 | 10 |
 | `rare_colors` | — | 1 por cor rara | 5 |
@@ -285,6 +285,20 @@ A soma usa os valores já arredondados para que o relatório **feche**:
 penalidades maiores que zero. O piso é `floor`, não `round`, para que meio
 ponto perdido continue sendo um ponto a menos. Como os tetos somam 80, a nota
 mínima que a calibração atual produz na prática é 20.
+
+A normalização da ocupação merece a linha extra, porque a escolha óbvia está
+errada. Ocupação é uma fração de 0 a 1: abaixo de `min_occupancy` só cabem
+`min_occupancy` pontos percentuais de erro, e acima de `max_occupancy` só
+cabem `1 - max_occupancy`. Normalizar pela **largura da faixa** — o que o
+código fazia até a calibração atual — mede o desvio em um eixo e a régua em
+outro, e o teto vira enfeite: com a faixa padrão `[0.05, 0.95]`, um sprite
+inteiramente vazio (o pior desvio que pode existir) descontava 0,83 dos 15
+pontos. Normalizando pelo espaço do lado violado, a penalidade passa a ser a
+fração do desvio máximo possível naquele profile — zero na borda da faixa,
+teto no extremo do eixo — e o efeito pretendido continua de pé: o tile do §66,
+que exige de 50% a 100%, tem meio eixo para errar embaixo e nenhum em cima,
+enquanto o profile de personagem, que aceita a partir de 5%, só chega perto do
+teto quem chega perto do vazio.
 
 ### 5.2 A nota é experimental — e nunca se mistura com `pixel_exact`
 
@@ -373,7 +387,25 @@ Os profiles que já existem, e o que cada desvio ensina:
 | `pixel_character_64_strict` | 64×64 | 16 | o exemplo literal do plano §65 |
 | `pixel_character_32_strict` | 32×32 | 12 | menos pixels, menos espaço para nuance; preview 16× para dar a mesma tela |
 | `pixel_prop_64_strict` | 64×64 | 16 | `min_occupancy: 0.03` — uma moeda ocupa pouco canvas de propósito |
-| `pixel_tileset_16` | 16×16 | 8 | `canvas: stretch` (o tile preenche a célula), `cleanup: off` (1 pixel é uma feição inteira), `boundary_touch: ignore` e `min_occupancy: 0.50` (o tile *precisa* sangrar até a borda) |
+| `pixel_tileset_16` ⚠ | 16×16 | 8 | `canvas: stretch` (o tile preenche a célula), `cleanup: off` (1 pixel é uma feição inteira), `boundary_touch: ignore` e `min_occupancy: 0.50` (o tile *precisa* sangrar até a borda) |
+
+⚠ **`pixel_tileset_16` é um contrato sem Generation Profile.** Nenhum bloco de
+`profiles.yaml` aponta para ele, então ele **não é pedível** por
+`POST /api/generation/jobs` — hoje só o alcançam o endpoint de diagnóstico
+(§7.4) e `scripts/pixel_report.py --profile pixel_tileset_16`. Não é
+esquecimento: o resto do sistema trata tile como não lançado — a capacidade
+`tileset.pixel` está marcada `experimental` em `kernel/capabilities.py`, não
+existe pipeline de tile e a interface só conhece Pixel Art e 2D Normal.
+
+Ele fica aqui porque tile é o caso que mais estica o contrato (`stretch`,
+`cleanup: off`, `boundary_touch: ignore` e ocupação alta *exigida* em vez de
+tolerada), e mantê-lo vivo e testado
+([`test_golden.py`](../tests/pixel/test_golden.py)) é o que prova que o
+`PixelOutputSpec` já cobre o §66 antes de existir produto para ele. Expor o
+tile de verdade custa um prompt builder próprio — um tile quer o oposto de um
+personagem: sem fundo transparente, sem margem, preenchendo o quadro — mais o
+bloco correspondente em `profiles.yaml`. Nada disso muda uma linha do
+`pixel_profiles.yaml`.
 
 A chave `palettes:` no fim do arquivo é a tabela nomeada do modo PROJECT
 (§11): um profile pede `palette_id: forest_world_v1` e o `PixelProfileRegistry`
