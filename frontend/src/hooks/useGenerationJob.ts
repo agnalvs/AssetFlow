@@ -47,6 +47,8 @@ export interface GenerationOutcome {
    * o backend preencheu por padrão.
    */
   preview: PromptPreview | null;
+  /** O asset saiu de um gerador alternativo, não do preferido do modo. */
+  fallbackUsed: boolean;
 }
 
 export interface UseGenerationJob {
@@ -120,6 +122,7 @@ export function useGenerationJob(): UseGenerationJob {
               prompt,
               variant,
               preview: job.prompt,
+              fallbackUsed: Boolean(job.fallback_used),
             });
             setState("completed");
             return;

@@ -174,6 +174,15 @@ export interface Job {
   progress: number;
   stage: string;
   asset: Asset | null;
+  /**
+   * O asset não veio do gerador preferido para este modo (plano §44).
+   *
+   * É um booleano, e é assim que tem de ser: a interface precisa avisar que
+   * houve substituição sem descobrir **quem** substituiu quem. O backend
+   * também manda a frase pronta em `warnings`, mas ela cita o id do motor —
+   * exibi-la aqui furaria a regra de a tela não conhecer motor (§32/§46).
+   */
+  fallback_used: boolean;
   /** O que o AssetFlow entendeu. Chega preenchido quando o job termina. */
   prompt: PromptPreview | null;
   error: { code: string; message: string } | null;
