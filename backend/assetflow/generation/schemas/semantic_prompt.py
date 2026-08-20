@@ -10,13 +10,18 @@ Trocar SDXL por FLUX descarta o adapter, nunca o SemanticPrompt.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
 from .common import AssetFlowModel
 
-__all__ = ["SemanticPrompt", "SemanticComposition", "SemanticTechnical"]
+__all__ = [
+    "PromptPreview",
+    "SemanticComposition",
+    "SemanticPrompt",
+    "SemanticTechnical",
+]
 
 
 class SemanticComposition(AssetFlowModel):
@@ -94,3 +99,28 @@ class SemanticPrompt(AssetFlowModel):
         parts.extend(f"{key} {value}" for key, value in sorted(self.appearance.items()))
         parts.extend(self.details)
         return [part for part in parts if part]
+
+
+class PromptPreview(AssetFlowModel):
+    """O que o AssetFlow entendeu de um pedido, sem gerar nada (plano §26).
+
+    Serve para fechar o laço entre a frase que a pessoa escreveu e o que o
+    sistema fará com ela: dá para olhar a leitura, discordar dela e mandar
+    outra de volta em ``AssetGenerationRequest.semantic_prompt``.
+
+    Sobre ``positive``/``negative``: é a renderização **neutra**, a do
+    adapter genérico do AssetFlow. Um motor que tenha adapter próprio relê o
+    ``semantic`` no dialeto dele e recebe outro texto (plano §27) — por isso
+    quem manda aqui é o ``semantic``, e o texto é material de conferência
+    humana, não a string que chega no modelo.
+    """
+
+    #: Profile resolvido para o pedido — inclusive o ad hoc, quando é o caso.
+    profile: str
+    capability: str
+    semantic: SemanticPrompt
+    positive: str
+    negative: str | None = None
+    #: ``builder`` = o AssetFlow interpretou a descrição; ``request`` = a
+    #: semântica veio pronta no pedido e o builder não opinou.
+    source: Literal["builder", "request"] = "builder"

@@ -9,8 +9,10 @@ import { GenerationStatus } from "./components/GenerationStatus";
 import { GeneratorHero } from "./components/GeneratorHero";
 import { Header } from "./components/Header";
 import { PromptInput } from "./components/PromptInput";
+import { PromptInspector } from "./components/PromptInspector";
 import { SessionHistory } from "./components/SessionHistory";
 import { useGenerationJob } from "./hooks/useGenerationJob";
+import { type PromptEdit, usePromptPreview } from "./hooks/usePromptPreview";
 import { type GenerationMode, type HistoryEntry, MODES } from "./types";
 
 const MAX_HISTORY = 12;
@@ -26,9 +28,13 @@ export function App() {
   const [mode, setMode] = useState<GenerationMode>("pixel");
   const [prompt, setPrompt] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  // A correção da leitura mora aqui, e não dentro do painel: ela precisa
+  // sobreviver ao painel fechado e acompanhar o pedido até a geração.
+  const [edit, setEdit] = useState<PromptEdit | null>(null);
 
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const { state, error, result, isBusy, generate, reset, showResult } = useGenerationJob();
+  const inspector = usePromptPreview(mode, prompt, edit, setEdit);
 
   const canGenerate = prompt.trim().length > 0 && !isBusy;
 
@@ -37,9 +43,13 @@ export function App() {
       const cleaned = targetPrompt.trim();
       if (!cleaned || isBusy) return;
 
-      await generate({ mode: targetMode, prompt: cleaned });
+      await generate({
+        mode: targetMode,
+        prompt: cleaned,
+        semantic: edit?.semantic ?? null,
+      });
     },
-    [generate, isBusy],
+    [edit, generate, isBusy],
   );
 
   // O histórico é alimentado quando uma geração conclui.
@@ -53,6 +63,7 @@ export function App() {
         mode: result.mode,
         prompt: result.prompt,
         variant: result.variant,
+        preview: result.preview,
         createdAt: Date.now(),
       };
       return [entry, ...current].slice(0, MAX_HISTORY);
@@ -61,6 +72,7 @@ export function App() {
 
   const handleNewPrompt = useCallback(() => {
     setPrompt("");
+    setEdit(null);
     reset();
     lastRecorded.current = null;
     promptRef.current?.focus();
@@ -83,6 +95,16 @@ export function App() {
             disabled={isBusy}
             onChange={setPrompt}
             onSubmit={() => void runGeneration(mode, prompt)}
+          />
+
+          <PromptInspector
+            preview={inspector.preview}
+            loading={inspector.loading}
+            error={inspector.error}
+            edited={inspector.edited}
+            stale={inspector.stale}
+            disabled={isBusy}
+            onEdit={inspector.setEdit}
           />
 
           <GenerateButton
@@ -120,6 +142,14 @@ export function App() {
           onSelect={(entry) => {
             setPrompt(entry.prompt);
             setMode(entry.mode);
+            // Reabrir uma geração antiga traz de volta a leitura dela, e não
+            // só a frase: é o que permite pegar um acerto e mexer em um campo
+            // sem torcer para o builder interpretar igual de novo.
+            setEdit(
+              entry.preview
+                ? { semantic: entry.preview.semantic, basePrompt: entry.prompt }
+                : null,
+            );
             showResult(entry);
             lastRecorded.current = entry.jobId;
           }}

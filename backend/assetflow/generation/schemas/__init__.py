@@ -56,7 +56,12 @@ from .result import (
     GenerationStatus,
     ImageArtifact,
 )
-from .semantic_prompt import SemanticComposition, SemanticPrompt, SemanticTechnical
+from .semantic_prompt import (
+    PromptPreview,
+    SemanticComposition,
+    SemanticPrompt,
+    SemanticTechnical,
+)
 
 __all__ = [
     "ENGINE_API_VERSION",
@@ -105,6 +110,7 @@ __all__ = [
     "QualityLevel",
     "ReferenceImage",
     "SemanticComposition",
+    "PromptPreview",
     "SemanticPrompt",
     "SemanticTechnical",
     "StageTimings",

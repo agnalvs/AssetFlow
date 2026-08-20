@@ -26,6 +26,11 @@ from .kernel.resolver import EngineResolver
 from .kernel.service import GenerationKernel
 from .pipelines import PipelineRegistry
 from .profiles import GenerationProfile, ProfileOutput, ProfileRegistry
+from .prompting import (
+    PromptBuilderRegistry,
+    render_semantic_prompt,
+    resolve_semantic_prompt,
+)
 from .schemas import (
     AssetGenerationRequest,
     AssetSpec,
@@ -34,6 +39,7 @@ from .schemas import (
     EngineHealth,
     Job,
     JobStatus,
+    PromptPreview,
 )
 
 __all__ = ["GenerationService"]
@@ -51,6 +57,7 @@ class GenerationService:
         jobs: JobManager,
         profiles: ProfileRegistry,
         pipelines: PipelineRegistry,
+        prompt_builders: PromptBuilderRegistry | None = None,
         records: GenerationRecordRepository | None = None,
         catalog: CapabilityCatalog = CATALOG,
         default_max_attempts: int = 2,
@@ -59,6 +66,10 @@ class GenerationService:
         self._jobs = jobs
         self._profiles = profiles
         self._pipelines = pipelines
+        # Os mesmos builders que o worker usa. Se a fachada montasse os seus,
+        # a pré-visualização poderia responder com uma leitura que a geração
+        # nunca faria — e a tela mentiria com toda a boa-fé.
+        self._prompt_builders = prompt_builders or PromptBuilderRegistry.with_defaults()
         self._records = records
         self._catalog = catalog
         self._default_max_attempts = default_max_attempts
@@ -90,6 +101,29 @@ class GenerationService:
             metadata={"profile_display_name": profile.display_name},
         )
         return await self._jobs.submit(job)
+
+    def preview_prompt(self, request: AssetGenerationRequest) -> PromptPreview:
+        """O que este pedido viraria, sem gerar nada (plano §26 e §28).
+
+        Mesmo corpo do ``POST /jobs``, mesma resolução de profile, mesmo
+        builder — só que para até a semântica e não chama o Kernel. É o que
+        permite discordar da leitura antes de gastar GPU com ela.
+
+        Diferente do ``submit``, aqui uma descrição vazia não é erro: a tela
+        pede a pré-visualização enquanto a pessoa digita, e recusar o pedido
+        pela metade transformaria cada tecla em uma mensagem de erro.
+        """
+        profile = self.resolve_profile(request)
+        semantic = resolve_semantic_prompt(request, profile, self._prompt_builders)
+        positive, negative = render_semantic_prompt(semantic)
+        return PromptPreview(
+            profile=profile.id,
+            capability=str(request.capability or profile.capability),
+            semantic=semantic,
+            positive=positive,
+            negative=negative,
+            source="request" if request.semantic_prompt is not None else "builder",
+        )
 
     def resolve_profile(self, request: AssetGenerationRequest) -> GenerationProfile:
         """Descobre o profile do pedido.

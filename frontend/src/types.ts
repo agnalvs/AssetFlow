@@ -61,12 +61,67 @@ export const MODE_LIST: readonly ModeConfig[] = [MODES.pixel, MODES.studio];
 // Contratos da API (espelham o backend, sem qualquer detalhe de motor)
 // ---------------------------------------------------------------------------
 
+/**
+ * A leitura que o AssetFlow faz da descrição (plano §26 e §28).
+ *
+ * Espelha o `SemanticPrompt` do backend. É o objeto que o painel mostra e que
+ * pode ser corrigido à mão: nenhum campo aqui é específico de motor, e por
+ * isso a interface pode exibi-lo inteiro sem descobrir o que gera as imagens.
+ */
+export interface SemanticComposition {
+  single_subject: boolean;
+  centered: boolean;
+  full_body: boolean | null;
+  isolated_background: boolean;
+  margin_ratio: number | null;
+}
+
+export interface SemanticTechnical {
+  clean_silhouette: boolean;
+  sharp_edges: boolean | null;
+  limited_palette: number | null;
+  no_text: boolean;
+  no_watermark: boolean;
+  transparent_background: boolean;
+}
+
+export interface SemanticPrompt {
+  subject: string;
+  medium: string;
+  style: string | null;
+  view: string | null;
+  pose: string | null;
+  appearance: Record<string, string>;
+  details: string[];
+  avoid: string[];
+  composition: SemanticComposition;
+  technical: SemanticTechnical;
+  extra: Record<string, unknown>;
+}
+
+/** Resposta de `POST /api/generation/prompt/preview`, e o campo `prompt` do job. */
+export interface PromptPreview {
+  profile: string;
+  capability: string;
+  semantic: SemanticPrompt;
+  /**
+   * Renderização neutra, para conferência humana. Um motor com dialeto
+   * próprio relê a semântica e recebe outro texto — quem manda é `semantic`.
+   */
+  positive: string;
+  negative: string | null;
+  /** `builder` = o AssetFlow interpretou; `request` = veio corrigido daqui. */
+  source: "builder" | "request";
+}
+
 export interface CreateJobPayload {
   project_id: string;
   capability: string;
   profile: string;
   prompt: string;
   output?: { variations?: number };
+  /** Semântica corrigida à mão. Presente, ela substitui o PromptBuilder. */
+  semantic_prompt?: SemanticPrompt;
   engine?: { mode: "auto" | "manual"; engine_id?: string };
 }
 
@@ -119,6 +174,8 @@ export interface Job {
   progress: number;
   stage: string;
   asset: Asset | null;
+  /** O que o AssetFlow entendeu. Chega preenchido quando o job termina. */
+  prompt: PromptPreview | null;
   error: { code: string; message: string } | null;
 }
 
@@ -128,6 +185,8 @@ export interface HistoryEntry {
   mode: GenerationMode;
   prompt: string;
   variant: AssetVariant;
+  /** A leitura que produziu esta imagem, para poder reabri-la exatamente. */
+  preview: PromptPreview | null;
   createdAt: number;
 }
 

@@ -24,13 +24,31 @@ from ..schemas import (
 )
 
 __all__ = [
-    "PromptBuilder",
     "PixelCharacterPromptBuilder",
     "PixelPropPromptBuilder",
-    "StudioCharacterPromptBuilder",
-    "StudioBackgroundPromptBuilder",
+    "PromptBuilder",
     "PromptBuilderRegistry",
+    "StudioBackgroundPromptBuilder",
+    "StudioCharacterPromptBuilder",
+    "resolve_semantic_prompt",
 ]
+
+
+def resolve_semantic_prompt(
+    request: AssetGenerationRequest,
+    profile: GenerationProfile,
+    builders: PromptBuilderRegistry,
+) -> SemanticPrompt:
+    """A semântica que vale para este pedido — vinda do pedido ou do builder.
+
+    Existe uma função só para que o pipeline e o endpoint de pré-visualização
+    não possam divergir. Se a precedência morasse nos dois lugares, a tela
+    mostraria uma coisa e a geração faria outra, que é exatamente o problema
+    que a pré-visualização existe para resolver.
+    """
+    if request.semantic_prompt is not None:
+        return request.semantic_prompt
+    return builders.resolve(profile).build(request, profile)
 
 
 class PromptBuilder(ABC):

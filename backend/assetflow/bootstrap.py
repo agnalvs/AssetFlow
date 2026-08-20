@@ -173,6 +173,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         jobs=jobs,
         profiles=profiles,
         pipelines=pipelines,
+        prompt_builders=prompt_builders,
         records=records,
         default_max_attempts=settings.worker.max_attempts,
     )

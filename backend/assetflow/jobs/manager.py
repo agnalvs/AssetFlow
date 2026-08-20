@@ -21,6 +21,7 @@ from ..generation.schemas import (
     JobErrorInfo,
     JobEvent,
     JobStatus,
+    SemanticPrompt,
     StageTimings,
     utcnow,
 )
@@ -172,6 +173,7 @@ class JobManager:
         engine=None,
         fallback_used: bool = False,
         warnings: tuple[str, ...] = (),
+        semantic_prompt: SemanticPrompt | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Job:
         job = await self._store.get(job_id)
@@ -180,6 +182,7 @@ class JobManager:
         job.stage = "completed"
         job.finished_at = utcnow()
         job.asset = asset
+        job.semantic_prompt = semantic_prompt or job.semantic_prompt
         job.engine = engine or job.engine
         job.fallback_used = fallback_used
         job.warnings = tuple(dict.fromkeys((*job.warnings, *warnings)))

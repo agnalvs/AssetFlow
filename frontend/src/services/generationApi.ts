@@ -6,18 +6,79 @@
  * WebSocket/SSE mais tarde sem tocar na interface.
  */
 
-import type { CreateJobPayload, Job, JobSubmission } from "../types";
+import {
+  type CreateJobPayload,
+  type GenerationMode,
+  type Job,
+  type JobSubmission,
+  MODES,
+  type PromptPreview,
+  type SemanticPrompt,
+} from "../types";
 
 const BASE_URL = "/api/generation";
+
+/** Identidade de projeto do playground, estável entre recarregamentos. */
+export function getProjectId(): string {
+  const key = "assetflow.project_id";
+  try {
+    const stored = window.localStorage.getItem(key);
+    if (stored) return stored;
+    const created = `web_${Math.random().toString(36).slice(2, 10)}`;
+    window.localStorage.setItem(key, created);
+    return created;
+  } catch {
+    return "web_playground";
+  }
+}
+
+/**
+ * O corpo enviado ao backend, montado em um lugar só.
+ *
+ * A pré-visualização e a geração precisam mandar **o mesmo objeto**: é isso
+ * que faz o painel descrever a geração que vai acontecer, e não uma parecida.
+ * Duas montagens separadas divergiriam no primeiro campo novo.
+ */
+export function buildJobPayload(input: {
+  mode: GenerationMode;
+  prompt: string;
+  semantic?: SemanticPrompt | null;
+}): CreateJobPayload {
+  const config = MODES[input.mode];
+  return {
+    project_id: getProjectId(),
+    // O frontend pede uma CAPACIDADE, nunca um motor.
+    capability: config.capability,
+    profile: config.profile,
+    prompt: input.prompt.trim(),
+    output: { variations: 1 },
+    engine: { mode: "auto" },
+    ...(input.semantic ? { semantic_prompt: input.semantic } : {}),
+  };
+}
+
+/** Um campo recusado pelo backend, no formato normalizado do erro 422. */
+export interface FieldError {
+  campo: string;
+  erro: string;
+}
 
 /** Erro de aplicação: mensagem já apresentável ao usuário. */
 export class GenerationApiError extends Error {
   readonly code: string;
+  /**
+   * Campos recusados, quando o backend soube dizer quais.
+   *
+   * Só o editor de JSON usa isto. Para o resto da tela, o contrato continua
+   * sendo o de sempre: uma frase pronta, sem detalhe técnico (plano §40).
+   */
+  readonly fields: readonly FieldError[];
 
-  constructor(message: string, code = "unknown_error") {
+  constructor(message: string, code = "unknown_error", fields: readonly FieldError[] = []) {
     super(message);
     this.name = "GenerationApiError";
     this.code = code;
+    this.fields = fields;
   }
 }
 
@@ -28,7 +89,14 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
       ...init,
       headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     });
-  } catch {
+  } catch (caught) {
+    // Cancelar uma requisição em voo é operação normal aqui: a
+    // pré-visualização acompanha a digitação e aborta a anterior a cada
+    // tecla. Traduzir isso para "o servidor não respondeu" encheria a tela
+    // de erro justamente quando tudo está funcionando.
+    if (caught instanceof DOMException && caught.name === "AbortError") {
+      throw new GenerationApiError("requisição cancelada", "aborted");
+    }
     throw new GenerationApiError(
       "Não foi possível falar com o servidor do AssetFlow.",
       "network_error",
@@ -39,13 +107,18 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     // O backend devolve erro normalizado {code, message}. Mesmo assim, a
     // mensagem técnica nunca é exibida crua ao usuário (plano da tela §40).
     let code = "unknown_error";
+    let fields: FieldError[] = [];
     try {
-      const body = (await response.json()) as { code?: string };
+      const body = (await response.json()) as {
+        code?: string;
+        detail?: { errors?: FieldError[] };
+      };
       if (body?.code) code = body.code;
+      if (body?.detail?.errors) fields = body.detail.errors;
     } catch {
       /* resposta sem corpo JSON */
     }
-    throw new GenerationApiError(messageForCode(code), code);
+    throw new GenerationApiError(messageForCode(code), code, fields);
   }
 
   return (await response.json()) as T;
@@ -56,6 +129,25 @@ export function createGenerationJob(payload: CreateJobPayload): Promise<JobSubmi
   return request<JobSubmission>(`${BASE_URL}/jobs`, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Mostra o que o AssetFlow entenderia deste pedido, sem gerar nada.
+ *
+ * Recebe **o mesmo payload** do `createGenerationJob` de propósito: a
+ * pergunta é "o que aconteceria se eu mandasse isto?", e ela só tem valor se
+ * for feita com o objeto que seria mandado. O backend garante o outro lado —
+ * as duas rotas resolvem a semântica pela mesma função.
+ */
+export function previewPrompt(
+  payload: CreateJobPayload,
+  signal?: AbortSignal,
+): Promise<PromptPreview> {
+  return request<PromptPreview>(`${BASE_URL}/prompt/preview`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+    signal,
   });
 }
 
@@ -93,6 +185,8 @@ function messageForCode(code: string): string {
       return "Esse tipo de asset não está disponível no momento.";
     case "network_error":
       return "Não foi possível falar com o servidor do AssetFlow.";
+    case "aborted":
+      return "requisição cancelada";
     default:
       return "Não conseguimos concluir esta geração. Tente novamente ou altere sua descrição.";
   }

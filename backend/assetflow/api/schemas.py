@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from pydantic import Field
 
+from ..generation.prompting import render_semantic_prompt
 from ..generation.schemas import (
     AssetFlowModel,
     AssetMode,
@@ -23,6 +24,7 @@ from ..generation.schemas import (
     JobErrorInfo,
     JobEvent,
     JobStatus,
+    PromptPreview,
     StageTimings,
     ValidationReport,
 )
@@ -35,6 +37,7 @@ __all__ = [
     "AssetView",
     "JobSubmissionResponse",
     "JobResponse",
+    "PromptPreview",
     "JobListResponse",
     "EngineSummary",
     "EngineListResponse",
@@ -189,6 +192,10 @@ class JobResponse(AssetFlowModel):
     fallback_used: bool = False
 
     asset: AssetView | None = None
+    #: A leitura que o AssetFlow fez do pedido — o mesmo objeto devolvido por
+    #: `POST /api/generation/prompt/preview`, para que a tela possa comparar
+    #: o que pré-visualizou com o que foi de fato gerado.
+    prompt: PromptPreview | None = None
     error: JobErrorInfo | None = None
     timings: StageTimings = Field(default_factory=StageTimings)
     warnings: tuple[str, ...] = ()
@@ -219,6 +226,7 @@ class JobResponse(AssetFlowModel):
             engine=job.engine,
             fallback_used=job.fallback_used,
             asset=AssetView.from_asset(job.asset, url_for) if job.asset else None,
+            prompt=_prompt_view(job),
             error=job.error,
             timings=job.timings,
             warnings=job.warnings,
@@ -228,6 +236,32 @@ class JobResponse(AssetFlowModel):
             finished_at=job.finished_at,
             events=job.events if include_events else (),
         )
+
+
+def _prompt_view(job: Job) -> PromptPreview | None:
+    """A semântica do job no formato da pré-visualização, ou nada.
+
+    ``None`` enquanto o job não chegou ao fim: a semântica é resolvida no
+    início do pipeline e só sobe para o job quando ele completa. Inventar uma
+    aqui — reexecutando o builder na hora de responder — daria uma resposta
+    plausível e possivelmente diferente da que gerou o asset.
+
+    ``positive``/``negative`` são a renderização neutra do AssetFlow. Um motor
+    com adapter próprio recebe outro texto (plano §27), e é justamente por
+    isso que o campo que manda é o ``semantic``: ele é o mesmo para todos.
+    """
+    semantic = job.semantic_prompt
+    if semantic is None:
+        return None
+    positive, negative = render_semantic_prompt(semantic)
+    return PromptPreview(
+        profile=job.profile_id or "",
+        capability=str(job.capability),
+        semantic=semantic,
+        positive=positive,
+        negative=negative,
+        source="request" if job.request.semantic_prompt is not None else "builder",
+    )
 
 
 class JobListResponse(AssetFlowModel):

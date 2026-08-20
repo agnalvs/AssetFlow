@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   GenerationApiError,
+  buildJobPayload,
   createGenerationJob,
   getGenerationJob,
 } from "../services/generationApi";
@@ -17,7 +18,8 @@ import {
   type AssetVariant,
   type GenerationMode,
   type GenerationState,
-  MODES,
+  type PromptPreview,
+  type SemanticPrompt,
   toGenerationState,
 } from "../types";
 
@@ -28,6 +30,8 @@ const MAX_POLL_ATTEMPTS = 600;
 export interface GenerationRequestInput {
   mode: GenerationMode;
   prompt: string;
+  /** Semântica corrigida no painel. Ausente, o AssetFlow interpreta a frase. */
+  semantic?: SemanticPrompt | null;
 }
 
 export interface GenerationOutcome {
@@ -35,6 +39,14 @@ export interface GenerationOutcome {
   mode: GenerationMode;
   prompt: string;
   variant: AssetVariant;
+  /**
+   * A leitura que produziu esta imagem, como o backend a registrou.
+   *
+   * Vem do job, e não do que o cliente mandou: é o que permite reabrir uma
+   * geração antiga com exatamente a semântica dela, inclusive os campos que
+   * o backend preencheu por padrão.
+   */
+  preview: PromptPreview | null;
 }
 
 export interface UseGenerationJob {
@@ -47,27 +59,12 @@ export interface UseGenerationJob {
   showResult: (outcome: GenerationOutcome) => void;
 }
 
-/** Identidade de projeto do playground, estável entre recarregamentos. */
-function resolveProjectId(): string {
-  const key = "assetflow.project_id";
-  try {
-    const stored = window.localStorage.getItem(key);
-    if (stored) return stored;
-    const created = `web_${Math.random().toString(36).slice(2, 10)}`;
-    window.localStorage.setItem(key, created);
-    return created;
-  } catch {
-    return "web_playground";
-  }
-}
-
 export function useGenerationJob(): UseGenerationJob {
   const [state, setState] = useState<GenerationState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GenerationOutcome | null>(null);
 
   const cancelled = useRef(false);
-  const projectId = useRef<string>(resolveProjectId());
 
   useEffect(() => {
     // Evita atualizar estado depois que a página foi desmontada.
@@ -89,66 +86,70 @@ export function useGenerationJob(): UseGenerationJob {
     setError(null);
   }, []);
 
-  const generate = useCallback(async ({ mode, prompt }: GenerationRequestInput) => {
-    const config = MODES[mode];
-    setError(null);
-    setResult(null);
-    setState("queued");
+  const generate = useCallback(
+    async ({ mode, prompt, semantic }: GenerationRequestInput) => {
+      setError(null);
+      setResult(null);
+      setState("queued");
 
-    try {
-      const submission = await createGenerationJob({
-        project_id: projectId.current,
-        // O frontend pede uma CAPACIDADE, nunca um motor.
-        capability: config.capability,
-        profile: config.profile,
-        prompt: prompt.trim(),
-        output: { variations: 1 },
-        engine: { mode: "auto" },
-      });
+      try {
+        // O mesmo construtor da pré-visualização: o que o painel mostrou é o
+        // que vai. Montar o corpo aqui de novo abriria espaço para diferença.
+        const submission = await createGenerationJob(
+          buildJobPayload({ mode, prompt, semantic }),
+        );
 
-      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
-        if (cancelled.current) return;
-        await sleep(POLL_INTERVAL_MS);
-        if (cancelled.current) return;
+        for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
+          if (cancelled.current) return;
+          await sleep(POLL_INTERVAL_MS);
+          if (cancelled.current) return;
 
-        const job = await getGenerationJob(submission.job_id);
-        const next = toGenerationState(job.status);
+          const job = await getGenerationJob(submission.job_id);
+          const next = toGenerationState(job.status);
 
-        if (next === "completed") {
-          const variant = job.asset?.variants?.[0];
-          if (!variant?.url) {
-            setError("A geração terminou, mas a imagem não pôde ser carregada.");
+          if (next === "completed") {
+            const variant = job.asset?.variants?.[0];
+            if (!variant?.url) {
+              setError("A geração terminou, mas a imagem não pôde ser carregada.");
+              setState("failed");
+              return;
+            }
+            setResult({
+              jobId: job.job_id,
+              mode,
+              prompt,
+              variant,
+              preview: job.prompt,
+            });
+            setState("completed");
+            return;
+          }
+
+          if (next === "failed") {
+            // A mensagem técnica do backend fica no log; aqui vai a do usuário.
+            setError(
+              "Não conseguimos concluir esta geração. Tente novamente ou altere sua descrição.",
+            );
             setState("failed");
             return;
           }
-          setResult({ jobId: job.job_id, mode, prompt, variant });
-          setState("completed");
-          return;
+
+          setState(next === "idle" ? "generating" : next);
         }
 
-        if (next === "failed") {
-          // A mensagem técnica do backend fica no log; aqui vai a do usuário.
-          setError(
-            "Não conseguimos concluir esta geração. Tente novamente ou altere sua descrição.",
-          );
-          setState("failed");
-          return;
-        }
-
-        setState(next === "idle" ? "generating" : next);
+        setError("A geração está demorando mais do que o esperado. Tente novamente.");
+        setState("failed");
+      } catch (caught) {
+        const message =
+          caught instanceof GenerationApiError
+            ? caught.message
+            : "Não conseguimos concluir esta geração. Tente novamente.";
+        setError(message);
+        setState("failed");
       }
-
-      setError("A geração está demorando mais do que o esperado. Tente novamente.");
-      setState("failed");
-    } catch (caught) {
-      const message =
-        caught instanceof GenerationApiError
-          ? caught.message
-          : "Não conseguimos concluir esta geração. Tente novamente.";
-      setError(message);
-      setState("failed");
-    }
-  }, []);
+    },
+    [],
+  );
 
   return {
     state,

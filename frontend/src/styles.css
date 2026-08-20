@@ -305,6 +305,208 @@ input {
   color: var(--danger);
 }
 
+/* --------------------------------------------------------------------------
+   Painel da leitura do prompt
+   --------------------------------------------------------------------------
+   Nasce fechado e discreto: é ferramenta de quando algo deu errado, não um
+   formulário. Só quem abre paga o custo visual da estrutura inteira.
+   -------------------------------------------------------------------------- */
+.inspector {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-input);
+  overflow: hidden;
+}
+
+.inspector--open {
+  border-color: var(--border-strong);
+}
+
+.inspector__toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+}
+
+.inspector__toggle:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.inspector__chevron {
+  color: var(--text-faint);
+  font-size: 0.7rem;
+}
+
+.inspector__title {
+  flex: 1;
+}
+
+.inspector__badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+}
+
+.inspector__badge--warn {
+  background: rgba(242, 112, 127, 0.14);
+  color: var(--danger);
+}
+
+.inspector__loading {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+}
+
+.inspector__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.inspector__notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(242, 112, 127, 0.1);
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.inspector__json,
+.inspector__editor {
+  margin: 0;
+  max-height: 380px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  /* JSON não quebra linha sozinho de forma legível: rolar é melhor que
+     embaralhar a indentação que dá sentido à estrutura. */
+  overflow: auto;
+}
+
+.inspector__editor {
+  width: 100%;
+  resize: vertical;
+  white-space: pre;
+}
+
+.inspector__editor:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.inspector__error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(242, 112, 127, 0.1);
+  color: var(--danger);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.inspector__error p {
+  margin: 0;
+}
+
+.inspector__fields {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inspector__fields code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  color: var(--text);
+}
+
+.inspector__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.inspector__action {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.inspector__action:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.inspector__action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.inspector__action--ghost {
+  background: none;
+  color: var(--text-muted);
+}
+
+.inspector__neutral {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.inspector__neutral dt {
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.inspector__neutral dd {
+  margin: 0;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+.inspector__neutral-note {
+  grid-column: 1 / -1;
+  padding-top: 4px;
+  color: var(--text-faint);
+  font-size: 0.74rem;
+}
+
 /* Botão principal -------------------------------------------------------- */
 .generate-button {
   align-self: center;

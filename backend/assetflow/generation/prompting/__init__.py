@@ -8,6 +8,7 @@ from .builders import (
     PromptBuilderRegistry,
     StudioBackgroundPromptBuilder,
     StudioCharacterPromptBuilder,
+    resolve_semantic_prompt,
 )
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "StudioBackgroundPromptBuilder",
     "StudioCharacterPromptBuilder",
     "render_semantic_prompt",
+    "resolve_semantic_prompt",
 ]

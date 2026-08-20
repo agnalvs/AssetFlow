@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -19,7 +20,7 @@ from ..bootstrap import AppContainer, build_container
 from ..generation.kernel.exceptions import ErrorCode, GenerationError
 from ..settings import Settings
 from ..version import __version__
-from .routers import assets, capabilities, dev_pixel, engines, jobs
+from .routers import assets, capabilities, dev_pixel, engines, jobs, prompt
 from .schemas import ErrorResponse, HealthResponse
 
 __all__ = ["create_app"]
@@ -114,6 +115,36 @@ def create_app(
             ).model_dump(mode="json"),
         )
 
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error_handler(
+        _request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        """422 no mesmo formato normalizado dos outros erros da API.
+
+        O padrão do FastAPI devolve ``{"detail": [...]}``, que quebra a
+        promessa de ``{code, message}`` que o resto da API cumpre — o cliente
+        cai no caso genérico e mostra "não conseguimos concluir" para um erro
+        que ele sabe corrigir. Com o painel de prompt editável isso deixou de
+        ser detalhe: quem escreveu um JSON fora do contrato precisa saber
+        **qual campo** está errado, não que algo deu errado.
+        """
+        errors = [
+            {
+                "campo": ".".join(str(part) for part in error.get("loc", ()) if part != "body"),
+                "erro": error.get("msg", ""),
+            }
+            for error in exc.errors()
+        ]
+        return JSONResponse(
+            status_code=422,
+            content=ErrorResponse(
+                code="invalid_request",
+                message="O corpo do pedido não bate com o contrato da API.",
+                retryable=False,
+                detail={"errors": errors},
+            ).model_dump(mode="json"),
+        )
+
     @app.get("/api/health", response_model=HealthResponse, tags=["health"])
     async def health(request: Request) -> HealthResponse:
         app_container: AppContainer = request.app.state.container
@@ -131,6 +162,7 @@ def create_app(
 
     app.include_router(engines.router)
     app.include_router(capabilities.router)
+    app.include_router(prompt.router)
     app.include_router(jobs.router)
     app.include_router(assets.router)
 

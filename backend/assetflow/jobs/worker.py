@@ -195,6 +195,7 @@ class GenerationWorker:
             engine=outcome.result.engine,
             fallback_used=outcome.result.fallback_used,
             warnings=outcome.warnings,
+            semantic_prompt=outcome.semantic,
             metadata={
                 "record_id": outcome.record.id if outcome.record else None,
                 "attempted_engines": list(outcome.result.attempted_engines),

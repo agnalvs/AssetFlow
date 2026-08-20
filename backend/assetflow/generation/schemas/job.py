@@ -17,6 +17,7 @@ from .asset_request import AssetGenerationRequest
 from .capability import Capability
 from .common import AssetFlowModel, StageTimings, new_id, utcnow
 from .engine import EngineRef
+from .semantic_prompt import SemanticPrompt
 
 __all__ = [
     "JobStatus",
@@ -108,6 +109,10 @@ class Job(AssetFlowModel):
     fallback_used: bool = False
 
     asset: GeneratedAsset | None = None
+    #: O que o AssetFlow entendeu do pedido (plano §26 e §28). Guardado no
+    #: job, e não só no GenerationRecord, porque a interface precisa dele
+    #: enquanto o asset está na tela — sem abrir o histórico.
+    semantic_prompt: SemanticPrompt | None = None
     error: JobErrorInfo | None = None
     timings: StageTimings = Field(default_factory=StageTimings)
     warnings: tuple[str, ...] = ()

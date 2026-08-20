@@ -17,6 +17,7 @@ from pydantic import Field
 from .capability import Capability
 from .common import AssetFlowModel, AssetMode, AssetType, QualityLevel, new_id
 from .request import EngineSelector, ReferenceImage, StructuralControl
+from .semantic_prompt import SemanticPrompt
 
 __all__ = ["AssetOutputOverrides", "AssetGenerationRequest"]
 
@@ -56,6 +57,21 @@ class AssetGenerationRequest(AssetFlowModel):
     #: Atributos estruturados que o PromptBuilder converte em SemanticPrompt,
     #: ex.: {"view": "side", "pose": "idle", "appearance": {"armor": "blue"}}.
     attributes: dict[str, Any] = Field(default_factory=dict)
+
+    #: Semântica pronta, escrita por quem pede (plano §26 e §28).
+    #:
+    #: Quando presente, ela **substitui** o PromptBuilder: o pedido deixa de
+    #: dizer "interprete esta frase" e passa a dizer "gere exatamente isto".
+    #: É o que permite corrigir uma leitura errada da descrição — trocar
+    #: `view` de "side" para "front", tirar um termo do `avoid` — sem
+    #: reescrever a frase até o builder concordar.
+    #:
+    #: O preço é explícito: os padrões de produto do builder (a lista de
+    #: `avoid` que barra folha de sprite, a composição centralizada) não são
+    #: reaplicados por cima. Quem manda a semântica manda inteira, e o que
+    #: não estiver nela não vale. Por isso a interface mostra o JSON completo
+    #: antes de deixar editar — o que ela exibe é literalmente o que vai.
+    semantic_prompt: SemanticPrompt | None = None
 
     output: AssetOutputOverrides = Field(default_factory=AssetOutputOverrides)
     seed: int | None = Field(default=None, ge=0, le=2**63 - 1)

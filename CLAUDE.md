@@ -22,7 +22,7 @@ ruff check .                             # lint (sem config própria: defaults d
     --reload --reload-dir assetflow --reload-dir config
 ```
 
-`ruff check .` tem **128 achados pré-existentes** (nenhuma config própria, então
+`ruff check .` tem **127 achados pré-existentes** (nenhuma config própria, então
 valem os defaults, bem mais rígidos que o estilo do projeto). Compare com esse
 baseline antes de concluir que uma alteração sua introduziu lint novo — e, se
 mexer nele, atualize o número aqui: o baseline só serve enquanto estiver certo.

@@ -34,7 +34,11 @@ from ..postprocessing import (
     encode_png,
 )
 from ..profiles import GenerationProfile
-from ..prompting import PromptBuilderRegistry, render_semantic_prompt
+from ..prompting import (
+    PromptBuilderRegistry,
+    render_semantic_prompt,
+    resolve_semantic_prompt,
+)
 from ..schemas import (
     AssetGenerationRequest,
     AssetSpec,
@@ -87,6 +91,11 @@ class PipelineOutcome:
     timings: StageTimings
     warnings: tuple[str, ...] = ()
     record: GenerationRecord | None = None
+    #: A semântica efetivamente usada — a do builder ou a que veio no pedido.
+    #: Sobe até o job para que a interface possa mostrar o que foi enviado, e
+    #: não uma reconstrução feita do lado do cliente (que envelheceria em
+    #: silêncio no dia em que o builder mudasse).
+    semantic: SemanticPrompt | None = None
 
 
 class AssetPipeline(ABC):
@@ -127,9 +136,16 @@ class ImageAssetPipeline(AssetPipeline):
     # Etapas
     # ------------------------------------------------------------------
     def build_semantic_prompt(self, context: PipelineContext) -> SemanticPrompt:
-        """Converte o pedido humano em representação semântica (plano §26)."""
-        builder = context.prompt_builders.resolve(context.profile)
-        return builder.build(context.request, context.profile)
+        """Converte o pedido humano em representação semântica (plano §26).
+
+        Um ``semantic_prompt`` escrito no pedido ganha do builder — é o que a
+        pré-visualização editável da interface envia de volta. A precedência
+        mora em ``resolve_semantic_prompt`` para que a tela e a geração não
+        possam discordar.
+        """
+        return resolve_semantic_prompt(
+            context.request, context.profile, context.prompt_builders
+        )
 
     def build_generation_request(
         self, context: PipelineContext, semantic: SemanticPrompt
@@ -332,6 +348,7 @@ class ImageAssetPipeline(AssetPipeline):
             timings=timings,
             warnings=result.warnings,
             record=record,
+            semantic=semantic,
         )
 
 
