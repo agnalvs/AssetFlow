@@ -29,7 +29,9 @@ Os pesos não são versionados de propósito: o GitHub rejeita arquivo acima de
 - **Node 18+** (referência: 24.12.0, npm 11.6.2)
 - **Git**
 - Para o SDXL: **GPU NVIDIA**. O manifesto da gaveta declara
-  `recommended_vram_mb: 12000` e `minimum_vram_mb: 8000`.
+  `recommended_vram_mb: 12000` e `minimum_vram_mb: 8000` — números do SDXL
+  base. O perfil que vem ativo usa SDXL-Turbo com offload sequencial e roda em
+  4GB; veja o passo 7.
 - **~15GB livres em disco** — ~7GB dos pesos, o resto entre venv (o torch com
   CUDA sozinho passa de 2GB) e `node_modules`.
 
@@ -98,7 +100,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cu126
 pytest -q
 ```
 
-Hoje: **`808 passed, 10 skipped`**. O número cresce a cada recurso — o que
+Hoje: **`812 passed, 10 skipped`**. O número cresce a cada recurso — o que
 importa é não haver `failed`. Os testes não usam GPU nem rede: a gaveta
 `mock-image-v1` existe para isso.
 
@@ -246,13 +248,24 @@ $env:ASSETFLOW_JOB_TIMEOUT_S = 1800     # PowerShell
 
 ## 7. Ajustar ao seu hardware
 
-O perfil ativo em `backend/config/engines.yaml` assume **12GB+ de VRAM**, com
-offload desligado (mais rápido).
+O perfil ativo em `backend/config/engines.yaml` é o de **GPU pequena (4-6GB)**:
+SDXL-Turbo, que gera em 1-4 passos em vez de 30, com `sequential_cpu_offload`
+ligado.
 
-- **GPU de 4-6GB**: o arquivo traz o **PERFIL B** comentado logo abaixo do ativo
-  — usa SDXL-Turbo (1-4 passos em vez de 30) e `sequential_cpu_offload`. Copie
-  por cima dos campos ativos e alargue também `ASSETFLOW_JOB_TIMEOUT_S=1800`.
-- **`CUDA out of memory`** com 12GB: ligue `enable_model_cpu_offload: true`.
+Ele exige **`ASSETFLOW_JOB_TIMEOUT_S=1800`** no ambiente que sobe o backend. O
+`timeout_s: 1800` declarado no YAML é inalcançável sob o teto padrão de 900s do
+worker, que envolve o pipeline inteiro — o worker mataria o job antes. (A tarefa
+do VS Code deste checkout já carrega a variável, mas `.vscode/` não é
+versionado: em um clone novo, defina-a você mesmo.)
+
+- **GPU de 12GB+**: o arquivo traz o **PERFIL B** comentado logo abaixo do ativo
+  — SDXL base, 30 passos, sem offload. Mais qualidade por imagem. Copie por
+  cima dos campos ativos, e repare que `guidance_scale` anda junto com o
+  modelo: o Turbo exige `0.0`, o base usa `6.5`. Trocar um e esquecer o outro
+  devolve imagem lavada.
+- **Trocar de perfil troca o modelo**, e um modelo novo é um download novo de
+  ~7GB. Refaça o aquecimento do passo 6.2 antes de gerar pela interface.
+- **`CUDA out of memory`** numa placa grande: ligue `enable_model_cpu_offload: true`.
   Ele troca velocidade por VRAM, mas é bem menos drástico que o sequencial.
 - **Sem GPU / só testar o fluxo**: desligue a gaveta pesada sem editar arquivo:
 
@@ -264,6 +277,12 @@ Como `engines.yaml` é versionado, prefira as variáveis de ambiente para
 diferenças de máquina — evita conflito de merge a cada `pull`. A precedência é
 **variável de ambiente > YAML > padrão do código**; a lista completa está em
 `backend/.env.example`.
+
+A escolha de perfil acima é a exceção conhecida a essa regra: as `ASSETFLOW_*`
+cobrem motor, device, precisão e tetos, mas **não trocam o modelo** — e é a
+troca de modelo que separa uma placa de 4GB de uma de 12GB. Trocar de perfil
+edita o YAML mesmo; o arquivo explica os dois lado a lado para que a edição
+seja copiar e colar.
 
 > Três delas são lidas por `assetflow/main.py`, não pelo módulo de configuração:
 > `ASSETFLOW_HOST`, `ASSETFLOW_PORT` e `ASSETFLOW_RELOAD` só valem quando o

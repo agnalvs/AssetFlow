@@ -55,14 +55,28 @@ engines:
   # Primeira gaveta real. Exige GPU + `pip install -e .[diffusers]` com o
   # torch de CUDA (veja SETUP.md). Habilitar NÃO exige alterar código.
   #
-  # PERFIL ATIVO — GPU com 12GB+ de VRAM (offload desligado).
-  # O manifesto declara recommended_vram_mb: 12000, minimum_vram_mb: 8000.
-  # Com menos que isso, use o PERFIL B mais abaixo.
+  # PERFIL ATIVO — GPU PEQUENA (4-6GB, ex.: GTX 1050 Ti).
+  #
+  # Por que este perfil, e não o de 12GB: numa placa de 4GB o SDXL base não
+  # cabe na VRAM, e o Windows não falha — ele pagina os pesos para a memória
+  # compartilhada e segue rodando pelo PCIe. O resultado medido nesta máquina
+  # foi ~86s por passo de denoising: 7 dos 30 passos em 600s, com o job
+  # morrendo no deadline do motor sem nunca entregar imagem.
+  #
+  # SDXL-Turbo resolve pela raiz: 1-4 passos em vez de 30. O offload
+  # sequencial troca velocidade por VRAM, que é o recurso que falta aqui.
+  #
+  # Esta é uma exceção consciente à regra de manter diferença de hardware em
+  # variável de ambiente: `ASSETFLOW_*` cobre motor, device e precisão, mas
+  # não troca o **modelo** — e é justamente a troca de modelo que salva esta
+  # placa. Em GPU maior, use o PERFIL B logo abaixo.
   # -------------------------------------------------------------------------
   diffusers-sdxl-v1:
     enabled: true
     model:
-      id: "stabilityai/stable-diffusion-xl-base-1.0"
+      # Turbo é destilado para poucos passos; a contrapartida é guidance 0
+      # (ver `guidance_scale` abaixo) e menos aderência a prompt longo.
+      id: "stabilityai/sdxl-turbo"
       revision: null
       variant: "fp16"
     device:
@@ -70,20 +84,18 @@ engines:
     precision:
       type: "fp16"        # fp16 | bf16 | fp32
     runtime:
-      # Baratos e mantidos ligados de propósito: com `variations: 4` o lote
-      # sobe o pico de VRAM justamente na atenção e no decode do VAE, que é
-      # onde 12GB deixa de ser folgado. Desligue os dois só se sobrar VRAM.
+      # Baratos e mantidos ligados de propósito: cortam o pico de VRAM na
+      # atenção e no decode do VAE, que é onde 4GB estoura primeiro.
       enable_attention_slicing: true
       enable_vae_slicing: true
       # Offload: mova para a GPU só o que estiver em uso (plano §38).
       #   model_cpu_offload      → precisa caber o maior componente (~5GB)
       #   sequential_cpu_offload → cabe em ~2GB, porém bem mais lento
       #
-      # Ambos DESLIGADOS aqui: com 12GB o SDXL em fp16 (~7GB de pesos) cabe
-      # inteiro na GPU, e offload só serve para trocar velocidade por VRAM
-      # que não falta. Ligue um deles apenas se der CUDA out of memory.
+      # Com 4GB o sequencial é o único que serve: o model_cpu_offload pediria
+      # ~5GB só para a UNet, mais do que a placa inteira tem.
       enable_model_cpu_offload: false
-      enable_sequential_cpu_offload: false
+      enable_sequential_cpu_offload: true
     timeouts:
       # Sobrescrevem o manifesto quando este hardware for diferente do de
       # referência. Omitir = usar o que a gaveta declara.
@@ -91,38 +103,40 @@ engines:
       # ATENÇÃO: quem manda no fim é `ASSETFLOW_JOB_TIMEOUT_S` (padrão 900s),
       # que envolve o pipeline inteiro no worker. Não adianta alargar aqui e
       # deixar o teto do worker menor — ele mata o job antes. Ver SETUP.md.
-      timeout_s: 600        # sem offload, 4 variações levam ~1-2 min
-      load_timeout_s: 3600  # inclui o download de ~7GB na primeira execução
+      timeout_s: 1800       # 30 min: o offload sequencial é lento por projeto
+      load_timeout_s: 3600  # inclui o download do modelo na primeira execução
     options:
       # Mapeamento do knob abstrato `quality` para passos de inferência.
       # O contrato universal NUNCA carrega `steps` (plano §20).
       quality_steps:
-        draft: 18
-        standard: 30
-        high: 45
-      guidance_scale: 6.5
+        draft: 1
+        standard: 2
+        high: 4
+      guidance_scale: 0.0   # SDXL-Turbo exige guidance 0
 
     # -----------------------------------------------------------------------
-    # PERFIL B — GPU PEQUENA (4-6GB, ex.: GTX 1050 Ti). Copie por cima dos
-    # campos acima. Usa SDXL-Turbo, que gera em 1-4 passos em vez de 30.
+    # PERFIL B — GPU com 12GB+ de VRAM. Copie por cima dos campos acima.
+    # O manifesto declara recommended_vram_mb: 12000, minimum_vram_mb: 8000.
+    # Com essa folga o SDXL base cabe inteiro na GPU e entrega mais qualidade
+    # por imagem do que o Turbo.
     #
     #   model:
-    #     id: "stabilityai/sdxl-turbo"
+    #     id: "stabilityai/stable-diffusion-xl-base-1.0"
     #     variant: "fp16"
-    #   device:   { type: "cuda" }
+    #   device:    { type: "auto" }
     #   precision: { type: "fp16" }
     #   runtime:
     #     enable_attention_slicing: true
     #     enable_vae_slicing: true
-    #     enable_model_cpu_offload: false
-    #     enable_sequential_cpu_offload: true    # obrigatório com 4GB
+    #     enable_model_cpu_offload: false        # ligue se der OOM
+    #     enable_sequential_cpu_offload: false
     #   timeouts:
-    #     timeout_s: 1800        # 30 min: offload sequencial é lento
-    #     load_timeout_s: 3600   # inclui o download de ~7GB na 1ª vez
+    #     timeout_s: 600         # sem offload, 4 variações levam ~1-2 min
+    #     load_timeout_s: 3600
     #   options:
-    #     quality_steps: { draft: 1, standard: 2, high: 4 }
-    #     guidance_scale: 0.0    # SDXL-Turbo exige guidance 0
+    #     quality_steps: { draft: 18, standard: 30, high: 45 }
+    #     guidance_scale: 6.5
     #
-    # Com este perfil, alargue TAMBÉM o teto do worker, senão os 1800s acima
-    # são inalcançáveis:  ASSETFLOW_JOB_TIMEOUT_S=1800
+    # Trocando de perfil, o `guidance_scale` anda junto com o modelo: o Turbo
+    # exige 0, e o base lavado em 0 é o sintoma de ter esquecido este campo.
     # -----------------------------------------------------------------------

@@ -9,10 +9,16 @@ import pytest
 from assetflow.bootstrap import AppContainer
 from assetflow.generation.kernel.exceptions import (
     EngineOutOfMemoryError,
+    ErrorCode,
     InvalidGenerationRequest,
     JobNotFound,
 )
-from assetflow.generation.schemas import AssetGenerationRequest, AssetOutputOverrides, JobStatus
+from assetflow.generation.schemas import (
+    AssetGenerationRequest,
+    AssetOutputOverrides,
+    Capability,
+    JobStatus,
+)
 from assetflow.jobs import QueueRouter, RetryPolicy
 
 from tests.conftest import process_next_job, run
@@ -102,6 +108,80 @@ def test_retry_on_transient_failure_then_gives_up(container: AppContainer, make_
     assert job.attempts == 2
     assert job.error is not None
     assert job.error.retryable is True
+
+
+def test_engine_timeout_fails_the_job_instead_of_cancelling_it(
+    container: AppContainer, make_request
+):
+    """Regressão: um deadline estourado não pode virar `cancelled`.
+
+    O sintoma que originou este teste: o log dizia
+    ``motor '...' falhou (engine_timeout); tentando fallback`` e o job
+    terminava como `cancelled`, sem asset, com `error: null` — o mesmo estado
+    de quem apertou "cancelar". A causa era o Kernel cancelar o token do job
+    para interromper a inferência (ver `test_timeout_leaves_the_job_token_
+    untouched`), o que fazia o worker tratar a falha como cancelamento.
+
+    O que importa aqui, na ponta de cima: `cancelled` é um estado que só o
+    usuário produz. Uma falha do motor precisa chegar como `failed`, com o
+    código do erro preservado, senão a política de retry não é consultada e o
+    histórico não registra o que houve.
+
+    As **duas** gavetas estouram o deadline de propósito. Com uma só, o laço
+    de fallback termina sem reconsultar o token e o job falharia corretamente
+    mesmo com o bug presente — o defeito só aparece quando existe um segundo
+    candidato para o token envenenado atropelar, que é exatamente o caso real
+    (motor pesado + gaveta de fallback).
+    """
+    container.service.enable_engine("mock-pixel-alt-v1")
+
+    async def scenario():
+        resolucao = await container.resolver.resolve(Capability.parse("text_to_image.pixel"))
+        cadeia = resolucao.chain()
+        assert len(cadeia) >= 2, "o teste precisa de uma cadeia com fallback"
+
+        opcoes = {}
+        for candidato in cadeia:
+            candidato.record.handle.config.timeout_s = 0.05
+            opcoes[candidato.engine_id] = {"simulated_latency_ms": 3000}
+
+        job = await container.service.submit(make_request(engine_options=opcoes))
+        # engine_timeout é retryable: a 1ª tentativa reenfileira, a 2ª encerra.
+        assert await process_next_job(container)
+        assert await process_next_job(container)
+        return await container.service.get_job(job.id)
+
+    job = run(scenario())
+
+    assert job.status is JobStatus.FAILED
+    assert job.status is not JobStatus.CANCELLED
+    assert job.error is not None
+    assert job.error.code == ErrorCode.ENGINE_TIMEOUT.value
+    assert job.asset is None
+
+
+def test_engine_timeout_still_reaches_the_fallback(container: AppContainer, make_request):
+    """Com alternativa na cadeia, o timeout não custa o asset (plano §44)."""
+    container.service.enable_engine("mock-pixel-alt-v1")
+
+    async def scenario():
+        resolucao = await container.resolver.resolve(Capability.parse("text_to_image.pixel"))
+        preferido = resolucao.chain()[0]
+        preferido.record.handle.config.timeout_s = 0.05
+
+        request = make_request(
+            engine_options={preferido.engine_id: {"simulated_latency_ms": 3000}}
+        )
+        job = await container.service.submit(request)
+        assert await process_next_job(container)
+        return await container.service.get_job(job.id)
+
+    job = run(scenario())
+
+    assert job.status is JobStatus.COMPLETED
+    assert job.asset is not None
+    assert job.fallback_used is True
+    assert any("fallback" in warning for warning in job.warnings)
 
 
 def test_deterministic_errors_are_not_retried(container: AppContainer):

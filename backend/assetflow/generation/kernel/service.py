@@ -285,7 +285,18 @@ class GenerationKernel:
                         engine.generate(batch_request, context), timeout=timeout_s
                     )
                 except asyncio.TimeoutError as exc:
-                    execution.cancellation.cancel("timeout")
+                    # NÃO cancelar `execution.cancellation` aqui. Ele é o token
+                    # do job inteiro, e o laço de fallback o consulta antes de
+                    # cada candidato: cancelá-lo mataria, na linha seguinte, o
+                    # próprio fallback que este erro existe para disparar — e o
+                    # job terminaria como `cancelled`, indistinguível de um
+                    # cancelamento pedido pelo usuário, com o `engine_timeout`
+                    # sobrevivendo só no log. O token tem um significado só:
+                    # "alguém pediu para parar" (plano §46).
+                    #
+                    # Quem interrompe a inferência em curso é `_safe_cancel`:
+                    # ele marca este job na gaveta, e é essa marca que o motor
+                    # consulta entre os passos para abortar sozinho.
                     await _safe_cancel(engine, execution.job_id)
                     raise EngineTimeoutError(
                         f"motor '{manifest.id}' excedeu {timeout_s:.0f}s",

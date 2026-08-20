@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from assetflow.generation.kernel.exceptions import EngineTimeoutError
 from assetflow.generation.kernel import (
     CancellationToken,
     EngineRegistry,
@@ -85,6 +86,53 @@ def test_fallback_when_preferred_engine_fails():
     assert result.fallback_used is True
     assert result.attempted_engines == ("mock-image-v1", "mock-pixel-alt-v1")
     assert any("fallback" in warning for warning in result.warnings)
+
+
+def _make_it_time_out(kernel: GenerationKernel, engine_id: str) -> None:
+    """Deixa o deadline da gaveta menor que a latência que ela vai simular."""
+    record = kernel.registry.find(engine_id)
+    assert record is not None
+    record.handle.config.timeout_s = 0.05
+
+
+def test_timeout_in_one_engine_still_falls_back():
+    """Plano §44: estourar o tempo é uma falha como outra qualquer.
+
+    Regressão de um bug real: ao expirar o deadline, o Kernel cancelava
+    ``execution.cancellation`` para interromper a inferência. Só que aquele é o
+    token do **job**, consultado pelo laço de fallback antes de cada candidato
+    — então o fallback anunciado no log (``tentando fallback``) morria na linha
+    seguinte, e o job terminava como `cancelled`, sem asset e sem erro
+    registrado. Quem para a inferência é o `cancel()` da própria gaveta.
+    """
+    kernel = _kernel("mock-image-v1", "mock-pixel-alt-v1")
+    _make_it_time_out(kernel, "mock-image-v1")
+    request = _request(engine_options={"mock-image-v1": {"simulated_latency_ms": 3000}})
+
+    result = run(kernel.execute(request, job_id="job_timeout_fallback"))
+
+    assert result.engine.id == "mock-pixel-alt-v1"
+    assert result.fallback_used is True
+    assert result.attempted_engines == ("mock-image-v1", "mock-pixel-alt-v1")
+
+
+def test_timeout_leaves_the_job_token_untouched():
+    """O invariante por trás do teste acima, verificado direto no token.
+
+    Sem alternativa na cadeia, o erro certo é ``engine_timeout`` — nunca
+    ``GenerationCancelled``. E o token do job precisa continuar limpo: ele
+    significa "alguém pediu para parar", e ninguém pediu.
+    """
+    kernel = _kernel("mock-image-v1")
+    _make_it_time_out(kernel, "mock-image-v1")
+    request = _request(engine_options={"mock-image-v1": {"simulated_latency_ms": 3000}})
+    token = CancellationToken()
+
+    with pytest.raises(EngineTimeoutError) as excinfo:
+        run(kernel.execute(request, job_id="job_timeout_solo", cancellation=token))
+
+    assert excinfo.value.engine_id == "mock-image-v1"
+    assert token.is_cancelled is False
 
 
 def test_all_engines_failing_raises_normalized_error():
