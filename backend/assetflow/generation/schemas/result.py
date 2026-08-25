@@ -24,7 +24,6 @@ from pydantic import Field
 from .capability import Capability
 from .common import AssetFlowModel, StageTimings
 from .engine import EngineRef
-from .strategy import AgentRef, GenerationStrategyType
 
 __all__ = [
     "GenerationStatus",
@@ -113,26 +112,22 @@ class GenerationOutput(AssetFlowModel):
 class GenerationResult(AssetFlowModel):
     """Envelope de uma geração — o formato único do sistema.
 
-    Quem o produz é a **estratégia**, e não mais só o Kernel. É por isso que
-    ``engine`` deixou de ser obrigatório: um asset desenhado pelo Pixel Agent
-    não tem motor, e preencher o campo com algo para satisfazer o modelo faria
-    o histórico afirmar que um modelo gerou o que nenhum modelo gerou
-    (plano de correção §44, teste 2).
+    ``engine`` é opcional por uma razão estreita: um resultado montado à mão
+    em teste, ou importado, não passou pelo Kernel e não tem motor a declarar.
+    Em geração normal ele vem sempre preenchido — existe **um** caminho, e ele
+    começa em um motor (plano Optimizer §25).
 
-    Exatamente um dos dois vem preenchido — ``engine`` na estratégia por
-    modelo, ``agent`` na do agente.
+    O que o Optimizer fez com estas imagens **não** está aqui: ele age depois,
+    no pós-processamento, e o relatório dele viaja com o asset. Este envelope
+    descreve a geração, não o pipeline inteiro.
     """
 
     job_id: str
     request_id: str
     status: GenerationStatus = GenerationStatus.COMPLETED
     capability: Capability
-    #: Como o asset foi criado (plano de correção §41).
-    strategy: GenerationStrategyType = GenerationStrategyType.MODEL
-    #: O motor que gerou. ``None`` quando a estratégia não usa motor.
+    #: O motor que gerou a imagem.
     engine: EngineRef | None = None
-    #: O agente que desenhou. ``None`` quando a estratégia usa motor.
-    agent: AgentRef | None = None
     outputs: tuple[GenerationOutput, ...] = ()
     timings: StageTimings = Field(default_factory=StageTimings)
 
@@ -148,13 +143,11 @@ class GenerationResult(AssetFlowModel):
         """Quem produziu isto, como uma string única para log e histórico.
 
         Existe para os lugares que só precisam de um rótulo — uma linha de
-        log, uma chave de agrupamento — e não deveriam ter de saber se a
-        geração veio de motor ou de agente.
+        log, uma chave de agrupamento — e não deveriam ter de lidar com o
+        ``None`` de um resultado montado fora do Kernel.
         """
         if self.engine is not None:
             return self.engine.id
-        if self.agent is not None:
-            return self.agent.id
         return "desconhecido"  # pragma: no cover - defensivo
 
     def without_payloads(self) -> "GenerationResult":

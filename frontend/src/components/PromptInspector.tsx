@@ -280,23 +280,15 @@ function Reading({ preview }: { preview: PromptPreview }) {
           source={resolved.sources["generation.variations"]}
         />
         <Row
-          label="Método"
-          value={methodValue(resolved)}
-          source={resolved.sources["strategy"]}
+          label="Motor"
+          value={engineValue(resolved)}
+          source={resolved.sources["engine"]}
         />
-        {resolved.strategy.mode === "model" ? (
-          <Row
-            label="Motor"
-            value={engineValue(resolved)}
-            source={resolved.sources["engine"]}
-          />
-        ) : (
-          <Row
-            label="Agente"
-            value={resolved.pixel_agent.agent_id}
-            source={resolved.sources["strategy"]}
-          />
-        )}
+        <Row
+          label="Otimização"
+          value={pipelineValue(resolved)}
+          showSource={false}
+        />
       </dl>
 
       {resolved.notes.length > 0 ? (
@@ -313,15 +305,18 @@ function Reading({ preview }: { preview: PromptPreview }) {
 }
 
 /**
- * O método de criação, em uma linha (plano de correção §7).
+ * O estágio que vem depois do motor (plano Optimizer §32).
  *
- * Como no motor abaixo, o valor cru é o certo aqui: esta aba mostra o
- * **contrato**, campo por campo, e precisa casar com o JSON da aba ao lado.
+ * A linha aparece **sem** origem, e é a única do painel assim. Origem
+ * responde "quem escolheu este valor?", e aqui ninguém escolheu: a otimização
+ * é parte do pipeline, não uma das seis camadas de precedência (§33 e §46).
+ * Mostrar `global_default` ao lado dela sugeriria que outra camada poderia
+ * ter falado — e nenhuma pode.
  */
-function methodValue(resolved: FinalResolvedSpec): string {
-  const strategy = resolved.strategy;
-  const rotulo = strategy.mode === "pixel_agent" ? "pixel_agent" : "model";
-  return strategy.requested === "auto" ? `${rotulo} (automático)` : rotulo;
+function pipelineValue(resolved: FinalResolvedSpec): string {
+  const pipeline = resolved.pixel_pipeline;
+  if (!pipeline?.optimize) return "desligada nesta instalação";
+  return `${pipeline.optimizer_id} · até ${pipeline.max_iterations} passadas`;
 }
 
 /**
@@ -342,27 +337,40 @@ function engineValue(resolved: FinalResolvedSpec): string {
   return `${engine.engine_id} (automático)`;
 }
 
+/**
+ * Uma linha do contrato, com a origem do valor ao lado.
+ *
+ * `showSource={false}` existe para **um** campo: a otimização, que nenhuma
+ * camada de precedência decide. Um selo ali — mesmo "padrão do sistema" —
+ * sugeriria que alguma camada poderia ter falado, e nenhuma pode (§33 e §46).
+ * Note que isso é diferente de `source` ausente, que continua significando
+ * "ninguém opinou" e mostra o selo (ver `pipelineValue`).
+ */
 function Row({
   label,
   value,
   source,
+  showSource = true,
 }: {
   label: string;
   value: string;
-  source: SpecSource | undefined;
+  source?: SpecSource | undefined;
+  showSource?: boolean;
 }) {
   return (
     <>
       <dt className="reading__label">{label}</dt>
       <dd className="reading__value">
         {value}
-        <span
-          className={`reading__source${
-            isUserChoice(source) ? " reading__source--user" : ""
-          }`}
-        >
-          {sourceLabel(source)}
-        </span>
+        {showSource ? (
+          <span
+            className={`reading__source${
+              isUserChoice(source) ? " reading__source--user" : ""
+            }`}
+          >
+            {sourceLabel(source)}
+          </span>
+        ) : null}
       </dd>
     </>
   );

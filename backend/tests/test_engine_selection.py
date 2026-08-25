@@ -28,7 +28,6 @@ from assetflow.generation.schemas import (
     AssetOutputOverrides,
     EngineAdvice,
     EngineSelector,
-    GenerationStrategySelection,
     SpecOverrides,
     SpecSource,
 )
@@ -111,14 +110,9 @@ def test_spec_carries_the_engine_decision(container: AppContainer):
     referência, e as regras de `engine_policy.yaml` falam dos motores de
     produção. Habilitar um deles é o que faz este caso exercitar a
     configuração **entregue**, e não uma política montada no teste.
-
-    O pedido fixa o método em `model`: em `auto`, um prop de 32×32 vai para o
-    Pixel Agent (plano de correção §40) e não haveria motor a escolher.
     """
     container.registry.enable("flux-pixel-v1")
-    spec = container.service.resolve_spec(
-        _request(container, generation_strategy=GenerationStrategySelection(mode="model"))
-    )
+    spec = container.service.resolve_spec(_request(container))
 
     assert spec.engine.selection_mode == "auto"
     assert spec.engine.engine_id == "flux-pixel-v1"
@@ -138,11 +132,7 @@ def test_choosing_automatic_is_not_choosing_an_engine(container: AppContainer):
     """
     container.registry.enable("flux-pixel-v1")
     spec = container.service.resolve_spec(
-        _request(
-            container,
-            engine=EngineSelector(mode="auto"),
-            generation_strategy=GenerationStrategySelection(mode="model"),
-        )
+        _request(container, engine=EngineSelector(mode="auto"))
     )
 
     assert spec.engine.selection_mode == "auto"

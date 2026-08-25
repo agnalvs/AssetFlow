@@ -243,30 +243,34 @@ Esse script existe justamente para isso: ele controla o próprio
 Depois que o modelo está em cache, a interface responde normal — as gerações
 seguintes só pagam a inferência, bem dentro dos 900s.
 
-### 6.3 Os outros caminhos de Pixel Art
+### 6.3 Os outros motores de Pixel Art
 
-O AssetFlow tem dois métodos de criação e três gavetas novas (veja
-[backend/docs/CREATION_METHODS.md](backend/docs/CREATION_METHODS.md) e
-[backend/docs/ENGINES.md](backend/docs/ENGINES.md)). Só um deles funciona sem
-configurar nada:
+O AssetFlow tem três gavetas de Pixel Art além do SDXL (veja
+[backend/docs/ENGINES.md](backend/docs/ENGINES.md)). **Nenhuma delas funciona
+sem configuração**:
 
-| método / motor | para habilitar |
+| motor | para habilitar |
 |---|---|
-| **Agente Pixel** (método) | já disponível — não baixa nada, não usa GPU |
 | **FLUX Pixel** | `pip install -e ".[diffusers]"` + GPU + `enabled: true` em `engines.yaml` |
 | **SD-πXL** | clone do projeto + `options.command` apontando para a CLI dele |
 | **Pixel Forge** | binário Rust compilado + `options.binary` |
 
-Comece pelo **Agente Pixel**: ele responde em milissegundos e serve para
-conferir o fluxo inteiro — seletor de método, escolha automática com motivo,
-Pixel Exact, selo técnico — antes de qualquer download. Ele não é um motor, é
-um método de criação; veja
-[backend/docs/CREATION_METHODS.md](backend/docs/CREATION_METHODS.md).
+Para conferir o fluxo inteiro — escolha automática com motivo, Pixel Exact,
+revisão do Pixel Optimizer, selo técnico — antes de qualquer download, use a
+gaveta de referência `mock-image-v1`. Ela não gera arte: produz um padrão
+determinístico, e serve exatamente para exercitar o caminho.
 
 ```bash
 cd backend
-python scripts/benchmark_engines.py --targets pixel_agent --cases tree_32
+python scripts/benchmark_engines.py --targets mock-image-v1 --cases tree_32
 ```
+
+> O AssetFlow já teve um "Agente Pixel" que desenhava sozinho e servia de
+> caminho sem GPU. Ele não é mais uma alternativa ao motor: virou o
+> **AssetFlow Pixel Optimizer**, que revisa o sprite depois de qualquer motor
+> ([backend/docs/PIXEL_OPTIMIZER.md](backend/docs/PIXEL_OPTIMIZER.md)). A
+> contrapartida é esta seção: sem um motor configurado, não há geração Pixel
+> Art de verdade fora do ambiente de desenvolvimento.
 
 Ao habilitar o **FLUX Pixel**, confira os dois ids no HuggingFace antes
 (`model.id` e `options.lora.id` em `engines.yaml`): um repositório pode mudar

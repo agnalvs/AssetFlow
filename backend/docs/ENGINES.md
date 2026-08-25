@@ -4,11 +4,14 @@
 > Pixel Art"*. As docstrings do código citam este arquivo como `plano de
 > motores §N`, onde `N` é a seção **daquele plano**, não deste documento.
 
-> **Leia antes:** [CREATION_METHODS.md](CREATION_METHODS.md). A escolha de
-> motor descrita aqui acontece **dentro** do método de criação "Modelo de
-> imagem". O AssetFlow Pixel Agent, que este documento chamava de gaveta
-> `texel-style-v1`, deixou de ser um motor — ele é um método, e vive em
-> `generation/pixel_agent/`.
+> **Leia junto:** [PIXEL_OPTIMIZER.md](PIXEL_OPTIMIZER.md). A escolha de motor
+> descrita aqui é a **única** escolha de tecnologia do AssetFlow. O que vem
+> depois do motor — a revisão pixel a pixel — não é escolhível: acontece em
+> toda geração Pixel Art.
+>
+> O "Texel-style Agent", que este documento já chamou de gaveta
+> `texel-style-v1` e depois de método de criação, não é nem um nem outro. Ele
+> virou o `AssetFlowPixelOptimizer`, em `pixel/optimizer/`.
 
 O AssetFlow deixou de ser uma interface com um gerador e passou a ser uma
 plataforma com motores intercambiáveis. Este documento explica o que mudou,
@@ -44,8 +47,9 @@ Depois de gerar, o resultado diz quem gerou — e, se o motor pedido não pôde
 atender, diz isso em vez de entregar outro em silêncio.
 
 **Nenhum id de motor está escrito no frontend.** A lista inteira vem de
-`GET /api/generation/strategies`, junto dos métodos e dos agentes. Uma gaveta
-nova aparece no seletor sem que nenhum arquivo de React mude.
+`GET /api/generation/engines/catalog`. Uma gaveta nova aparece no seletor sem
+que nenhum arquivo de React mude — e o Pixel Optimizer **nunca** aparece nele,
+porque não é um motor.
 
 ---
 
@@ -63,9 +67,12 @@ Todas nascem desabilitadas porque dependem de algo que a máquina pode não ter
 — e uma gaveta habilitada que não roda entra na **cadeia de fallback**,
 transformando cada falha do motor principal em uma segunda falha, mais lenta.
 
-Sem nenhuma delas configurada, o método que funciona imediatamente é o
-**Agente Pixel** (veja [CREATION_METHODS.md](CREATION_METHODS.md)): ele não
-baixa nada, não usa GPU e é determinístico por seed.
+Sem nenhuma delas configurada, a geração Pixel Art **não funciona** fora do
+ambiente de desenvolvimento — o que roda ali são as gavetas `mock-*`, que
+produzem um padrão determinístico e não arte. Este é o preço de o AssetFlow
+não ter mais um caminho que desenha sozinho: o Pixel Optimizer corrige o que
+um motor produziu, e sem motor não há o que corrigir
+([PIXEL_OPTIMIZER.md](PIXEL_OPTIMIZER.md) §5).
 
 ### FLUX Pixel (`flux_pixel/`)
 
@@ -118,11 +125,7 @@ Forge, que responde em segundos.
 
 ## 3. Como um motor é escolhido
 
-Antes de tudo isto vem a escolha do **método**: nada abaixo acontece quando o
-método é "Agente Pixel", porque nele não há motor
-([CREATION_METHODS.md](CREATION_METHODS.md)).
-
-Dentro de "Modelo de imagem", três camadas, nesta ordem:
+Três camadas, nesta ordem:
 
 ```
 1. seleção manual        a pessoa escolheu   ->  é usado, ou o job falha
@@ -168,10 +171,11 @@ Cada variação gerada deixa, ao lado do PNG:
 | `raw_prompt.txt` | a frase, exatamente como foi escrita |
 | `parsed_spec.json` | o que o AssetFlow entendeu **e** o texto que o motor recebeu |
 | `resolved_spec.json` | o contrato executado, com a origem de cada campo |
-| `engine_selection.json` | método e motor pedidos × usados, motivos, cadeia, rejeições |
-| `engine_output.json` | motor/agente, versão, versão do adapter, modelo, revisão, LoRA |
+| `engine_selection.json` | motor pedido × usado, motivos, cadeia, rejeições, pipeline Pixel |
+| `engine_output.json` | motor, versão, versão do adapter, modelo, revisão, LoRA |
 | `processing.json` | o que o Pixel Exact fez |
 | `validation.json` | o veredito técnico |
+| `optimizer.json` | o que o Pixel Optimizer revisou, corrigiu e recusou |
 | `palette.json`, `preview.png`, `raw.png` | paleta medida, ampliação, saída crua |
 
 `parsed_spec.json` guarda os dois lados (semântica e texto) porque o defeito
@@ -185,12 +189,14 @@ adapter, ou com outra LoRA, produz outro asset.
 
 ```bash
 python scripts/benchmark_engines.py --list
-python scripts/benchmark_engines.py --targets pixel_agent,model:flux-pixel-v1
+python scripts/benchmark_engines.py --targets flux-pixel-v1,mock-image-v1
 python scripts/benchmark_engines.py --cases tree_32 --json data/benchmark/r.json
 ```
 
-O alvo é **método + motor** (plano de correção §43): é o que permite pôr o
-Pixel Agent e o FLUX na mesma tabela sem fingir que são a mesma tecnologia.
+O alvo é **um motor**. Todos atravessam o mesmo Pixel Optimizer, então a
+diferença entre duas linhas da tabela é a diferença entre os motores — e as
+colunas de otimização respondem à pergunta que interessa: quanta correção a
+saída de cada um exigiu (plano Optimizer §69).
 
 A suíte (`config/benchmark_suite.yaml`) é fixa e versionada, com seed por caso:
 comparar motores com prompts diferentes não compara nada.

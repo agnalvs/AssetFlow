@@ -22,7 +22,7 @@ from typing import Protocol, runtime_checkable
 
 from ..schemas import EngineAdvice, EngineSuggestion
 
-__all__ = ["EngineAdvisor", "StrategyAdvisor"]
+__all__ = ["EngineAdvisor"]
 
 
 @runtime_checkable
@@ -37,26 +37,4 @@ class EngineAdvisor(Protocol):
         Uma política que sempre responde algo é uma política que já não é
         configuração.
         """
-        ...
-
-
-@runtime_checkable
-class StrategyAdvisor(Protocol):
-    """Sugere o **método de criação** quando ninguém escolheu (§40).
-
-    O irmão do :class:`EngineAdvisor`, um nível acima: um responde "com qual
-    motor?", o outro responde "por qual caminho?". São perguntas diferentes,
-    feitas em momentos diferentes, e a segunda decide se a primeira chega a
-    ser feita.
-
-    Diferente do conselheiro de motor, este **sempre responde**: o job precisa
-    ser produzido de alguma forma, e devolver "não sei" só empurraria a
-    decisão para uma camada com menos informação.
-
-    Quem o implementa é o
-    :class:`~assetflow.generation.strategies.resolver.GenerationStrategyResolver`.
-    """
-
-    def suggest(self, advice: EngineAdvice):
-        """A estratégia preferida para este pedido, com o motivo."""
         ...

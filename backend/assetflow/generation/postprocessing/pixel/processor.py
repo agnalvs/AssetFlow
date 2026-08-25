@@ -14,19 +14,37 @@ exatamente o diferencial que o plano §24 manda proteger.
 
 from __future__ import annotations
 
-from ....pixel import PixelProfileRegistry
+from ....pixel import PixelAssetProcessor, PixelProfileRegistry
+from ....pixel.optimizer import AssetFlowPixelOptimizer
 from ..base import PostProcessingChain
 from .exact import PixelExactProcessor
 
 __all__ = ["build_pixel_chain"]
 
 
-def build_pixel_chain(registry: PixelProfileRegistry | None = None) -> PostProcessingChain:
+def build_pixel_chain(
+    registry: PixelProfileRegistry | None = None,
+    optimizer: AssetFlowPixelOptimizer | None = None,
+) -> PostProcessingChain:
     """Monta a cadeia padrão de Pixel Art.
 
     Args:
         registry: profiles Pixel carregados de ``config/pixel_profiles.yaml``.
             Sem ele, o spec é derivado do próprio Generation Profile — é o que
             mantém profiles antigos funcionando (ver ``spec.py``).
+        optimizer: o Pixel Optimizer configurado em ``config/optimizer.yaml``.
+            ``None`` **não** desliga a otimização: ela é parte do pipeline
+            (plano Optimizer §46), e sem instância configurada o
+            :class:`PixelAssetProcessor` monta a padrão. Para desligá-la de
+            verdade é preciso passar um ``AssetFlowPixelOptimizer(enabled=False)``,
+            e aí o job registra o status ``disabled``.
     """
-    return PostProcessingChain((PixelExactProcessor(registry),))
+    if optimizer is None:
+        return PostProcessingChain((PixelExactProcessor(registry),))
+    return PostProcessingChain(
+        (
+            PixelExactProcessor(
+                registry, processor=PixelAssetProcessor(optimizer=optimizer)
+            ),
+        )
+    )

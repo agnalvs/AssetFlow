@@ -14,7 +14,6 @@ from pydantic import Field
 
 from .common import AssetFlowModel, AssetMode, AssetType, new_id, utcnow
 from .engine import EngineRef
-from .strategy import AgentRef, GenerationStrategyType
 
 __all__ = ["ValidationIssue", "ValidationReport", "AssetVariant", "GeneratedAsset"]
 
@@ -90,12 +89,9 @@ class GeneratedAsset(AssetFlowModel):
     name: str = ""
     profile_id: str | None = None
     pipeline_id: str | None = None
-    #: Como o asset foi criado, e por quem. Exatamente um dos dois vem
-    #: preenchido: motor na estratégia por modelo, agente na do agente
-    #: (plano de correção §42).
-    strategy: GenerationStrategyType = GenerationStrategyType.MODEL
+    #: O motor que gerou a imagem. ``None`` só quando o registro vem de um
+    #: caminho que não passou pelo Kernel (teste, importação).
     engine: EngineRef | None = None
-    agent: AgentRef | None = None
     variants: tuple[AssetVariant, ...] = ()
     created_at: datetime = Field(default_factory=utcnow)
     metadata: dict[str, Any] = Field(default_factory=dict)

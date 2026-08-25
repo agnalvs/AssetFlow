@@ -6,7 +6,7 @@ separado, consumindo do mesmo broker:
 
     Browser -> API -> Broker -> GenerationWorker -> Engine
 
-Ele não conhece motor nem agente: pede um pipeline ao registro, e o pipeline
+Ele não conhece motor: pede um pipeline ao registro, e o pipeline
 pede pixels a uma estratégia.
 """
 
@@ -27,7 +27,6 @@ from ..generation.profiles import ProfileRegistry
 from ..generation.prompting import PromptBuilderRegistry
 from ..generation.schemas import FinalResolvedSpec, Job
 from ..generation.spec import ConstraintResolver
-from ..generation.strategies import GenerationStrategyResolver
 from ..storage import AssetStorageService
 from .manager import JobManager
 from .queue import DEFAULT_QUEUE
@@ -50,7 +49,6 @@ class GenerationWorker:
         storage: AssetStorageService,
         prompt_builders: PromptBuilderRegistry | None = None,
         constraints: ConstraintResolver | None = None,
-        strategies: GenerationStrategyResolver | None = None,
         queues: tuple[str, ...] = (DEFAULT_QUEUE,),
         concurrency: int = 1,
         job_timeout_s: float = 900.0,
@@ -66,7 +64,6 @@ class GenerationWorker:
         # Sem resolvedor de estratégia, o pipeline cai na geração por modelo —
         # o caminho que ele seguia antes de a camada existir. É o que mantém
         # um worker montado à mão em teste funcionando sem cerimônia.
-        self._strategies = strategies
         self._queues = queues or (DEFAULT_QUEUE,)
         self._concurrency = max(1, concurrency)
         self._job_timeout_s = job_timeout_s
@@ -175,7 +172,6 @@ class GenerationWorker:
                 kernel=self._kernel,
                 storage=self._storage,
                 prompt_builders=self._prompt_builders,
-                strategies=self._strategies,
                 cancellation=cancellation,
                 progress=progress,
                 logger=logging.getLogger(f"assetflow.pipeline.{pipeline.id}"),

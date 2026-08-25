@@ -40,15 +40,30 @@ from ...imaging import color_counts, encode_png, to_array
 
 __all__ = ["ARTIFACT_NAMES", "PixelExporter"]
 
-#: Catálogo completo dos artefatos do plano Pixel §70, na ordem de gravação.
-#: Só ``logical.png``, ``palette.json`` e ``processing.json`` são obrigatórios;
-#: os outros três dependem do que o chamador tiver em mãos.
+#: Catálogo completo dos artefatos do plano Pixel §70 e do plano Optimizer
+#: §47, na ordem de gravação. Só ``logical.png``, ``palette.json`` e
+#: ``processing.json`` são obrigatórios; os outros dependem do que o chamador
+#: tiver em mãos.
+#:
+#: Os quatro artefatos do Optimizer só aparecem quando ele **alterou** o
+#: sprite. Sem alteração, ``postprocessed.png`` seria byte a byte igual a
+#: ``logical.png`` e ``initial_validation.json`` igual a ``validation.json``:
+#: gravar as duas cópias em todo asset encheria o storage de duplicata e faria
+#: parecer que houve correção onde não houve.
+#:
+#: ``validation.json`` é o relatório **final** — o que o plano Optimizer chama
+#: de ``final_validation.json``. O nome antigo fica: ele já significava isso, e
+#: um segundo arquivo com os mesmos bytes criaria duas fontes para uma verdade.
 ARTIFACT_NAMES: tuple[str, ...] = (
     "logical.png",
     "preview.png",
     "palette.json",
     "processing.json",
     "validation.json",
+    "postprocessed.png",
+    "initial_validation.json",
+    "optimizer.json",
+    "optimizer_actions.json",
     "raw.png",
 )
 
@@ -66,6 +81,10 @@ class PixelExporter:
         decision: AcceptanceDecision | None = None,
         preview: Image.Image | None = None,
         raw: bytes | None = None,
+        postprocessed: Image.Image | None = None,
+        initial_validation: PixelValidationReport | None = None,
+        optimization: Any | None = None,
+        optimizer_actions: list[dict[str, Any]] | None = None,
     ) -> dict[str, bytes]:
         """Monta ``{nome_do_arquivo: bytes}`` pronto para o storage gravar.
 
@@ -82,6 +101,17 @@ class PixelExporter:
             preview: vira ``preview.png`` (§34 e §73), nunca ``logical.png``.
             raw: bytes originais do motor, preservados como ``raw.png`` para
                 debug e benchmark (§71).
+            postprocessed: o sprite **antes** do Optimizer (plano Optimizer
+                §47). Só vira arquivo se for diferente do entregue — do
+                contrário seriam os mesmos bytes com dois nomes.
+            initial_validation: o relatório da validação V1, pelo mesmo motivo.
+            optimization: o :class:`OptimizationReport`, gravado como
+                ``optimizer.json``. Recebido como ``Any`` de propósito: a
+                camada de processamento não importa a de otimização, e passar
+                a conhecê-la só para tipar um argumento inverteria a
+                dependência que a separação existe para manter.
+            optimizer_actions: o log de tool calls, gravado como
+                ``optimizer_actions.json`` — é ele que reconstrói o que mudou.
 
         O dicionário sai na ordem de :data:`ARTIFACT_NAMES`: a mesma entrada
         produz sempre a mesma sequência de arquivos.
@@ -96,6 +126,18 @@ class PixelExporter:
         if validation is not None:
             artifacts["validation.json"] = self._encode_json(
                 self._validation_document(validation, decision)
+            )
+        if postprocessed is not None and postprocessed is not logical:
+            artifacts["postprocessed.png"] = encode_png(postprocessed)
+        if initial_validation is not None and initial_validation is not validation:
+            artifacts["initial_validation.json"] = self._encode_json(
+                initial_validation.model_dump(mode="json")
+            )
+        if optimization is not None:
+            artifacts["optimizer.json"] = self._encode_json(optimization.document())
+        if optimizer_actions:
+            artifacts["optimizer_actions.json"] = self._encode_json(
+                {"calls": optimizer_actions}
             )
         if raw is not None:
             # Gravado sem reencode: o valor de `raw.png` é ser byte a byte o

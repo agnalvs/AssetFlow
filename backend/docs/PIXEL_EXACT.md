@@ -48,10 +48,19 @@ Duas consequências dão forma ao módulo inteiro:
   deveria ser denunciado.
 
 ```text
-PixelPostProcessor   PODE alterar pixels        (plano Pixel §6)
-PixelValidator       NUNCA altera pixels        (plano Pixel §37 e §104)
-PixelAcceptancePolicy decide, sem medir nada     (plano Pixel §59)
+PixelPostProcessor        PODE alterar pixels        (plano Pixel §6)
+AssetFlowPixelOptimizer   PODE alterar pixels        (plano Optimizer §38)
+PixelValidator            NUNCA altera pixels        (plano Pixel §37 e §104)
+PixelAcceptancePolicy     decide, sem medir nada     (plano Pixel §59)
 ```
+
+Os dois que alteram pixels fazem coisas diferentes, e é por isso que são dois.
+O `PixelPostProcessor` **normaliza o arquivo**: reduz para a grade, quantiza a
+paleta, corta o alpha. O `AssetFlowPixelOptimizer` **revisa o desenho**: olha o
+sprite já na grade final e conserta o que a redução esfarelou, pixel a pixel.
+Um trabalha com transformações sobre a imagem inteira; o outro, com decisões
+sobre pixels nomeados — e cada decisão dele fica registrada com o motivo
+([PIXEL_OPTIMIZER.md](PIXEL_OPTIMIZER.md)).
 
 ---
 
@@ -86,6 +95,7 @@ editor futuro.
 │   PixelAssetProcessor  ─ fachada          service.py         │
 │     PixelPostProcessor ─ estágios         processing/        │
 │     PixelValidator     ─ checks/análises  validation/        │
+│     AssetFlowPixelOptimizer ─ correção    optimizer/         │
 │     PixelAcceptancePolicy ─ decisão       acceptance/        │
 │     PreviewGenerator / PixelExporter      preview/, stages/  │
 │     PixelProfileRegistry                  profiles/          │
@@ -118,14 +128,21 @@ Raw Image (bytes do motor)
    │     input → canvas → logical_reducer → alpha → palette → cleanup
    │     └→ ProcessingReport   (o que foi feito, etapa por etapa)
    │
-   ├─ PixelValidator.validate(logical, spec)         não altera nada
+   ├─ PixelValidator.validate(logical, spec)     V1   não altera nada
    │     HARD CHECKS      → pixel_exact: true/false
    │     QUALITY ANALYSIS → métricas, avisos e nota
    │     └→ PixelValidationReport
    │
    ├─ (no máximo 1 tentativa extra, com spec endurecido — §61)
    │
-   ├─ PixelAcceptancePolicy.decide(report, threshold)
+   ├─ AssetFlowPixelOptimizer.optimize(logical, spec, V1)   SEMPRE
+   │     revisar → planejar → corrigir, até 3 voltas
+   │     └→ OptimizationReport   (o que corrigiu, o que preservou, e por quê)
+   │
+   ├─ PixelValidator.validate(otimizado, spec)  V2
+   │     e a regra de ouro: se a nota caiu, a correção é descartada (§20)
+   │
+   ├─ PixelAcceptancePolicy.decide(V2, threshold)
    │     └→ AcceptanceDecision  (APPROVED | QUALITY_WARNING | REJECTED)
    │
    ├─ PreviewGenerator.generate(logical, spec)       ampliação inteira

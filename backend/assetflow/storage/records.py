@@ -14,11 +14,9 @@ from typing import Any
 from pydantic import Field
 
 from ..generation.schemas import (
-    AgentRef,
     AssetFlowModel,
     Capability,
     EngineRef,
-    GenerationStrategyType,
     SemanticPrompt,
     StageTimings,
     new_id,
@@ -67,17 +65,15 @@ class GenerationRecord(AssetFlowModel):
     pipeline_id: str | None = None
     capability: Capability
 
-    # -- Rastreabilidade do produtor (plano §42; correção §41) ---------
+    # -- Rastreabilidade do produtor (plano §42) ------------------------
     #
-    # `engine_id` deixou de ser obrigatório porque um asset desenhado pelo
-    # Pixel Agent não tem motor. Quem sempre existe é `strategy`.
-    strategy: GenerationStrategyType = GenerationStrategyType.MODEL
-    requested_strategy: GenerationStrategyType = GenerationStrategyType.AUTO
-    agent_id: str | None = None
-    agent_version: str | None = None
-    planner_provider: str | None = None
-    planner_model: str | None = None
-
+    # `engine_id` é opcional só para um registro montado fora do Kernel — em
+    # geração normal ele vem sempre preenchido, porque existe um caminho e ele
+    # começa em um motor (plano Optimizer §25).
+    #
+    # O que o Pixel Optimizer fez com o asset não tem campo próprio aqui: ele
+    # viaja em `metadata["pixel"]`, junto das demais métricas do módulo Pixel,
+    # porque é medida de resultado e não identidade de produtor.
     engine_id: str | None = None
     engine_version: str | None = None
     model_id: str | None = None
@@ -127,14 +123,3 @@ class GenerationRecord(AssetFlowModel):
             "lora_id": engine.lora_id,
         }
 
-    @classmethod
-    def agent_fields(cls, agent: AgentRef | None) -> dict[str, Any]:
-        """O equivalente para o agente (plano de correção §28)."""
-        if agent is None:
-            return {}
-        return {
-            "agent_id": agent.id,
-            "agent_version": agent.version,
-            "planner_provider": agent.planner_provider,
-            "planner_model": agent.planner_model,
-        }

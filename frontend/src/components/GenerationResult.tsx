@@ -1,4 +1,4 @@
-import type { UseCreationCatalog } from "../hooks/useCreationCatalog";
+import type { UseEngineCatalog } from "../hooks/useEngineCatalog";
 import type { GenerationOutcome } from "../hooks/useGenerationJob";
 import { MODES } from "../types";
 import { AssetPreview } from "./AssetPreview";
@@ -9,8 +9,8 @@ import { ResultActions } from "./ResultActions";
 interface GenerationResultProps {
   outcome: GenerationOutcome;
   busy: boolean;
-  /** Os nomes de método, motor e agente, vindos do catálogo do backend. */
-  catalog: UseCreationCatalog;
+  /** Os nomes dos motores, vindos do catálogo do backend. */
+  catalog: UseEngineCatalog;
   onRegenerate: () => void;
   onNewPrompt: () => void;
 }
@@ -39,7 +39,11 @@ export function GenerationResult({
         warnings={outcome.warnings}
         fallbackUsed={outcome.fallbackUsed}
       />
-      <EngineCredit selection={outcome.engine} catalog={catalog} />
+      <EngineCredit
+        selection={outcome.engine}
+        optimization={outcome.variant.optimization}
+        catalog={catalog}
+      />
       <ResultActions
         variant={outcome.variant}
         fileName={`assetflow-${outcome.jobId}.png`}

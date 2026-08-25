@@ -28,7 +28,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..schemas import GenerationStrategyType
 from .suite import BenchmarkTarget
 
 __all__ = [
@@ -60,6 +59,20 @@ class TechnicalMetrics:
     #: Tamanho em que o motor entregou, antes da redução lógica.
     raw_size: tuple[int, int] | None = None
 
+    # -- O que o Pixel Optimizer precisou fazer (plano Optimizer §69) ----
+    #
+    # Todos os motores atravessam o **mesmo** Optimizer, então estas colunas
+    # medem exatamente o que o benchmark quer saber: quanta correção a saída
+    # de cada motor exigiu. Um motor que entrega sprites já limpos aparece
+    # aqui com zero pixels corrigidos — e é essa a diferença que a tabela de
+    # notas finais, sozinha, esconderia.
+    optimizer_status: str | None = None
+    optimizer_pixels_changed: int | None = None
+    optimizer_iterations: int | None = None
+    #: Nota antes da otimização. A de depois é ``quality_score``.
+    quality_score_before_optimizer: int | None = None
+    optimizer_reverted: bool | None = None
+
     @property
     def size_matches(self) -> bool | None:
         """A resolução lógica entregue é a pedida?"""
@@ -72,6 +85,13 @@ class TechnicalMetrics:
         if self.color_count is None or self.max_colors is None:
             return None
         return self.color_count <= self.max_colors
+
+    @property
+    def quality_improvement(self) -> int | None:
+        """Quanto a otimização somou à nota (plano Optimizer §69)."""
+        if self.quality_score is None or self.quality_score_before_optimizer is None:
+            return None
+        return self.quality_score - self.quality_score_before_optimizer
 
     @property
     def correction_ratio(self) -> float | None:
@@ -106,6 +126,12 @@ class TechnicalMetrics:
             "raw_color_count": self.raw_color_count,
             "raw_size": list(self.raw_size) if self.raw_size else None,
             "correction_ratio": self.correction_ratio,
+            "optimizer_status": self.optimizer_status,
+            "optimizer_pixels_changed": self.optimizer_pixels_changed,
+            "optimizer_iterations": self.optimizer_iterations,
+            "optimizer_reverted": self.optimizer_reverted,
+            "quality_score_before_optimizer": self.quality_score_before_optimizer,
+            "quality_improvement": self.quality_improvement,
         }
 
 
@@ -151,7 +177,7 @@ class VisualScore:
 
 @dataclass(slots=True)
 class CaseOutcome:
-    """O resultado de um caso em um alvo (método + motor)."""
+    """O resultado de um caso em um alvo (um motor)."""
 
     case_id: str
     target: BenchmarkTarget = field(default_factory=BenchmarkTarget)
@@ -159,7 +185,6 @@ class CaseOutcome:
     #: com fallback **não** conta para o alvo pedido, senão o benchmark
     #: credita a um motor o trabalho de outro.
     resolved_engine_id: str | None = None
-    resolved_strategy: GenerationStrategyType | None = None
     succeeded: bool = False
     error: str | None = None
     duration_ms: float = 0.0
@@ -180,16 +205,11 @@ class CaseOutcome:
     def counts_for_engine(self) -> bool:
         """Este resultado pode ser creditado ao alvo pedido?
 
-        Duas condições, e as duas importam: a estratégia tem de ser a pedida
-        (senão o número descreve outro método) e, quando um motor foi
-        nomeado, ele tem de ser o que rodou (senão descreve outro motor).
+        Só quando o motor que rodou foi o motor nomeado. Um caso que caiu no
+        fallback entregou o asset, mas **aquele** motor falhou — creditar o
+        resultado a ele seria dar a um motor o trabalho de outro.
         """
         if not self.succeeded:
-            return False
-        if (
-            self.resolved_strategy is not None
-            and self.resolved_strategy is not self.target.strategy
-        ):
             return False
         if self.target.engine_id is None or self.resolved_engine_id is None:
             return True
@@ -199,12 +219,8 @@ class CaseOutcome:
         return {
             "case_id": self.case_id,
             "target": self.target.label,
-            "strategy": self.target.strategy.value,
             "engine_id": self.target.engine_id,
             "resolved_engine_id": self.resolved_engine_id,
-            "resolved_strategy": (
-                self.resolved_strategy.value if self.resolved_strategy else None
-            ),
             "succeeded": self.succeeded,
             "counts_for_engine": self.counts_for_engine,
             "error": self.error,
@@ -285,7 +301,6 @@ class TargetReport:
     def document(self) -> dict[str, Any]:
         return {
             "target": self.target.label,
-            "strategy": self.target.strategy.value,
             "engine_id": self.target.engine_id,
             "cases": self.total,
             "succeeded": self.succeeded,
@@ -298,6 +313,14 @@ class TargetReport:
             "average_quality_score": _rounded(self.average("quality_score"), 2),
             "pixel_exact_rate": _rounded(self.pixel_exact_rate, 4),
             "average_correction_ratio": _rounded(self.average("correction_ratio"), 4),
+            # A coluna do §69: com todos os motores passando pelo mesmo
+            # Optimizer, é aqui que se lê quanta correção cada um exigiu.
+            "average_optimizer_pixels_changed": _rounded(
+                self.average("optimizer_pixels_changed"), 2
+            ),
+            "average_quality_improvement": _rounded(
+                self.average("quality_improvement"), 2
+            ),
             "average_orphan_ratio": _rounded(self.average("orphan_ratio"), 4),
             "average_microcluster_ratio": _rounded(
                 self.average("microcluster_ratio"), 4

@@ -5,20 +5,24 @@
  * motores §4 e §24): esta camada conhece **Pixel Art** e **2D Normal**,
  * traduzidos para *capacidades*.
  *
- * Sobre motores e métodos, a regra mudou de forma e não de espírito. A tela
- * **oferece** as escolhas — método de criação, e depois motor ou agente — mas
- * continua sem **conhecer** nenhum dos dois: as listas vêm inteiras de
- * `GET /api/generation/strategies`, com id, nome, resumo, selos e
- * disponibilidade. Nenhum id de motor está escrito neste código.
+ Sobre motores, a tela **oferece** a escolha mas continua sem **conhecer**
+ * nenhum: a lista vem inteira de `GET /api/generation/engines/catalog`, com
+ * id, nome, resumo, selos e disponibilidade. Nenhum id de motor está escrito
+ * neste código.
  *
- * A ordem das perguntas é a arquitetura (plano de correção §4 e §52):
+ * Existe **uma** pergunta de tecnologia, e é essa (plano Optimizer §25 e §26):
  *
- *     1. Como criar?   Automático | Modelo de imagem | Agente Pixel
- *     2. Com o quê?    (só em Modelo) o motor / (só em Agente) o agente
+ *     Com qual motor?   Automático | FLUX | SD-πXL | Pixel Forge | ...
  *
- * Antes disso havia um seletor só, chamado "Motor", com FLUX, SDXL e o agente
- * lado a lado — e a tela dizia à pessoa que as três coisas eram a mesma
- * categoria, quando não são.
+ * Não há um seletor de "método de criação", e a ausência é deliberada. Ele já
+ * existiu, oferecendo "Modelo de imagem" e "Agente Pixel" como se fossem
+ * alternativas — e não são: o motor produz a imagem, e o AssetFlow Pixel
+ * Optimizer corrige a imagem produzida, sempre, em toda geração (§46 e §79).
+ * Perguntar qual dos dois usar era pedir à pessoa que escolhesse entre duas
+ * metades do mesmo pipeline.
+ *
+ * O Optimizer, por isso, **não** aparece em lista nenhuma da interface (§76).
+ * Ele aparece no resultado, contando o que fez.
  *
  * A diferença importa. Se amanhã entrar uma gaveta nova, ela aparece no
  * seletor sozinha; se `flux-pixel-v1` estivesse escrito aqui, cada motor novo
@@ -120,73 +124,24 @@ export interface SemanticPrompt {
 }
 
 // ---------------------------------------------------------------------------
-// Métodos de criação (plano de correção §4 e §32)
+// A escolha de tecnologia (plano Optimizer §25 e §26)
 // ---------------------------------------------------------------------------
 
-/** Como o asset será criado. `auto` é a ausência de escolha, não um método. */
-export type GenerationStrategyId = "auto" | "model" | "pixel_agent";
-
-/** Quanto esforço o agente pode gastar (plano de correção §25). */
-export type AgentQualityMode = "auto" | "fast" | "balanced" | "detailed";
-
 /**
- * Um método de criação como o backend o apresenta.
+ * O que a tela escolheu sobre **com o quê** criar.
  *
- * `selects_engine` e `selects_agent` são a decisão do §5 tomada no backend: é
- * ele que diz qual controle a tela deve mostrar depois desta escolha. A
- * alternativa — um `if id === "pixel_agent"` no React — poria no frontend uma
- * regra de arquitetura que não é dele.
- */
-export interface StrategyDescriptor {
-  id: GenerationStrategyId;
-  display_name: string;
-  summary: string;
-  description: string;
-  available: boolean;
-  unavailable_reason: string | null;
-  selects_engine: boolean;
-  selects_agent: boolean;
-  highlights: string[];
-}
-
-/** Um agente de desenho oferecido na tela. */
-export interface AgentSummary {
-  id: string;
-  display_name: string;
-  version: string;
-  summary: string;
-}
-
-/** A resposta de `GET /api/generation/strategies` — tudo que o seletor usa. */
-export interface StrategyCatalog {
-  items: StrategyDescriptor[];
-  engines: EngineCatalogEntry[];
-  agents: AgentSummary[];
-  quality_modes: AgentQualityMode[];
-  capability: string | null;
-}
-
-/**
- * O que a tela escolheu sobre **como** criar.
+ * Um campo só, e é esse o ponto. Este objeto já teve quatro — método, motor,
+ * agente e modo de qualidade —, e três deles descreviam uma bifurcação que
+ * não existe mais (plano Optimizer §27).
  *
- * `engineId` só vale com `strategy === "model"`, e `agentId`/`quality` só com
- * `"pixel_agent"`. Mandar motor junto de agente é recusado pelo backend
- * (plano de correção §38) — e é assim que se descobre um bug de tela em vez
- * de gerar o asset errado em silêncio.
+ * `engineId` a `null` significa "Automático": o backend escolhe e explica o
+ * motivo antes de gerar.
  */
 export interface CreationSelection {
-  strategy: GenerationStrategyId;
   engineId: string | null;
-  agentId: string | null;
-  quality: AgentQualityMode;
 }
 
-export const AUTO_CREATION: CreationSelection = {
-  strategy: "auto",
-  engineId: null,
-  agentId: null,
-  quality: "auto",
-};
+export const AUTO_CREATION: CreationSelection = { engineId: null };
 
 // ---------------------------------------------------------------------------
 // Catálogo de motores (plano de motores §6) — o que o seletor de motor desenha
@@ -249,6 +204,12 @@ export interface EngineCatalogEntry {
   recommended_timeout_s: number;
 }
 
+/** A resposta de `GET /api/generation/engines/catalog`. */
+export interface EngineCatalogResponse {
+  items: EngineCatalogEntry[];
+  capability: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Final Resolved Spec — o contrato que a geração executa (plano T→J §15)
 // ---------------------------------------------------------------------------
@@ -299,31 +260,19 @@ export interface ResolvedPalette {
 }
 
 /**
- * Como este asset será criado (plano de correção §7 e §41).
+ * O que acontece depois do motor (plano Optimizer §32).
  *
- * `requested` guarda o que a pessoa escolheu — inclusive `auto` — e `mode`
- * guarda o que isso virou. Os dois, porque sem o pedido original não há como
- * saber, olhando um job antigo, se o método foi decidido por alguém ou pelo
- * sistema.
+ * Um campo do spec que **ninguém escolhe**. Ele está aqui para ser mostrado,
+ * não decidido: quando o teto de iterações mudar, ou quando o revisor por LLM
+ * entrar, um job antigo continuará dizendo por qual pipeline passou.
  */
-export interface ResolvedStrategy {
-  requested: GenerationStrategyId;
-  mode: "model" | "pixel_agent";
-  reason: string;
-}
-
-/** A configuração do agente resolvida para este job. */
-export interface ResolvedPixelAgent {
-  agent_id: string;
-  quality_mode: AgentQualityMode;
-  max_iterations: number | null;
-  auto_review: boolean;
-}
-
-/** Referência visual opcional do agente (plano de correção §39). */
-export interface ResolvedConceptReference {
-  enabled: boolean;
-  engine_id: string | null;
+export interface ResolvedPixelPipeline {
+  optimize: boolean;
+  optimizer_id: string;
+  max_iterations: number;
+  reviewer: string;
+  /** Sempre `true`: a otimização é imposta pelo servidor (§33 e §34). */
+  forced: boolean;
 }
 
 /**
@@ -362,10 +311,8 @@ export interface FinalResolvedSpec {
   background: { mode: "transparent" | "solid" };
   composition: { view: string | null; centered: boolean; margin_ratio: number | null };
   generation: { variations: number; seed: number | null; quality: string };
-  strategy: ResolvedStrategy;
   engine: ResolvedEngine;
-  pixel_agent: ResolvedPixelAgent;
-  concept_reference: ResolvedConceptReference;
+  pixel_pipeline: ResolvedPixelPipeline;
   sources: Record<string, SpecSource>;
   notes: string[];
 }
@@ -392,9 +339,9 @@ export interface SpecOverrides {
   engine_id?: string | null;
   engine_mode?: "auto" | "manual" | null;
   allow_engine_fallback?: boolean | null;
-  strategy?: GenerationStrategyId | null;
-  agent_id?: string | null;
-  agent_quality?: AgentQualityMode | null;
+  // Não existe aqui um campo para o Pixel Optimizer, e a ausência é a regra:
+  // correção manual é o nível mais alto entre as camadas que decidem o asset,
+  // e a otimização não é uma delas — é parte do pipeline (§33 e §46).
 }
 
 /** Resposta de `POST /api/generation/prompt/preview`, e o campo `prompt` do job. */
@@ -436,17 +383,12 @@ export interface CreateJobPayload {
   spec_overrides?: SpecOverrides;
   /** Semântica corrigida à mão. Presente, ela substitui o PromptBuilder. */
   semantic_prompt?: SemanticPrompt;
-  /** Como criar. Ausente = `auto`, que o backend resolve com a política. */
-  generation_strategy?: { mode: GenerationStrategyId };
-  /** Configuração do agente. Só enviada quando o método é o dele. */
-  pixel_agent?: { quality_mode: AgentQualityMode; agent_id?: string };
   /**
    * O motor escolhido. Em `auto` o campo vai só com o modo: um `engine_id`
    * junto com `auto` seria dizer duas coisas ao mesmo tempo.
    *
-   * **Nunca** enviado junto com `pixel_agent`: o backend recusa o pedido
-   * contraditório (plano de correção §38), e é assim que um bug de tela
-   * aparece como erro em vez de virar o asset errado.
+   * Não existe um campo irmão para a otimização. Ela não é opção do pedido —
+   * é parte do pipeline, e o servidor a impõe (plano Optimizer §33 e §34).
    */
   engine?: { mode: "auto" | "manual"; engine_id?: string };
 }
@@ -481,8 +423,43 @@ export interface AssetVariant {
   status: string | null;
   color_count: number | null;
   palette: string[];
+  /**
+   * O que o AssetFlow Pixel Optimizer fez com esta variação (§30).
+   *
+   * `null` em arte 2D convencional, onde ele não roda — e em geração Pixel
+   * ele vem **sempre** preenchido, porque o estágio é obrigatório (§46). Um
+   * bloco ausente em Pixel Art é sinal de asset gerado por uma versão
+   * anterior, não de otimização pulada.
+   */
+  optimization: PixelOptimization | null;
   /** Ampliação inteira só para visualizar — nunca é o asset (plano Pixel §73). */
   preview_url: string | null;
+}
+
+/**
+ * O laudo do Pixel Optimizer (plano Optimizer §30 e §48).
+ *
+ * `status` é o campo que a tela lê primeiro, e `skipped` é o que mais engana:
+ * ele quer dizer "o Optimizer olhou e não havia o que corrigir", nunca "o
+ * Optimizer foi pulado" (§46).
+ */
+export interface PixelOptimization {
+  status:
+    | "skipped"
+    | "optimized"
+    | "no_safe_repairs"
+    | "exhausted"
+    | "disabled";
+  reviewer: string;
+  iterations: number;
+  tool_calls: number;
+  pixels_changed: number;
+  score_before: number | null;
+  score_after: number | null;
+  improvement: number | null;
+  /** A correção foi descartada por ter piorado o asset (§20)? */
+  reverted: boolean;
+  duration_ms: number;
 }
 
 export interface Asset {
@@ -502,13 +479,6 @@ export interface Asset {
  * de outro sem saber — é exatamente o que ela existe para impedir.
  */
 export interface EngineSelectionView {
-  /** O método pedido e o resolvido (plano de correção §41 e §42). */
-  requested_strategy: GenerationStrategyId;
-  resolved_strategy: "model" | "pixel_agent";
-  strategy_reason: string;
-  /** O agente, quando foi ele quem desenhou. `null` na geração por modelo. */
-  agent: { id: string; version: string } | null;
-
   mode: "auto" | "manual";
   requested_engine_id: string | null;
   reason: string;
@@ -542,9 +512,9 @@ export interface Job {
    * Avisos do backend, já escritos para serem lidos.
    *
    * Eles não chegavam à tela, e a ausência tinha um custo concreto: um pedido
-   * de "house" saía como uma forma genérica, o backend avisava que o agente
-   * não conhecia o objeto, e a pessoa via só o resultado estranho — sem
-   * nenhuma pista de que o sistema **sabia** o que tinha acontecido.
+   * saía como uma forma genérica, o backend avisava por quê, e a pessoa via só
+   * o resultado estranho — sem nenhuma pista de que o sistema **sabia** o que
+   * tinha acontecido.
    */
   warnings: string[];
   error: { code: string; message: string } | null;

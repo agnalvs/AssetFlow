@@ -1,4 +1,4 @@
-"""Cliente de chat compatível com a API da OpenAI (plano de correção §18).
+"""Cliente de chat compatível com a API da OpenAI (plano Optimizer §42).
 
 Um cliente só, para todos os provedores. O formato ``/chat/completions`` virou
 o denominador comum — OpenAI, Ollama, LM Studio, OpenRouter, Groq, vLLM e
@@ -14,7 +14,7 @@ certa — ela é o que impede o AssetFlow de trocar a dependência de um modelo 
 imagem pela de um provedor de LLM. Falar HTTP puro mantém o planner livre de
 fornecedor **de fato**, e não só por organização de pastas.
 
-**Sem chave no YAML.** ``config/strategies.yaml`` é versionado. A chave vem de
+**Sem chave no YAML.** ``config/optimizer.yaml`` é versionado. A chave vem de
 variável de ambiente, e o nome dela é que fica na configuração.
 """
 
@@ -29,21 +29,21 @@ from dataclasses import dataclass, field
 
 __all__ = ["ChatClient", "ChatConfig", "ChatError"]
 
-_LOG = logging.getLogger("assetflow.pixel_agent.llm")
+_LOG = logging.getLogger("assetflow.llm")
 
 
 class ChatError(RuntimeError):
-    """Falha ao falar com o modelo planejador.
+    """Falha ao falar com o modelo.
 
-    Nunca sobe até o job: o :class:`~..llm.LLMPlanner` a captura e cai no
-    planner de receitas. Um provedor fora do ar não pode derrubar uma geração
-    — no máximo, rebaixá-la, com aviso.
+    Nunca deve subir até o job. Quem usa este cliente a captura e segue pelo
+    caminho determinístico: um provedor fora do ar pode rebaixar o resultado,
+    com aviso, mas nunca derrubar uma geração.
     """
 
 
 @dataclass(frozen=True, slots=True)
 class ChatConfig:
-    """Como falar com o modelo planejador."""
+    """Como falar com o modelo."""
 
     #: Base da API, com ``/v1``. Exemplos:
     #:   OpenAI     https://api.openai.com/v1
@@ -53,7 +53,7 @@ class ChatConfig:
     model: str = ""
     #: Nome da **variável de ambiente** que guarda a chave — não a chave.
     #: Provedores locais não precisam de nenhuma.
-    api_key_env: str = "ASSETFLOW_PLANNER_API_KEY"
+    api_key_env: str = "ASSETFLOW_OPTIMIZER_API_KEY"
     temperature: float = 0.4
     timeout_s: float = 60.0
     max_output_tokens: int = 4096
@@ -69,12 +69,12 @@ class ChatConfig:
         return os.environ.get(self.api_key_env) or None
 
     @classmethod
-    def from_config(cls, data: dict | None) -> "ChatConfig":
+    def from_config(cls, data: dict | None) -> ChatConfig:
         data = data or {}
         return cls(
             base_url=str(data.get("base_url") or "").rstrip("/"),
             model=str(data.get("model") or ""),
-            api_key_env=str(data.get("api_key_env") or "ASSETFLOW_PLANNER_API_KEY"),
+            api_key_env=str(data.get("api_key_env") or "ASSETFLOW_OPTIMIZER_API_KEY"),
             temperature=float(data.get("temperature", 0.4)),
             timeout_s=float(data.get("timeout_s", 60.0)),
             max_output_tokens=int(data.get("max_output_tokens", 4096)),
@@ -107,8 +107,8 @@ class ChatClient:
         """
         if not self._config.configured:
             raise ChatError(
-                "planejador por LLM não configurado: defina `base_url` e "
-                "`model` em config/strategies.yaml"
+                "cliente de LLM não configurado: defina `base_url` e "
+                "`model` em config/optimizer.yaml"
             )
 
         payload = {
@@ -142,25 +142,25 @@ class ChatClient:
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:400]
             raise ChatError(
-                f"o planejador respondeu HTTP {exc.code}: {detail}"
+                f"o modelo respondeu HTTP {exc.code}: {detail}"
             ) from exc
         except urllib.error.URLError as exc:
             raise ChatError(
-                f"não foi possível falar com o planejador em "
+                f"não foi possível falar com o modelo em "
                 f"{self._config.base_url}: {exc.reason}"
             ) from exc
         except TimeoutError as exc:
             raise ChatError(
-                f"o planejador não respondeu em {self._config.timeout_s:.0f}s"
+                f"o modelo não respondeu em {self._config.timeout_s:.0f}s"
             ) from exc
         except json.JSONDecodeError as exc:
-            raise ChatError("o planejador devolveu uma resposta ilegível") from exc
+            raise ChatError("o modelo devolveu uma resposta ilegível") from exc
 
         try:
             return body["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError, TypeError) as exc:
             raise ChatError(
-                f"resposta do planejador em formato inesperado: {str(body)[:200]}"
+                f"resposta do modelo em formato inesperado: {str(body)[:200]}"
             ) from exc
 
     def health(self) -> tuple[bool, str | None]:
@@ -172,5 +172,5 @@ class ChatClient:
         qualquer jeito.
         """
         if not self._config.configured:
-            return (False, "planejador por LLM não configurado")
+            return (False, "cliente de LLM não configurado")
         return (True, None)

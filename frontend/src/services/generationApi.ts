@@ -20,7 +20,7 @@ import {
   type PromptPreview,
   type SemanticPrompt,
   type SpecOverrides,
-  type StrategyCatalog,
+  type EngineCatalogResponse,
 } from "../types";
 
 const BASE_URL = "/api/generation";
@@ -74,41 +74,26 @@ export function buildJobPayload(input: {
 }
 
 /**
- * O bloco de "como criar" do pedido (plano de correção §8, §9 e §10).
+ * O bloco de motor do pedido (plano Optimizer §26).
  *
- * A regra que esta função existe para respeitar: **motor só vai com
- * `model`**. Em "Agente Pixel" o backend recusa o pedido que traz motor
- * (§38), e mandar os dois seria transformar um bug de tela em um erro 400 na
- * cara de quem só queria um sprite.
+ * Uma escolha só, porque existe uma só. Esta função já teve três caminhos —
+ * agente, modelo e automático —, e dois deles descreviam uma bifurcação que
+ * não existe mais: a otimização não é uma alternativa ao motor, é o que vem
+ * depois dele, em toda geração (§46).
+ *
+ * Por isso o pedido também **não** carrega nada sobre otimização. Ela é
+ * imposta pelo servidor (§33 e §34); um campo aqui sugeriria uma escolha que
+ * o backend ignoraria.
  */
 function creationPayload(creation: CreationSelection | null) {
-  const strategy = creation?.strategy ?? "auto";
-
-  if (strategy === "pixel_agent") {
-    return {
-      generation_strategy: { mode: "pixel_agent" as const },
-      pixel_agent: {
-        quality_mode: creation?.quality ?? ("auto" as const),
-        ...(creation?.agentId ? { agent_id: creation.agentId } : {}),
-      },
-    };
-  }
-
-  if (strategy === "model") {
-    return {
-      generation_strategy: { mode: "model" as const },
-      // Auto vai só com o modo. Mandar um `engine_id` junto de `auto` seria
-      // dizer "escolha por mim, mas use este" — e o backend, corretamente,
-      // trataria isso como escolha manual.
-      engine: creation?.engineId
-        ? { mode: "manual" as const, engine_id: creation.engineId }
-        : { mode: "auto" as const },
-    };
-  }
-
-  // Automático: nem método, nem motor, nem agente. É a ausência de escolha,
-  // e o backend a resolve com a política dele — dizendo o motivo.
-  return { generation_strategy: { mode: "auto" as const } };
+  // Auto vai só com o modo. Mandar um `engine_id` junto de `auto` seria dizer
+  // "escolha por mim, mas use este" — e o backend, corretamente, trataria
+  // isso como escolha manual.
+  return {
+    engine: creation?.engineId
+      ? { mode: "manual" as const, engine_id: creation.engineId }
+      : { mode: "auto" as const },
+  };
 }
 
 /** Um campo recusado pelo backend, no formato normalizado do erro 422. */
@@ -209,23 +194,24 @@ export function previewPrompt(
 }
 
 /**
- * Os métodos de criação, motores e agentes (plano de correção §32).
+ * Os motores oferecíveis (plano de motores §6, plano Optimizer §26).
  *
- * Uma chamada só, porque a tela precisa dos três ao mesmo tempo para decidir
- * o que mostrar. E quem decide **é o backend**: cada método vem com
- * `selects_engine` e `selects_agent`, em vez de o React inferir isso de um
- * `if id === "pixel_agent"`.
+ * É a **única** lista de tecnologia que a interface consome. O AssetFlow
+ * Pixel Optimizer não está nela e nunca estará: ele não é escolhível, é o
+ * estágio que todo motor atravessa depois de gerar (§76).
  *
  * O filtro por capacidade importa: em Pixel Art e em 2D convencional os
  * motores disponíveis não são os mesmos, e oferecer um motor que o backend
  * vai recusar é pior do que não oferecer.
  */
-export function listStrategyCatalog(
+export function listEngineCatalog(
   capability?: string,
   signal?: AbortSignal,
-): Promise<StrategyCatalog> {
+): Promise<EngineCatalogResponse> {
   const query = capability ? `?capability=${encodeURIComponent(capability)}` : "";
-  return request<StrategyCatalog>(`${BASE_URL}/strategies${query}`, { signal });
+  return request<EngineCatalogResponse>(`${BASE_URL}/engines/catalog${query}`, {
+    signal,
+  });
 }
 
 /** Consulta o estado atual de um job. */

@@ -23,15 +23,6 @@ from .generation.kernel import (
     discover_manifests,
 )
 from .generation.pipelines import PipelineRegistry
-from .generation.pixel_agent import (
-    AssetFlowPixelAgent,
-    ChatClient,
-    ChatConfig,
-    LLMPlanner,
-    QualityMode,
-    RecipePlanner,
-)
-from .generation.pixel_agent.strategy import PixelAgentStrategy
 from .generation.profiles import ProfileRegistry
 from .generation.prompting import PromptBuilderRegistry
 from .generation.service import GenerationService
@@ -39,11 +30,6 @@ from .generation.spec import (
     AssetTaxonomy,
     AssetTypeClassifier,
     ConstraintResolver,
-)
-from .generation.strategies import (
-    GenerationStrategyRegistry,
-    GenerationStrategyResolver,
-    ModelGenerationStrategy,
 )
 from .jobs import (
     GenerationWorker,
@@ -55,7 +41,9 @@ from .jobs import (
     QueueRouter,
     RetryPolicy,
 )
+from .llm import ChatClient, ChatConfig, LLMPixelReviewer
 from .pixel import PixelProfileRegistry
+from .pixel.optimizer import AssetFlowPixelOptimizer, PixelReviewer, ReviewLoop
 from .settings import Settings, engine_runtime_configs, load_settings
 from .storage import (
     AssetStorageService,
@@ -80,10 +68,10 @@ class AppContainer:
     engine_policy: AutoEnginePolicy
     resolver: EngineResolver
     kernel: GenerationKernel
-    #: Os métodos de criação e quem resolve `auto` (plano de correção §35).
-    strategies: GenerationStrategyRegistry
-    strategy_resolver: GenerationStrategyResolver
-    pixel_agent: AssetFlowPixelAgent
+    #: O estágio que toda geração Pixel atravessa (plano Optimizer §33).
+    #: Ele não está no ``EngineRegistry`` e nunca estará: não é uma tecnologia
+    #: de geração de imagem, é o que corrige a imagem gerada (§79).
+    optimizer: AssetFlowPixelOptimizer
     profiles: ProfileRegistry
     pixel_profiles: PixelProfileRegistry
     pipelines: PipelineRegistry
@@ -172,23 +160,13 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         default_timeout_s=float(defaults.get("timeout_s", 300)),
     )
 
-    # -- Métodos de criação (plano de correção §2 e §35) ------------------
+    # -- Pixel Optimizer (plano Optimizer §33 e §46) ----------------------
     #
-    # A camada que separa "como criar" de "com qual motor". O agente entra
-    # aqui, e não no EngineRegistry: ele não é uma tecnologia de geração de
-    # imagem, é uma estratégia inteira (§34).
-    pixel_agent = AssetFlowPixelAgent(planner=_pixel_planner(settings))
-    strategies = GenerationStrategyRegistry(
-        [
-            ModelGenerationStrategy(registry),
-            PixelAgentStrategy(
-                pixel_agent, quality_budgets=_quality_budgets(settings)
-            ),
-        ]
-    )
-    strategy_resolver = GenerationStrategyResolver.from_config(
-        strategies, settings.strategies_config
-    )
+    # Ele é montado aqui, ao lado do kernel, e **não** entra no registry de
+    # gavetas. A distinção é a arquitetura inteira do plano: uma gaveta é
+    # escolhível e produz imagem; o Optimizer não é escolhível e corrige a
+    # imagem produzida. Quem pede um asset escolhe o motor, e só (§25).
+    optimizer = _pixel_optimizer(settings)
 
     # -- Produto: profiles, pipelines, prompts ---------------------------
     profiles = ProfileRegistry.from_config(settings.profiles_config)
@@ -196,7 +174,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     # paleta, alpha, canvas, preview). Vive em YAML pelo mesmo motivo dos
     # outros — trocar a regra não pode exigir alterar código (plano Pixel §64).
     pixel_profiles = PixelProfileRegistry.from_config(settings.pixel_profiles_config)
-    pipelines = PipelineRegistry.with_defaults(pixel_profiles)
+    pipelines = PipelineRegistry.with_defaults(pixel_profiles, optimizer)
     prompt_builders = PromptBuilderRegistry.with_defaults()
 
     # Taxonomia + resolver de restrições: o caminho do texto até o Final
@@ -209,10 +187,6 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     constraints = ConstraintResolver(
         AssetTypeClassifier(taxonomy),
         advisor=engine_policy,
-        # O conselheiro de **método**. Ele responde antes do de motor, e é o
-        # que faz "Automático" trazer estratégia e motivo já na
-        # pré-visualização (plano de correção §5 e §41).
-        strategy_advisor=strategy_resolver,
     )
 
     # -- Storage ----------------------------------------------------------
@@ -239,7 +213,6 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         manager=jobs,
         kernel=kernel,
         pipelines=pipelines,
-        strategies=strategy_resolver,
         profiles=profiles,
         storage=storage,
         prompt_builders=prompt_builders,
@@ -259,20 +232,20 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         constraints=constraints,
         records=records,
         engine_catalog=catalog,
-        strategies=strategies,
         default_max_attempts=settings.worker.max_attempts,
     )
 
     _LOG.info(
-        "AssetFlow pronto [%s]: %s método(s), %s gaveta(s), %s profile(s), "
-        "%s profile(s) Pixel, %s pipeline(s), %s vocabulário(s) de asset",
+        "AssetFlow pronto [%s]: %s gaveta(s), %s profile(s), "
+        "%s profile(s) Pixel, %s pipeline(s), %s vocabulário(s) de asset "
+        "| otimização %s",
         settings.app_env.value,
-        len(strategies),
         len(registry),
         len(profiles),
         len(pixel_profiles),
         len(pipelines.ids()),
         len(taxonomy),
+        "ligada" if optimizer.enabled else "DESLIGADA",
     )
 
     return AppContainer(
@@ -281,9 +254,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         catalog=catalog,
         engine_policy=engine_policy,
         resolver=resolver,
-        strategies=strategies,
-        strategy_resolver=strategy_resolver,
-        pixel_agent=pixel_agent,
+        optimizer=optimizer,
         kernel=kernel,
         profiles=profiles,
         pixel_profiles=pixel_profiles,
@@ -301,50 +272,66 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     )
 
 
-def _quality_budgets(settings: Settings) -> dict[QualityMode, int]:
-    """Iterações por modo de qualidade, de ``config/strategies.yaml`` (§25).
+def _pixel_optimizer(settings: Settings) -> AssetFlowPixelOptimizer:
+    """O Pixel Optimizer, montado a partir de ``config/optimizer.yaml`` (§42).
 
-    Ausente ou incompleto, valem os números do plano — 2, 4, 6. Um modo com
-    valor inválido é ignorado com aviso em vez de derrubar o boot: o agente
-    funciona com o padrão, e uma configuração torta não deve impedir o
-    sistema de subir.
+    Configuração ausente é o caso normal, não o excepcional: os padrões do
+    próprio Optimizer já são os do plano — revisor determinístico, três
+    voltas, ligado. O arquivo existe para quem quiser mudar isso.
+
+    ``enabled: false`` é um interruptor de **instalação**, para diagnóstico.
+    Ele não é uma opção de quem pede um asset (§46), e quando está desligado o
+    relatório do job traz o status ``disabled`` — um estágio que não rodou
+    precisa aparecer, nunca sumir.
     """
-    raw = ((settings.strategies_config.get("pixel_agent") or {}).get("quality_modes")) or {}
-    budgets: dict[QualityMode, int] = {}
-    for key, value in raw.items():
-        try:
-            budgets[QualityMode(str(key))] = int(value)
-        except (ValueError, TypeError):
-            _LOG.warning("modo de qualidade inválido em strategies.yaml: %r", key)
-    return budgets
+    config = (settings.optimizer_config.get("optimizer") or {})
+    enabled = bool(config.get("enabled", True))
+
+    try:
+        iterations = int(config.get("max_iterations", 3))
+    except (TypeError, ValueError):
+        _LOG.warning(
+            "max_iterations inválido em optimizer.yaml: %r; valem 3 voltas",
+            config.get("max_iterations"),
+        )
+        iterations = 3
+
+    return AssetFlowPixelOptimizer(
+        loop=ReviewLoop(
+            reviewer=_pixel_reviewer(config.get("reviewer") or {}),
+            max_iterations=iterations,
+        ),
+        enabled=enabled,
+    )
 
 
-def _pixel_planner(settings: Settings):
-    """O planejador do agente (plano de correção §18).
+def _pixel_reviewer(config: dict) -> PixelReviewer:
+    """Quem diagnostica o sprite (plano Optimizer §42).
 
-    ``recipes`` por padrão. Com ``type: llm`` e um provedor configurado, o
-    agente deixa de ter vocabulário fixo — e continua com as mesmas garantias
-    de grade, paleta e contorno, porque só o planejador muda.
+    ``heuristic`` por padrão. Com ``type: llm`` e um provedor configurado, o
+    revisor deixa de ter lista fixa de problemas — e as correções continuam
+    com as mesmas garantias, porque só o **diagnóstico** muda: quem decide o
+    reparo é o planejador determinístico, atrás da guarda de paleta e da regra
+    de que otimizar não pode piorar (§16, §17, §20).
 
     Configuração incompleta não derruba o boot nem vira surpresa em tempo de
-    geração: o aviso sai aqui, e o agente segue com as receitas.
+    geração: o aviso sai aqui, e o Optimizer segue com o determinístico.
     """
-    config = (settings.strategies_config.get("pixel_agent") or {}).get("planner") or {}
-    kind = str(config.get("type") or "recipes").strip().lower()
+    kind = str(config.get("type") or "heuristic").strip().lower()
     if kind != "llm":
-        return RecipePlanner()
+        return PixelReviewer()
 
     chat = ChatConfig.from_config(config)
     if not chat.configured:
         _LOG.warning(
-            "planner.type='llm' mas falta `base_url`/`model` em strategies.yaml; "
-            "o Pixel Agent vai usar as receitas"
+            "reviewer.type='llm' mas falta `base_url`/`model` em optimizer.yaml; "
+            "o Pixel Optimizer vai usar o revisor determinístico"
         )
-        return RecipePlanner()
+        return PixelReviewer()
 
-    _LOG.info("planejador do Pixel Agent: %s", ChatClient(chat).describe())
-    return LLMPlanner(
+    _LOG.info("revisor do Pixel Optimizer: %s", ChatClient(chat).describe())
+    return LLMPixelReviewer(
         ChatClient(chat),
-        fallback=RecipePlanner(),
+        fallback=PixelReviewer(),
         max_attempts=int(config.get("max_attempts", 2)),
     )

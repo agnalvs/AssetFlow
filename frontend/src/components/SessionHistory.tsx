@@ -1,11 +1,11 @@
-import type { UseCreationCatalog } from "../hooks/useCreationCatalog";
+import type { UseEngineCatalog } from "../hooks/useEngineCatalog";
 import { MODES, type HistoryEntry } from "../types";
 
 interface SessionHistoryProps {
   entries: readonly HistoryEntry[];
   activeJobId: string | null;
   /** Os nomes de método, motor e agente, vindos do catálogo do backend. */
-  catalog: UseCreationCatalog;
+  catalog: UseEngineCatalog;
   onSelect: (entry: HistoryEntry) => void;
 }
 
@@ -77,17 +77,12 @@ export function SessionHistory({
   );
 }
 
-/** Quem produziu esta entrada: o agente, quando foi ele; o motor, quando foi. */
+/** Qual motor produziu esta entrada — é o que torna o histórico comparável. */
 function producerOf(
   entry: HistoryEntry,
-  catalog: UseCreationCatalog,
+  catalog: UseEngineCatalog,
 ): string | null {
   const selection = entry.engine;
-  if (!selection) return null;
-  if (selection.resolved_strategy === "pixel_agent") {
-    return selection.agent ? catalog.agentNameOf(selection.agent.id) : null;
-  }
-  return selection.resolved_engine_id
-    ? catalog.engineNameOf(selection.resolved_engine_id)
-    : null;
+  if (!selection?.resolved_engine_id) return null;
+  return catalog.engineNameOf(selection.resolved_engine_id);
 }

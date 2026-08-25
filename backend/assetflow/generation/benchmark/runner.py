@@ -17,7 +17,7 @@ outro. Sem fallback, a queda vira o que ela é — uma falha daquele motor, que
 entra na taxa de falha do §20.
 
 Desde o plano de correção, o alvo é **método + motor** (§43). É o que
-permite pôr "Pixel Agent" e "Modelo / FLUX" na mesma tabela sem fingir
+permite pôr motores diferentes na mesma tabela sem fingir
 que são a mesma tecnologia — que é justamente o que o §43 pede.
 """
 
@@ -33,8 +33,6 @@ from ..schemas import (
     AssetGenerationRequest,
     AssetOutputOverrides,
     EngineSelector,
-    GenerationStrategySelection,
-    GenerationStrategyType,
     Job,
     JobStatus,
 )
@@ -112,26 +110,21 @@ class BenchmarkRunner:
 
     # ------------------------------------------------------------------
     async def _default_targets(self) -> list[BenchmarkTarget]:
-        """Tudo que dá para medir agora: o agente e cada motor disponível.
+        """Cada motor disponível — e nada além deles (plano Optimizer §69).
 
-        Gavetas ocultas ficam de fora — um número de referência ao lado dos
+        Gavetas ocultas ficam de fora: um número de referência ao lado dos
         motores de produção sugeriria que são comparáveis, e o mock não gera
         arte, gera um padrão determinístico.
+
+        Todos os alvos atravessam o mesmo Pixel Optimizer, então a tabela
+        compara motores — não pipelines.
         """
-        found: list[BenchmarkTarget] = []
-        for strategy in await self._service.strategy_catalog():
-            if strategy.id is GenerationStrategyType.AUTO or not strategy.available:
-                continue
-            if strategy.id is GenerationStrategyType.MODEL:
-                entries = await self._service.engine_catalog(check_health=True)
-                found.extend(
-                    BenchmarkTarget(strategy=strategy.id, engine_id=entry.engine_id)
-                    for entry in entries
-                    if entry.available
-                )
-            else:
-                found.append(BenchmarkTarget(strategy=strategy.id))
-        return found
+        entries = await self._service.engine_catalog(check_health=True)
+        return [
+            BenchmarkTarget(engine_id=entry.engine_id)
+            for entry in entries
+            if entry.available
+        ]
 
     async def _run_case(
         self, case: BenchmarkCase, target: BenchmarkTarget, project_id: str
@@ -204,7 +197,6 @@ def _build_request(
         asset_type=case.asset_type,
         output=output,
         seed=case.seed,
-        generation_strategy=GenerationStrategySelection(mode=target.strategy),
         engine=(
             EngineSelector(
                 mode="manual",
@@ -250,15 +242,18 @@ def _outcome_from_job(
         foreground_occupancy=pixel.get("foreground_occupancy"),
         raw_color_count=pixel.get("raw_color_count"),
         raw_size=tuple(raw_size) if isinstance(raw_size, (list, tuple)) else None,
+        # O que o Optimizer precisou fazer com a saída deste motor (§69).
+        optimizer_status=pixel.get("optimizer_status"),
+        optimizer_pixels_changed=pixel.get("optimizer_pixels_changed"),
+        optimizer_iterations=pixel.get("optimizer_iterations"),
+        quality_score_before_optimizer=pixel.get("quality_score_before_optimizer"),
+        optimizer_reverted=pixel.get("optimizer_reverted"),
     )
 
     return CaseOutcome(
         case_id=case.id,
         target=target,
         resolved_engine_id=job.engine.id if job.engine else None,
-        resolved_strategy=(
-            job.resolved_spec.strategy.mode if job.resolved_spec else None
-        ),
         succeeded=True,
         duration_ms=duration_ms,
         inference_ms=job.timings.inference_ms or 0.0,

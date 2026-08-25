@@ -72,6 +72,14 @@ export interface GenerationOutcome {
 
 export interface UseGenerationJob {
   state: GenerationState;
+  /**
+   * O estágio que o backend reporta (plano Optimizer §29).
+   *
+   * Mais fino que `state`: "processing" cobre pós-processamento, revisão do
+   * Pixel Optimizer e gravação, e dizer só "Finalizando" durante os três
+   * esconde o que é hoje a parte mais demorada de um sprite pequeno.
+   */
+  stage: string;
   error: string | null;
   result: GenerationOutcome | null;
   isBusy: boolean;
@@ -82,6 +90,7 @@ export interface UseGenerationJob {
 
 export function useGenerationJob(): UseGenerationJob {
   const [state, setState] = useState<GenerationState>("idle");
+  const [stage, setStage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GenerationOutcome | null>(null);
 
@@ -97,6 +106,7 @@ export function useGenerationJob(): UseGenerationJob {
 
   const reset = useCallback(() => {
     setState("idle");
+    setStage("");
     setError(null);
     setResult(null);
   }, []);
@@ -118,6 +128,7 @@ export function useGenerationJob(): UseGenerationJob {
     }: GenerationRequestInput) => {
       setError(null);
       setResult(null);
+      setStage("");
       setState("queued");
 
       try {
@@ -134,6 +145,7 @@ export function useGenerationJob(): UseGenerationJob {
 
           const job = await getGenerationJob(submission.job_id);
           const next = toGenerationState(job.status);
+          setStage(job.stage ?? "");
 
           if (next === "completed") {
             const variant = job.asset?.variants?.[0];
@@ -184,6 +196,7 @@ export function useGenerationJob(): UseGenerationJob {
 
   return {
     state,
+    stage,
     error,
     result,
     isBusy: state === "queued" || state === "generating" || state === "processing",

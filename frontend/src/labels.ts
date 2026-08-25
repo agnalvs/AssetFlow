@@ -211,14 +211,42 @@ export function engineBadgeLabel(value: string): string {
   return ENGINE_BADGES[value] ?? value;
 }
 
-/** Modos de qualidade do agente (plano de correção §5 e §25). */
-const AGENT_QUALITY: Record<string, string> = {
-  auto: "Automático",
-  fast: "Rápido",
-  balanced: "Balanceado",
-  detailed: "Detalhado",
-};
+/**
+ * O laudo do Pixel Optimizer em uma frase (plano Optimizer §30).
+ *
+ * O caso que exige mais cuidado é `skipped`. Ele significa "o Optimizer olhou
+ * e não havia o que corrigir" (§46) — traduzi-lo como "pulada" diria à pessoa
+ * que o estágio não rodou, que é exatamente o contrário do que aconteceu.
+ */
+export function optimizationLabel(optimization: {
+  status: string;
+  pixels_changed: number;
+  score_before: number | null;
+  score_after: number | null;
+  reverted: boolean;
+}): string {
+  if (optimization.status === "disabled") {
+    return "desligada nesta instalação";
+  }
+  if (optimization.reverted) {
+    return "correção descartada — o sprite original ficou melhor";
+  }
+  if (optimization.status === "no_safe_repairs") {
+    return "nenhuma correção segura para os problemas encontrados";
+  }
+  if (optimization.pixels_changed === 0) {
+    return "revisado, nenhuma correção necessária";
+  }
 
-export function qualityModeLabel(value: string): string {
-  return AGENT_QUALITY[value] ?? value;
+  const pixels =
+    optimization.pixels_changed === 1
+      ? "1 pixel corrigido"
+      : `${optimization.pixels_changed} pixels corrigidos`;
+  const { score_before: before, score_after: after } = optimization;
+  const nota =
+    before !== null && after !== null && before !== after
+      ? ` · qualidade ${before} → ${after}`
+      : "";
+  const teto = optimization.status === "exhausted" ? " (ainda com ressalvas)" : "";
+  return `${pixels}${nota}${teto}`;
 }

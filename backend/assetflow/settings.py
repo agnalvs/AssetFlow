@@ -124,9 +124,10 @@ class Settings(AssetFlowModel):
     engine_policy_config: dict[str, Any] = Field(default_factory=dict)
     #: `benchmark_suite.yaml` — a suíte comparativa entre motores (plano de motores §19).
     benchmark_config: dict[str, Any] = Field(default_factory=dict)
-    #: `strategies.yaml` — os métodos de criação e o que "Automático" prefere
-    #: (plano de correção §7, §25 e §40).
-    strategies_config: dict[str, Any] = Field(default_factory=dict)
+    #: `optimizer.yaml` — o estágio que toda geração Pixel atravessa: teto de
+    #: iterações, revisor e o interruptor de instalação (plano Optimizer §33,
+    #: §42 e §46). Ausente, valem os padrões do próprio Optimizer.
+    optimizer_config: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def show_mock_engines(self) -> bool:
@@ -224,7 +225,7 @@ def load_settings(
     pixel_profiles_config = _read_yaml(configs / "pixel_profiles.yaml")
     engine_policy_config = _read_yaml(configs / "engine_policy.yaml")
     benchmark_config = _read_yaml(configs / "benchmark_suite.yaml")
-    strategies_config = _read_yaml(configs / "strategies.yaml")
+    optimizer_config = _read_yaml(configs / "optimizer.yaml")
 
     storage = StorageSettings(
         root=_env("STORAGE_ROOT") or str(data / "assets"),
@@ -260,7 +261,7 @@ def load_settings(
         pixel_profiles_config=pixel_profiles_config,
         engine_policy_config=engine_policy_config,
         benchmark_config=benchmark_config,
-        strategies_config=strategies_config,
+        optimizer_config=optimizer_config,
     )
 
 

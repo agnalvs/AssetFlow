@@ -19,14 +19,10 @@ from .common import AssetFlowModel, AssetMode, AssetType, QualityLevel, new_id
 from .request import EngineSelector, ReferenceImage, StructuralControl
 from .resolved_spec import SpecOverrides
 from .semantic_prompt import SemanticPrompt
-from .strategy import AgentQualityMode, GenerationStrategyType
 
 __all__ = [
     "AssetOutputOverrides",
     "AssetGenerationRequest",
-    "ConceptReferenceSelection",
-    "GenerationStrategySelection",
-    "PixelAgentSelection",
 ]
 
 
@@ -54,39 +50,6 @@ class AssetOutputOverrides(AssetFlowModel):
     #: da classe fala de saída e esta é a exceção; a alternativa era um quinto
     #: objeto de pedido só para carregar um campo.
     view: str | None = Field(default=None, max_length=40)
-
-
-class GenerationStrategySelection(AssetFlowModel):
-    """O método de criação escolhido na tela (plano de correção §7).
-
-    Um objeto de um campo só, e não um campo solto, porque o plano de correção
-    o desenha assim e porque ele vai crescer: prioridade declarada pelo
-    usuário (exatidão × velocidade) é o próximo candidato, e ela pertence à
-    escolha do método, não ao pedido inteiro.
-    """
-
-    mode: GenerationStrategyType = GenerationStrategyType.AUTO
-
-
-class PixelAgentSelection(AssetFlowModel):
-    """A configuração do agente, quando o método for ``pixel_agent`` (§10)."""
-
-    agent_id: str = "assetflow_pixel_agent"
-    quality_mode: AgentQualityMode = AgentQualityMode.AUTO
-    #: ``None`` deixa o modo de qualidade decidir (plano de correção §25).
-    max_iterations: int | None = Field(default=None, ge=0, le=32)
-    auto_review: bool = True
-
-
-class ConceptReferenceSelection(AssetFlowModel):
-    """Referência visual opcional para o agente (plano de correção §39).
-
-    Separada de ``engine`` de propósito: o motor que gera uma referência é um
-    *supporting engine*, e nunca o gerador do asset (§27).
-    """
-
-    enabled: bool = False
-    engine_id: str | None = None
 
 
 class AssetGenerationRequest(AssetFlowModel):
@@ -144,19 +107,15 @@ class AssetGenerationRequest(AssetFlowModel):
     seed: int | None = Field(default=None, ge=0, le=2**63 - 1)
     quality: QualityLevel = QualityLevel.STANDARD
 
-    #: **Como** criar (plano de correção §7). Vem antes do motor porque
-    #: decide se existe motor: em ``pixel_agent`` não existe.
+    #: Seleção de motor — a **única** escolha de tecnologia do pedido (plano
+    #: Optimizer §25 e §26).
     #:
-    #: ``None`` significa "não opino" e é lido como ``auto`` — que é diferente
-    #: de mandar ``auto`` explicitamente só na origem registrada no spec.
-    generation_strategy: GenerationStrategySelection | None = None
-    #: Configuração do agente. Ignorada quando o método não é o dele.
-    pixel_agent: PixelAgentSelection | None = None
-    #: Referência conceitual opcional (plano de correção §26).
-    concept_reference: ConceptReferenceSelection | None = None
-
-    #: Seleção de motor. Só se aplica ao método ``model`` — pedir motor com
-    #: ``pixel_agent`` é recusado pelo resolver, e não ignorado (§38).
+    #: Não existe aqui um campo de "método de criação", e não existe um campo
+    #: para ligar ou desligar o Pixel Optimizer. Os dois já existiram, e o
+    #: primeiro oferecia "Modelo de imagem" e "Agente Pixel" como se fossem
+    #: alternativas — quando o motor produz a imagem e o Optimizer corrige a
+    #: imagem produzida, sempre, nesta ordem (§79). A otimização é parte do
+    #: pipeline, não uma opção de quem pede (§33 e §46).
     engine: EngineSelector = Field(default_factory=EngineSelector)
     engine_options: dict[str, dict[str, Any]] = Field(default_factory=dict)
 

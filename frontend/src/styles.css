@@ -363,46 +363,17 @@ input {
 }
 
 /* --------------------------------------------------------------------------
-   Seletor de método de criação (plano de correção §4, §5 e §52)
-   --------------------------------------------------------------------------
-   Duas perguntas encadeadas: primeiro COMO criar, depois COM O QUÊ. O segundo
-   bloco é recuado para deixar claro que ele é consequência do primeiro — e
-   ele nem existe em "Automático", onde não há nada a escolher.
-   -------------------------------------------------------------------------- */
-.creation {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.creation__control {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.creation__label {
-  color: var(--text-faint);
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.creation__nested {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-left: 12px;
-  border-left: 2px solid var(--border);
-}
-
-/* --------------------------------------------------------------------------
-   Seletor de motor (plano de motores §4.1 e §4.2)
+   Seletor de motor (plano de motores §4.1 e §4.2; plano Optimizer §26)
    --------------------------------------------------------------------------
    Fica abaixo dos controles do asset, e não entre eles, por uma razão de
    leitura: os controles descrevem **o que** produzir e o motor descreve **com
    o quê**. Misturá-los na mesma linha sugeriria que "Motor" é mais um
    atributo do sprite.
+
+   Este bloco já teve um irmão acima dele — "Método de criação" —, com o seu
+   próprio recuo para mostrar que o motor era consequência do método. Os dois
+   viraram um: existe uma pergunta de tecnologia, e o que vem depois do motor
+   acontece sempre (§25 e §46). O recuo saiu junto.
 
    O cartão de resumo só aparece com um motor escolhido. Em "Automático" — o
    padrão — o bloco inteiro se resume a uma linha, para que quem não quer

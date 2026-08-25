@@ -19,7 +19,9 @@ class PipelineRegistry:
         }
 
     @classmethod
-    def with_defaults(cls, pixel_profiles: Any = None) -> "PipelineRegistry":
+    def with_defaults(
+        cls, pixel_profiles: Any = None, optimizer: Any = None
+    ) -> "PipelineRegistry":
         """Registro padrão do produto.
 
         Args:
@@ -27,6 +29,9 @@ class PipelineRegistry:
                 os profiles Pixel Exact. Fica opcional de propósito — sem ele
                 o pipeline deriva o spec do próprio Generation Profile, e
                 todo teste que monta um registro à mão continua valendo.
+            optimizer: o :class:`AssetFlowPixelOptimizer` configurado. Também
+                opcional, e pelo mesmo motivo — sem ele vale o padrão, que já
+                é a otimização ligada (plano Optimizer §46).
         """
         from .pixel import PixelCharacterPipeline
         from .raw import RawImagePipeline
@@ -34,7 +39,7 @@ class PipelineRegistry:
 
         return cls(
             (
-                PixelCharacterPipeline(pixel_profiles),
+                PixelCharacterPipeline(pixel_profiles, optimizer),
                 StudioCharacterPipeline(),
                 RawImagePipeline(),
             )

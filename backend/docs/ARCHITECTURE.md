@@ -240,7 +240,9 @@ GenerationWorker.run_once()
         → PostProcessingChain
              → PixelExactProcessor               ponte para `assetflow/pixel/`
                   → PixelPostProcessor           64×64, paleta, alpha binário
-                  → PixelValidator               hard checks + qualidade
+                  → PixelValidator          V1   hard checks + qualidade
+                  → AssetFlowPixelOptimizer      revisa e corrige pixel a pixel
+                  → PixelValidator          V2   mede o sprite corrigido
                   → PixelAcceptancePolicy        approved / warning / rejected
         → AssetStorageService                    logical.png + preview.png +
                                                  palette/processing/validation.json

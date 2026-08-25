@@ -103,7 +103,6 @@ async def main() -> int:
     runner = BenchmarkRunner(container.service, container.worker, suite=suite)
 
     catalog = await container.service.engine_catalog(check_health=True)
-    strategies = await container.service.strategy_catalog()
     available = [entry for entry in catalog if entry.available]
 
     if args.list:

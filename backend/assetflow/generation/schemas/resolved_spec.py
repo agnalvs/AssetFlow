@@ -34,7 +34,6 @@ from pydantic import Field, model_validator
 
 from .capability import Capability
 from .common import AssetFlowModel, AssetMode, AssetType, FrozenModel, QualityLevel
-from .strategy import AgentQualityMode, GenerationStrategyType
 
 __all__ = [
     "SPEC_PRECEDENCE",
@@ -44,11 +43,9 @@ __all__ = [
     "ResolvedAsset",
     "ResolvedBackground",
     "ResolvedComposition",
-    "ResolvedConceptReference",
     "ResolvedEngine",
     "ResolvedGeneration",
-    "ResolvedPixelAgent",
-    "ResolvedStrategy",
+    "ResolvedPixelPipeline",
     "ResolvedPalette",
     "SpecOverrides",
     "SpecSource",
@@ -208,62 +205,41 @@ class ResolvedEngine(FrozenModel):
     reason: str = ""
 
 
-class ResolvedStrategy(FrozenModel):
-    """Como este asset será criado (plano de correção §7 e §41).
+class ResolvedPixelPipeline(FrozenModel):
+    """O caminho que o asset percorre depois do motor (plano Optimizer §32).
 
-    ``requested`` guarda o que a pessoa escolheu — inclusive ``auto`` — e
-    ``mode`` guarda o que isso virou depois da resolução. Os dois, e não só o
-    segundo: sem o pedido original não há como saber, olhando um job antigo,
-    se a estratégia foi decidida por alguém ou pelo sistema. É a mesma razão
-    pela qual o spec guarda a *origem* de cada campo.
+    Um campo do spec que **ninguém escolhe** — e é exatamente isso que ele
+    registra. O AssetFlow já teve um seletor de "método de criação" no lugar
+    deste bloco, oferecendo "Modelo de imagem" e "Agente Pixel" como se fossem
+    alternativas. Não são: o motor produz a imagem, o Optimizer corrige a
+    imagem produzida, e os dois acontecem sempre, nesta ordem (§25 e §79).
+
+    Então por que guardá-lo no spec, se o valor é sempre o mesmo? Pelo mesmo
+    motivo que o spec guarda a origem de cada campo: um job de seis meses atrás
+    precisa dizer, sozinho, por qual pipeline ele passou. Quando o teto de
+    iterações mudar, ou quando o revisor por LLM entrar, o histórico continuará
+    sabendo o que rodou em cada asset — sem isso, dois assets com notas
+    diferentes seriam indistinguíveis quanto à causa.
     """
 
-    requested: GenerationStrategyType = GenerationStrategyType.AUTO
-    mode: GenerationStrategyType = GenerationStrategyType.MODEL
-    #: Por que esta estratégia, em português. Vazio quando foi escolhida à mão:
-    #: o motivo é "foi pedida", e escrevê-lo seria ruído.
-    reason: str = ""
+    #: Sempre ``True`` em geração normal. ``False`` só quando a instalação
+    #: desliga o Optimizer em ``config/optimizer.yaml`` — e aí o relatório do
+    #: job traz o status ``disabled``, que é a diferença entre uma decisão
+    #: registrada e um estágio que sumiu sem aviso.
+    optimize: bool = True
+    optimizer_id: str = "assetflow_pixel_optimizer"
+    #: Teto de voltas do laço de revisão (§19).
+    max_iterations: int = Field(default=3, ge=1, le=16)
+    #: Quem diagnostica: o revisor determinístico ou um modelo (§42).
+    reviewer: str = "heuristic"
+    #: ``True`` porque a otimização é imposta pelo servidor, não pedida pelo
+    #: cliente (§33 e §34). O campo existe para que o histórico registre que
+    #: não houve escolha — não para abrir uma.
+    forced: bool = True
 
     @property
-    def was_automatic(self) -> bool:
-        return self.requested is GenerationStrategyType.AUTO
-
-    @property
-    def uses_engine(self) -> bool:
-        return self.mode.uses_engine
-
-
-class ResolvedPixelAgent(FrozenModel):
-    """A configuração do agente, quando a estratégia for ``pixel_agent``.
-
-    Fica preenchida sempre — inclusive em ``model`` —, com os padrões. Um
-    objeto ausente obrigaria cada leitor a lidar com ``None``, e o campo que
-    importa (``agent_id``) só é lido quando a estratégia é a do agente.
-    """
-
-    agent_id: str = "assetflow_pixel_agent"
-    quality_mode: AgentQualityMode = AgentQualityMode.AUTO
-    #: ``None`` deixa o modo de qualidade decidir (plano de correção §25).
-    max_iterations: int | None = Field(default=None, ge=0, le=32)
-    auto_review: bool = True
-
-
-class ResolvedConceptReference(FrozenModel):
-    """Referência visual opcional para o agente (plano de correção §26 e §27).
-
-    Quando ligada, um motor de imagem gera uma referência que o agente usa
-    como inspiração — e **a referência não é o asset**. O motor entra como
-    *supporting engine*, nunca como gerador final, e é por isso que este campo
-    existe separado de ``engine``: no mesmo campo, "o FLUX me ajudou a pensar"
-    e "o FLUX gerou isto" ficariam indistinguíveis no histórico.
-
-    Previsto no contrato, ainda não executado: o agente de hoje desenha sem
-    referência. O campo existe para que ligá-lo depois não mude o formato do
-    spec nem do histórico.
-    """
-
-    enabled: bool = False
-    engine_id: str | None = None
+    def optimizes(self) -> bool:
+        return self.optimize
 
 
 class ResolvedGeneration(FrozenModel):
@@ -303,21 +279,17 @@ class FinalResolvedSpec(FrozenModel):
     background: ResolvedBackground = Field(default_factory=ResolvedBackground)
     composition: ResolvedComposition = Field(default_factory=ResolvedComposition)
     generation: ResolvedGeneration = Field(default_factory=ResolvedGeneration)
-    #: **Como** o asset será criado (plano de correção §7). Vem antes do
-    #: motor porque decide se existe motor: em ``pixel_agent`` não existe.
-    strategy: ResolvedStrategy = Field(default_factory=ResolvedStrategy)
     #: A decisão de motor deste job (plano de motores §5). Ela entra no spec, e não fica
     #: só no pedido, porque é uma decisão resolvida por precedência como
     #: qualquer outra — e porque o pipeline não pode reabri-la (§37).
     #:
-    #: Só é lida quando ``strategy.mode`` usa motor. Em ``pixel_agent`` ela
-    #: fica no padrão e ninguém a consulta.
+    #: É a **única** escolha de tecnologia que quem pede um asset faz (plano
+    #: Optimizer §25).
     engine: ResolvedEngine = Field(default_factory=ResolvedEngine)
-    #: A configuração do agente, quando a estratégia for a dele.
-    pixel_agent: ResolvedPixelAgent = Field(default_factory=ResolvedPixelAgent)
-    #: Referência visual opcional do agente (plano de correção §39).
-    concept_reference: ResolvedConceptReference = Field(
-        default_factory=ResolvedConceptReference
+    #: O que acontece depois do motor (plano Optimizer §32). Ninguém escolhe:
+    #: está no spec para ficar registrado, não para ser decidido.
+    pixel_pipeline: ResolvedPixelPipeline = Field(
+        default_factory=ResolvedPixelPipeline
     )
 
     #: Origem de cada campo resolvido (plano T→J §16). Chaves usam caminho
@@ -340,10 +312,13 @@ class FinalResolvedSpec(FrozenModel):
     def uses_engine(self) -> bool:
         """Este job vai despachar para um motor de imagem?
 
-        Perguntar isto ao spec, e não ao pedido, é o que impede o resto do
-        sistema de reabrir a decisão (plano T→J §37).
+        Hoje a resposta é sempre sim: existe **um** caminho de geração, e ele
+        começa em um motor (plano Optimizer §25). A propriedade fica porque
+        ela é a pergunta certa, e porque o resto do sistema deve continuar
+        perguntando ao spec em vez de assumir — foi assumir que produziu o
+        seletor que misturava motor e estratégia.
         """
-        return self.strategy.uses_engine
+        return True
 
     def source_of(self, field: str) -> SpecSource:
         """Origem de um campo; ``GLOBAL_DEFAULT`` quando ninguém opinou."""
@@ -369,12 +344,6 @@ class FinalResolvedSpec(FrozenModel):
                 # distinguíveis. O *motivo* da escolha, não: ele descreve
                 # como se chegou ao motor, igual a `sources`.
                 "engine": {"reason"},
-                # Mesmo argumento para a estratégia: o modo resolvido entra no
-                # hash (ele muda o asset), o motivo não (ele explica a
-                # escolha). `requested` fica de fora porque dois pedidos que
-                # chegam ao mesmo modo produzem o mesmo asset, tendo um vindo
-                # de "auto" e o outro de escolha explícita.
-                "strategy": {"reason", "requested"},
             },
         )
 
@@ -424,14 +393,11 @@ class SpecOverrides(AssetFlowModel):
     engine_mode: Literal["auto", "manual"] | None = None
     allow_engine_fallback: bool | None = None
 
-    #: Método de criação corrigido à mão (plano de correção §7).
-    strategy: Literal["auto", "model", "pixel_agent"] | None = None
-    agent_id: str | None = None
-    agent_quality: Literal["auto", "fast", "balanced", "detailed"] | None = None
-    agent_max_iterations: int | None = Field(default=None, ge=0, le=32)
-    agent_auto_review: bool | None = None
-    concept_reference_enabled: bool | None = None
-    concept_reference_engine_id: str | None = None
+    #: Não existe aqui um campo para o Pixel Optimizer, e a ausência é a
+    #: regra: correção manual é o nível mais alto da precedência **entre as
+    #: camadas que decidem o asset**, e a otimização não é uma delas — ela é
+    #: parte do pipeline (plano Optimizer §33 e §46). Um campo aqui daria a
+    #: quem edita o JSON final um poder que nem a interface tem.
 
     @property
     def is_empty(self) -> bool:

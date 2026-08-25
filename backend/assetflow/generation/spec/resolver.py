@@ -33,29 +33,24 @@ from ..kernel.exceptions import InvalidGenerationRequest
 from ..profiles import GenerationProfile
 from ..schemas import (
     SPEC_PRECEDENCE,
-    AgentQualityMode,
     AssetGenerationRequest,
     AssetMode,
     AssetType,
     EngineAdvice,
     FinalResolvedSpec,
-    GenerationStrategyType,
     LogicalResolution,
     RenderResolution,
     ResolvedAsset,
     ResolvedBackground,
     ResolvedComposition,
-    ResolvedConceptReference,
     ResolvedEngine,
     ResolvedGeneration,
     ResolvedPalette,
-    ResolvedPixelAgent,
-    ResolvedStrategy,
     SpecSource,
 )
 from .classifier import AssetTypeClassifier, Classification
 from .constraints import ExplicitConstraintExtractor, ExplicitConstraints
-from .engine_advisor import EngineAdvisor, StrategyAdvisor
+from .engine_advisor import EngineAdvisor
 
 __all__ = ["ConstraintResolver", "SpecResolution"]
 
@@ -113,7 +108,6 @@ class ConstraintResolver:
         classifier: AssetTypeClassifier | None = None,
         extractor: ExplicitConstraintExtractor | None = None,
         advisor: EngineAdvisor | None = None,
-        strategy_advisor: StrategyAdvisor | None = None,
     ) -> None:
         self._classifier = classifier or AssetTypeClassifier()
         self._extractor = extractor or ExplicitConstraintExtractor()
@@ -121,9 +115,6 @@ class ConstraintResolver:
         # não sugere motor nenhum, e o roteamento por capacidade decide —
         # que é como o sistema funcionava antes de existir política.
         self._advisor = advisor
-        # Quem responde "qual método de criação?" quando ninguém escolheu.
-        # Sem ele, `auto` cai em `model`, que é o caminho geral do sistema.
-        self._strategy_advisor = strategy_advisor
 
     @property
     def classifier(self) -> AssetTypeClassifier:
@@ -132,10 +123,6 @@ class ConstraintResolver:
     @property
     def advisor(self) -> EngineAdvisor | None:
         return self._advisor
-
-    @property
-    def strategy_advisor(self) -> StrategyAdvisor | None:
-        return self._strategy_advisor
 
     # ------------------------------------------------------------------
     def resolve(
@@ -300,8 +287,6 @@ class ConstraintResolver:
 
         capability = request.capability or profile.capability
 
-        # A estratégia é resolvida ANTES do motor, e a ordem é a arquitetura:
-        # é ela que decide se existe motor a resolver (plano de correção §8).
         advice = self._advice(
             capability=capability,
             asset_type=resolved_type,
@@ -313,14 +298,9 @@ class ConstraintResolver:
             quality=request.quality,
             variations=variations.value or 1,
         )
-        strategy = self._resolve_strategy(request, advice, sources)
-        agent = self._resolve_agent(request)
-        concept = self._resolve_concept_reference(request, strategy)
-
         engine = self._resolve_engine(
             request=request,
             advice=advice,
-            strategy=strategy,
             sources=sources,
         )
 
@@ -350,10 +330,7 @@ class ConstraintResolver:
                 seed=request.seed,
                 quality=request.quality,
             ),
-            strategy=strategy,
             engine=engine,
-            pixel_agent=agent,
-            concept_reference=concept,
             sources=sources,
             notes=tuple(notes),
         ).with_identity()
@@ -368,7 +345,6 @@ class ConstraintResolver:
         *,
         request: AssetGenerationRequest,
         advice: EngineAdvice,
-        strategy: ResolvedStrategy,
         sources: dict[str, SpecSource],
     ) -> ResolvedEngine:
         """Resolve **qual motor** por precedência, como qualquer outro campo.
@@ -388,27 +364,6 @@ class ConstraintResolver:
         """
         selector = request.engine
         manual = request.spec_overrides
-
-        # -- §38: estratégia sem motor não aceita motor -------------------
-        #
-        # Escolher "Agente Pixel" e um motor ao mesmo tempo é um pedido
-        # contraditório, e aceitá-lo em silêncio produziria o pior resultado
-        # possível: o job roda, ignora o motor escolhido e ninguém descobre.
-        # A exceção é a referência conceitual, que é outra propriedade (§39).
-        if not strategy.uses_engine:
-            chose_engine = (
-                selector is not None and selector.mode == "manual"
-            ) or (manual is not None and manual.engine_id is not None)
-            if chose_engine:
-                raise InvalidGenerationRequest(
-                    "o método 'Agente Pixel' não usa motor de imagem; para "
-                    "escolher um motor, use o método 'Modelo de imagem'",
-                    detail=_field_error(
-                        "engine", "não se aplica ao método escolhido"
-                    ),
-                )
-            sources["engine"] = SpecSource.GLOBAL_DEFAULT
-            return ResolvedEngine()
 
         # -- nível 3: o seletor da interface -----------------------------
         source = SpecSource.GLOBAL_DEFAULT
@@ -520,130 +475,6 @@ class ConstraintResolver:
             quality=quality.value if hasattr(quality, "value") else str(quality),
             variations=variations,
         )
-
-    def _resolve_strategy(
-        self,
-        request: AssetGenerationRequest,
-        advice: EngineAdvice,
-        sources: dict[str, SpecSource],
-    ) -> ResolvedStrategy:
-        """Resolve **o método de criação** (plano de correção §7 e §41).
-
-        Precedência de sempre: o que a interface escolheu perde para o que foi
-        corrigido à mão. ``auto`` não é um valor final — ele é a ausência de
-        escolha, e vira uma estratégia real aqui, com o motivo registrado.
-        """
-        requested = GenerationStrategyType.AUTO
-        source = SpecSource.GLOBAL_DEFAULT
-
-        if request.generation_strategy is not None:
-            requested = GenerationStrategyType(request.generation_strategy.mode)
-            source = SpecSource.UI_SELECTION
-
-        manual = request.spec_overrides
-        if manual is not None and manual.strategy is not None:
-            requested = GenerationStrategyType(manual.strategy)
-            source = SpecSource.MANUAL_OVERRIDE
-
-        if requested is not GenerationStrategyType.AUTO:
-            sources["strategy"] = source
-            return ResolvedStrategy(requested=requested, mode=requested)
-
-        suggestion = self._suggest_strategy(advice)
-        if suggestion is None:
-            # Sem conselheiro, `auto` cai no caminho geral do sistema. O
-            # motivo é escrito assim mesmo: um "Automático" sem explicação é
-            # a caixa preta que o §41 existe para acabar.
-            sources["strategy"] = SpecSource.GLOBAL_DEFAULT
-            return ResolvedStrategy(
-                requested=requested,
-                mode=GenerationStrategyType.MODEL,
-                reason="geração por modelo é o caminho padrão do AssetFlow",
-            )
-
-        sources["strategy"] = SpecSource.INFERENCE
-        return ResolvedStrategy(
-            requested=requested,
-            mode=suggestion.strategy,
-            reason=suggestion.reason,
-        )
-
-    def _suggest_strategy(self, advice: EngineAdvice):
-        if self._strategy_advisor is None:
-            return None
-        try:
-            return self._strategy_advisor.suggest(advice)
-        except Exception:  # pragma: no cover - política nunca derruba job
-            return None
-
-    def _resolve_agent(
-        self, request: AssetGenerationRequest
-    ) -> ResolvedPixelAgent:
-        """A configuração do agente (plano de correção §10 e §25).
-
-        Resolvida sempre, inclusive quando a estratégia é por modelo: o objeto
-        tem padrões válidos, e deixá-lo ausente obrigaria cada leitor a tratar
-        ``None`` por um campo que só é lido em um dos caminhos.
-        """
-        agent = request.pixel_agent
-        manual = request.spec_overrides
-
-        agent_id = agent.agent_id if agent is not None else "assetflow_pixel_agent"
-        quality = (
-            AgentQualityMode(agent.quality_mode)
-            if agent is not None
-            else AgentQualityMode.AUTO
-        )
-        max_iterations = agent.max_iterations if agent is not None else None
-        auto_review = agent.auto_review if agent is not None else True
-
-        if manual is not None:
-            if manual.agent_id is not None:
-                agent_id = manual.agent_id
-            if manual.agent_quality is not None:
-                quality = AgentQualityMode(manual.agent_quality)
-            if manual.agent_max_iterations is not None:
-                max_iterations = manual.agent_max_iterations
-            if manual.agent_auto_review is not None:
-                auto_review = manual.agent_auto_review
-
-        return ResolvedPixelAgent(
-            agent_id=agent_id,
-            quality_mode=quality,
-            max_iterations=max_iterations,
-            auto_review=auto_review,
-        )
-
-    def _resolve_concept_reference(
-        self, request: AssetGenerationRequest, strategy: ResolvedStrategy
-    ) -> ResolvedConceptReference:
-        """A referência visual opcional do agente (plano de correção §39).
-
-        Ela é a **exceção** à regra do §38: um motor pode aparecer em um job
-        de agente, desde que como referência. Por isso ela vive em um campo
-        próprio — no mesmo campo do motor, "me ajudou a pensar" e "gerou isto"
-        ficariam indistinguíveis no histórico.
-        """
-        reference = request.concept_reference
-        manual = request.spec_overrides
-
-        enabled = reference.enabled if reference is not None else False
-        engine_id = reference.engine_id if reference is not None else None
-
-        if manual is not None:
-            if manual.concept_reference_enabled is not None:
-                enabled = manual.concept_reference_enabled
-            if manual.concept_reference_engine_id is not None:
-                engine_id = manual.concept_reference_engine_id
-
-        if enabled and not strategy.mode.uses_engine and not engine_id:
-            raise InvalidGenerationRequest(
-                "a referência conceitual precisa do motor que vai gerá-la",
-                detail=_field_error(
-                    "concept_reference", "faltou o id do motor de referência"
-                ),
-            )
-        return ResolvedConceptReference(enabled=enabled, engine_id=engine_id)
 
     # ------------------------------------------------------------------
     def _resolve_logical(

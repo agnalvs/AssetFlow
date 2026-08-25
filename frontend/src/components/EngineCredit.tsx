@@ -1,54 +1,40 @@
-import type { UseCreationCatalog } from "../hooks/useCreationCatalog";
-import type { EngineSelectionView } from "../types";
+import type { UseEngineCatalog } from "../hooks/useEngineCatalog";
+import type { EngineSelectionView, PixelOptimization } from "../types";
+import { optimizationLabel } from "../labels";
 
 interface EngineCreditProps {
   selection: EngineSelectionView | null;
-  catalog: UseCreationCatalog;
+  /** O que o Pixel Optimizer fez com esta variação (plano Optimizer §30). */
+  optimization: PixelOptimization | null;
+  catalog: UseEngineCatalog;
 }
 
 /**
- * Como este asset foi criado (plano de correção §42; plano de motores §25.3).
+ * Como este asset foi criado (plano Optimizer §30; plano de motores §25.3).
  *
- * O §42 pede duas linhas discretas, e o que elas dizem depende do método:
+ * Duas linhas, e o §30 é explícito sobre quais:
  *
- *     Método   Modelo de imagem        Método   Agente Pixel
- *     Motor    FLUX Pixel              Agente   AssetFlow Pixel Agent
+ *     Motor        FLUX Pixel
+ *     Otimização   14 pixels corrigidos · qualidade 68 → 81
  *
- * A separação não é cosmética. Antes de existir método, este bloco só sabia
- * dizer "gerado por X", e X tanto podia ser um modelo quanto um agente — o
- * mesmo achatamento que o plano de correção veio desfazer, agora na tela do
- * resultado.
+ * A segunda linha existe porque a primeira, sozinha, credita ao motor um
+ * resultado que não é só dele. Todo asset Pixel passa pelo Optimizer (§46), e
+ * quando ele corrige algo isso muda o arquivo entregue — atribuí-lo
+ * inteiramente ao motor tornaria impossível comparar motores de verdade.
  *
- * O caso que ele existe para cobrir continua sendo o do §25.3: quando o que
- * foi pedido e o que rodou **não** são a mesma coisa. Um fallback silencioso
- * é o que ele impede.
+ * O caso que este bloco existe para cobrir continua sendo o do §25.3: quando
+ * o motor pedido e o que rodou **não** são a mesma coisa. Um fallback
+ * silencioso é o que ele impede.
  *
- * Nenhum nome de motor, agente ou método está escrito neste arquivo: todos
- * vêm do catálogo servido pelo backend.
+ * Nenhum nome de motor está escrito neste arquivo: todos vêm do catálogo
+ * servido pelo backend.
  */
-export function EngineCredit({ selection, catalog }: EngineCreditProps) {
+export function EngineCredit({
+  selection,
+  optimization,
+  catalog,
+}: EngineCreditProps) {
   if (!selection) return null;
-
-  const isAgent = selection.resolved_strategy === "pixel_agent";
-  const method = catalog.strategyNameOf(selection.resolved_strategy);
-
-  if (isAgent) {
-    if (!selection.agent) return null;
-    return (
-      <div className="result__engine">
-        <p>
-          <span className="result__engine-key">Método</span>{" "}
-          <strong>{method}</strong>
-        </p>
-        <p>
-          <span className="result__engine-key">Agente</span>{" "}
-          <strong>{catalog.agentNameOf(selection.agent.id)}</strong>
-        </p>
-        <p className="result__engine-model">versão {selection.agent.version}</p>
-      </div>
-    );
-  }
-
   if (!selection.resolved_engine_id) return null;
 
   const used = catalog.engineNameOf(selection.resolved_engine_id);
@@ -76,6 +62,7 @@ export function EngineCredit({ selection, catalog }: EngineCreditProps) {
           O resultado pode ser bem diferente do esperado — vale gerar de novo.
         </p>
         <ModelLine selection={selection} />
+        <OptimizationLine optimization={optimization} />
       </div>
     );
   }
@@ -83,14 +70,34 @@ export function EngineCredit({ selection, catalog }: EngineCreditProps) {
   return (
     <div className="result__engine">
       <p>
-        <span className="result__engine-key">Método</span> <strong>{method}</strong>
-      </p>
-      <p>
         <span className="result__engine-key">Motor</span> <strong>{used}</strong>
         {selection.mode === "auto" ? " (escolha automática)" : ""}
       </p>
       <ModelLine selection={selection} />
+      <OptimizationLine optimization={optimization} />
     </div>
+  );
+}
+
+/**
+ * O que o Optimizer fez, em uma linha (plano Optimizer §30).
+ *
+ * Ela aparece **sempre** que houver laudo, inclusive quando nada foi
+ * corrigido. "Nenhuma correção necessária" é informação: diz que o sprite
+ * chegou bom, o que é elogio ao motor. Esconder a linha nesse caso faria
+ * parecer que o estágio às vezes não roda — e ele sempre roda (§46).
+ */
+function OptimizationLine({
+  optimization,
+}: {
+  optimization: PixelOptimization | null;
+}) {
+  if (!optimization) return null;
+  return (
+    <p>
+      <span className="result__engine-key">Otimização</span>{" "}
+      <strong>{optimizationLabel(optimization)}</strong>
+    </p>
   );
 }
 

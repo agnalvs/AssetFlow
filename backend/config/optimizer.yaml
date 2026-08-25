@@ -1,0 +1,74 @@
+# ---------------------------------------------------------------------------
+# AssetFlow — Pixel Optimizer (plano Optimizer §33, §42 e §46)
+# ---------------------------------------------------------------------------
+# Este arquivo configura o estágio que TODA geração Pixel Art atravessa:
+#
+#   engines.yaml        COM O QUÊ  -> qual motor produz a imagem
+#   engine_policy.yaml  QUAL DELES -> a escolha automática
+#   optimizer.yaml      DEPOIS     -> a correção pixel a pixel  <- este
+#
+# Antes disto, o AssetFlow perguntava "modelo ou agente?" e quem pedia um
+# asset tinha de escolher entre duas coisas que não são alternativas. Não são:
+# o motor produz a imagem, e o Optimizer corrige a imagem produzida. Agora o
+# pipeline é um só e a pergunta some (§25 e §46).
+#
+# Não existe aqui uma chave para desligar a otimização por pedido. Ela não é
+# opção de quem pede — é parte do pipeline. O `enabled` abaixo é um
+# interruptor de instalação, para diagnóstico, e o job registra `disabled`
+# quando ele está desligado: uma otimização que não aconteceu tem de aparecer
+# no relatório, nunca sumir.
+# ---------------------------------------------------------------------------
+
+optimizer:
+  enabled: true
+
+  # Voltas do laço "revisar -> planejar -> corrigir" (§19). Três é teto, não
+  # meta: o laço para sozinho assim que a revisão aprova ou o planejador fica
+  # sem correção segura. Aumentar não melhora asset ruim — só gasta tempo
+  # insistindo em um problema que não é de reparo.
+  max_iterations: 3
+
+  # -------------------------------------------------------------------------
+  # O REVISOR (§42)
+  #
+  # É a peça que diagnostica. Trocá-la é o que separa "sabe medir órfão,
+  # contorno e paleta" de "olha o sprite e entende que a chaminé ficou solta".
+  #
+  #   heuristic   determinístico, instantâneo, sem rede. Enxerga o que o
+  #               PixelValidator mede: pixels órfãos, contorno esfarelado,
+  #               paleta estourada, ocupação.
+  #   llm         um modelo de linguagem descreve os problemas estruturais a
+  #               partir do retrato do canvas. Sem vocabulário fixo.
+  #
+  # O `llm` fala com qualquer API compatível com OpenAI. O caminho gratuito é
+  # o Ollama rodando na própria máquina:
+  #
+  #     ollama serve
+  #     ollama pull qwen2.5:7b
+  #
+  # e então trocar `type` para "llm" abaixo.
+  #
+  # A CHAVE NUNCA VAI NESTE ARQUIVO — ele é versionado. O que fica aqui é o
+  # nome da variável de ambiente que a guarda; provedores locais dispensam.
+  #
+  # Sem provedor no ar, o Optimizer cai no revisor determinístico e AVISA no
+  # job. Uma queda silenciosa entregaria um asset menos revisado sem que
+  # ninguém soubesse.
+  # -------------------------------------------------------------------------
+  reviewer:
+    type: "heuristic"        # heuristic | llm
+
+    # base_url: "http://localhost:11434/v1"     # Ollama
+    # base_url: "http://localhost:1234/v1"      # LM Studio
+    # base_url: "https://api.openai.com/v1"     # OpenAI
+    base_url: ""
+    model: ""                # ex.: "qwen2.5:7b", "gpt-4o-mini"
+    api_key_env: "ASSETFLOW_OPTIMIZER_API_KEY"
+
+    # Baixa de propósito: um laudo é estrutura, não prosa, e temperatura alta
+    # produz coordenada criativa — que é coordenada errada.
+    temperature: 0.3
+    timeout_s: 60
+    # Tentativas por revisão. A segunda leva junto o motivo da recusa da
+    # primeira, e é o que resolve a maioria dos laudos malformados.
+    max_attempts: 2

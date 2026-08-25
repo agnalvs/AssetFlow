@@ -27,7 +27,6 @@ from .routers import (
     engines,
     jobs,
     prompt,
-    strategies,
 )
 from .schemas import ErrorResponse, HealthResponse
 
@@ -170,7 +169,6 @@ def create_app(
 
     # Métodos antes de motores: é a ordem em que a tela pergunta, e a
     # ordem em que o plano de correção desenha a arquitetura.
-    app.include_router(strategies.router)
     app.include_router(engines.router)
     app.include_router(capabilities.router)
     app.include_router(prompt.router)

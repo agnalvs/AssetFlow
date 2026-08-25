@@ -15,50 +15,47 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from ..schemas import GenerationStrategyType
-
 __all__ = ["BenchmarkCase", "BenchmarkSuite", "BenchmarkTarget", "DEFAULT_CASES"]
 
 
 @dataclass(frozen=True, slots=True)
 class BenchmarkTarget:
-    """O que está sendo medido (plano de correção §43).
+    """O que está sendo medido: **um motor** (plano Optimizer §69).
 
-    Antes era só um motor, e isso deixou de bastar quando "criar um asset"
-    passou a ter mais de um caminho. Comparar o Pixel Agent com o FLUX exige
-    poder nomear os dois no mesmo eixo — sem fingir que são a mesma
-    tecnologia, que é exatamente o que o §43 pede.
+    Este objeto já teve dois eixos — estratégia e motor —, porque o AssetFlow
+    tinha dois caminhos de criação e comparar "Pixel Agent" com "FLUX" exigia
+    nomear os dois no mesmo lugar. O plano Optimizer desfez isso: existe um
+    caminho, e o que varia nele é o motor.
 
-        model:flux-pixel-v1     estratégia por modelo, com um motor
-        pixel_agent             o agente, que não tem motor
+    A consequência para o benchmark é o que o §69 quer: todos os alvos passam
+    pelo **mesmo** Pixel Optimizer, então a diferença entre duas linhas da
+    tabela é a diferença entre os motores, e não entre pipelines. E a coluna
+    de otimização passa a responder a pergunta que interessa de verdade —
+    *quanta correção a saída deste motor exigiu?*
     """
 
-    strategy: GenerationStrategyType = GenerationStrategyType.MODEL
-    #: Só faz sentido em ``model``. Vazio = deixa o roteamento escolher.
+    #: Vazio = deixa o roteamento por capacidade escolher.
     engine_id: str | None = None
 
     @property
     def label(self) -> str:
-        if self.engine_id:
-            return f"{self.strategy.value}:{self.engine_id}"
-        return self.strategy.value
+        return self.engine_id or "auto"
 
     @classmethod
     def parse(cls, text: str) -> "BenchmarkTarget":
-        """Aceita ``pixel_agent``, ``model:flux-pixel-v1`` e ``flux-pixel-v1``.
+        """Aceita ``flux-pixel-v1`` e ``auto``.
 
-        A terceira forma existe por conveniência de linha de comando: um id de
-        motor sozinho é lido como "por modelo, com este motor", que é o que a
-        pessoa quis dizer.
+        A forma antiga ``model:flux-pixel-v1`` continua sendo lida: o prefixo
+        é ignorado. Recusá-la quebraria scripts e arquivos de suíte por causa
+        de uma camada que saiu — e o que a pessoa quis dizer continua claro.
         """
         raw = text.strip()
         if ":" in raw:
-            head, _, tail = raw.partition(":")
-            return cls(strategy=GenerationStrategyType(head), engine_id=tail or None)
-        try:
-            return cls(strategy=GenerationStrategyType(raw))
-        except ValueError:
-            return cls(strategy=GenerationStrategyType.MODEL, engine_id=raw)
+            _, _, raw = raw.partition(":")
+        raw = raw.strip()
+        if not raw or raw in ("auto", "model"):
+            return cls()
+        return cls(engine_id=raw)
 
 
 @dataclass(frozen=True, slots=True)

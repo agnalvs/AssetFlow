@@ -6,8 +6,8 @@ import {
   EMPTY_SELECTION,
 } from "./components/AssetControls";
 import { EmptyResult } from "./components/EmptyResult";
-import { CreationMethodSelector } from "./components/CreationMethodSelector";
 import { GenerateButton } from "./components/GenerateButton";
+import { EngineSelector } from "./components/EngineSelector";
 import { GenerationError } from "./components/GenerationError";
 import { GenerationModeSelector } from "./components/GenerationModeSelector";
 import { GenerationResult } from "./components/GenerationResult";
@@ -17,7 +17,7 @@ import { Header } from "./components/Header";
 import { PromptInput } from "./components/PromptInput";
 import { PromptInspector } from "./components/PromptInspector";
 import { SessionHistory } from "./components/SessionHistory";
-import { useCreationCatalog } from "./hooks/useCreationCatalog";
+import { useEngineCatalog } from "./hooks/useEngineCatalog";
 import { useGenerationJob } from "./hooks/useGenerationJob";
 import { userChoicesOf } from "./specOverrides";
 import { type PromptEdit, usePromptPreview } from "./hooks/usePromptPreview";
@@ -48,21 +48,22 @@ export function App() {
   // A correção da leitura mora aqui, e não dentro do painel: ela precisa
   // sobreviver ao painel fechado e acompanhar o pedido até a geração.
   const [edit, setEdit] = useState<PromptEdit | null>(null);
-  // Como criar. Começa em Automático — quem só quer um sprite não deve
-  // precisar saber que existem métodos, motores e agentes (plano §5).
+  // Com qual motor. Começa em Automático — quem só quer um sprite não deve
+  // precisar saber que existem motores (plano Optimizer §26).
   const [creation, setCreation] = useState<CreationSelection>(AUTO_CREATION);
 
   const promptRef = useRef<HTMLTextAreaElement>(null);
-  const { state, error, result, isBusy, generate, reset, showResult } = useGenerationJob();
-  const catalog = useCreationCatalog(MODES[mode].capability);
+  const { state, stage, error, result, isBusy, generate, reset, showResult } =
+    useGenerationJob();
+  const catalog = useEngineCatalog(MODES[mode].capability);
   const inspector = usePromptPreview(mode, prompt, selection, edit, setEdit, creation);
 
   const canGenerate = prompt.trim().length > 0 && !isBusy;
 
-  // Pixel Art e 2D convencional não oferecem os mesmos métodos nem os mesmos
-  // motores. Ao trocar de modo, uma escolha que deixou de existir no catálogo
-  // faria a tela oferecer algo que a geração recusaria; o catálogo devolve a
-  // versão corrigida dela.
+  // Pixel Art e 2D convencional não são atendidos pelos mesmos motores. Ao
+  // trocar de modo, um motor que deixou de existir no catálogo faria a tela
+  // oferecer algo que a geração recusaria; o catálogo devolve a versão
+  // corrigida da escolha.
   const reconciled = catalog.reconcile(creation);
   if (reconciled !== creation) {
     setCreation(reconciled);
@@ -143,11 +144,11 @@ export function App() {
             onChange={setSelection}
           />
 
-          <CreationMethodSelector
+          <EngineSelector
             selection={creation}
             catalog={catalog}
-            resolvedStrategy={inspector.preview?.resolved.strategy ?? null}
             resolvedEngine={inspector.preview?.resolved.engine ?? null}
+            pipeline={inspector.preview?.resolved.pixel_pipeline ?? null}
             disabled={isBusy}
             onChange={setCreation}
           />
@@ -172,7 +173,7 @@ export function App() {
         </section>
 
         <section className="outcome" aria-live="polite">
-          {isBusy ? <GenerationStatus state={state} /> : null}
+          {isBusy ? <GenerationStatus state={state} stage={stage} /> : null}
 
           {!isBusy && state === "failed" && error ? (
             <GenerationError
@@ -217,8 +218,8 @@ export function App() {
                   }
                 : null,
             );
-            // O método volta só quando foi **escolhido**: uma geração feita
-            // em Automático reabre em Automático, para que a política continue
+            // O motor volta só quando foi **escolhido**: uma geração feita em
+            // Automático reabre em Automático, para que a política continue
             // podendo responder se o cenário tiver mudado.
             setCreation(creationOf(entry));
             showResult(entry);
@@ -229,9 +230,10 @@ export function App() {
 
       <footer className="page__footer">
         <p>
-          Em <strong>Automático</strong>, o AssetFlow escolhe o método de criação mais
-          adequado ao tipo de asset e mostra o motivo antes de gerar. Você também pode
-          escolher o método à mão — e nesse caso ele é respeitado.
+          Em <strong>Automático</strong>, o AssetFlow escolhe o motor mais adequado ao
+          tipo de asset e mostra o motivo antes de gerar. Você também pode escolher o
+          motor à mão — e nesse caso ele é respeitado. Em qualquer um dos dois casos,
+          o <strong>Pixel Optimizer</strong> revisa o sprite depois.
         </p>
       </footer>
     </div>
@@ -239,30 +241,15 @@ export function App() {
 }
 
 /**
- * A escolha de criação de uma geração antiga, para reabri-la (§42).
+ * O motor de uma geração antiga, para reabri-la (plano Optimizer §26).
  *
  * Só o que foi **escolhido** volta. Um job feito em Automático reabre em
  * Automático: se ele voltasse já resolvido, trocar de tamanho depois não
- * mudaria mais o método, e a política deixaria de ter efeito sem que nada na
+ * mudaria mais o motor, e a política deixaria de ter efeito sem que nada na
  * tela explicasse por quê.
  */
 function creationOf(entry: HistoryEntry): CreationSelection {
-  const resolved = entry.preview?.resolved;
-  if (!resolved || resolved.strategy.requested === "auto") return AUTO_CREATION;
-
-  if (resolved.strategy.mode === "pixel_agent") {
-    return {
-      strategy: "pixel_agent",
-      engineId: null,
-      agentId: resolved.pixel_agent.agent_id,
-      quality: resolved.pixel_agent.quality_mode,
-    };
-  }
-  return {
-    strategy: "model",
-    engineId:
-      resolved.engine.selection_mode === "manual" ? resolved.engine.engine_id : null,
-    agentId: null,
-    quality: "auto",
-  };
+  const engine = entry.preview?.resolved.engine;
+  if (!engine || engine.selection_mode !== "manual") return AUTO_CREATION;
+  return { engineId: engine.engine_id };
 }

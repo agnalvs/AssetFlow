@@ -7,7 +7,9 @@ O que precisa estar certo aqui, além de "roda sem quebrar":
 * fallback **não** conta como sucesso do motor pedido, senão o relatório
   credita a um motor o trabalho de outro;
 * os dois eixos ficam separados: o técnico é medido, o visual é humano e
-  nasce vazio (§21).
+  nasce vazio (§21);
+* todos os alvos atravessam o **mesmo** Pixel Optimizer, e é isso que faz a
+  tabela comparar motores em vez de pipelines (plano Optimizer §69).
 """
 
 from __future__ import annotations
@@ -22,7 +24,6 @@ from assetflow.generation.benchmark import (
     TargetReport,
     TechnicalMetrics,
 )
-from assetflow.generation.schemas import GenerationStrategyType
 from assetflow.settings import load_settings
 from tests.conftest import BACKEND_ROOT, run
 
@@ -40,14 +41,18 @@ _CASES = (
 )
 
 
-def test_a_bare_engine_id_is_read_as_generation_by_model():
-    """Conveniência de linha de comando, e leitura correta do que se quis."""
-    assert BenchmarkTarget.parse("flux-pixel-v1") == BenchmarkTarget(
-        strategy=GenerationStrategyType.MODEL, engine_id="flux-pixel-v1"
+def test_a_target_is_an_engine_and_the_old_prefix_still_parses():
+    """O alvo virou só o motor (plano Optimizer §69).
+
+    A forma antiga ``model:<id>`` continua sendo lida porque ela aparece em
+    arquivos de suíte e em scripts: recusá-la quebraria configuração por causa
+    de uma camada que saiu, e o que a pessoa quis dizer continua claro.
+    """
+    assert BenchmarkTarget.parse("flux-pixel-v1") == BenchmarkTarget("flux-pixel-v1")
+    assert BenchmarkTarget.parse("model:flux-pixel-v1") == BenchmarkTarget(
+        "flux-pixel-v1"
     )
-    assert BenchmarkTarget.parse("pixel_agent") == BenchmarkTarget(
-        strategy=GenerationStrategyType.PIXEL_AGENT
-    )
+    assert BenchmarkTarget.parse("auto") == BenchmarkTarget()
 
 
 def test_the_shipped_suite_matches_the_plan():
@@ -62,32 +67,27 @@ def test_the_shipped_suite_matches_the_plan():
     assert all(case.seed for case in suite.cases)
 
 
-def test_runner_compares_a_method_with_an_engine(container: AppContainer):
-    """O §43 em forma de teste: agente e motor na mesma tabela.
+def test_every_target_goes_through_the_same_optimizer(container: AppContainer):
+    """O §69 em forma de teste: a tabela compara motores, não pipelines.
 
-    E é a separação que torna a comparação honesta — cada bloco diz por qual
-    caminho o asset foi feito, em vez de pôr um agente na lista de motores.
+    Se um alvo pudesse pular a otimização, duas linhas do relatório
+    descreveriam caminhos diferentes — e a comparação entre elas não diria
+    nada sobre os motores.
     """
     runner = BenchmarkRunner(
         container.service, container.worker, suite=BenchmarkSuite(cases=_CASES)
     )
 
-    report = run(runner.run(targets=["pixel_agent", "model:mock-image-v1"]))
+    report = run(runner.run(targets=["mock-image-v1"]))
+    block = report.targets[0]
 
-    assert [block.target.label for block in report.targets] == [
-        "pixel_agent",
-        "model:mock-image-v1",
-    ]
-    for block in report.targets:
-        assert block.total == 2
-        assert block.succeeded == 2, [outcome.error for outcome in block.outcomes]
-
-    agente = report.targets[0]
-    assert agente.target.strategy is GenerationStrategyType.PIXEL_AGENT
-    assert agente.target.engine_id is None
-    assert all(
-        outcome.resolved_engine_id is None for outcome in agente.outcomes
-    ), "um asset do agente não pode ter motor"
+    assert block.total == 2
+    assert block.succeeded == 2, [outcome.error for outcome in block.outcomes]
+    for outcome in block.outcomes:
+        assert outcome.technical.optimizer_status is not None, (
+            "todo asset do benchmark passou pelo Optimizer"
+        )
+        assert outcome.technical.quality_score_before_optimizer is not None
 
 
 def test_the_measured_asset_went_through_postprocessing(container: AppContainer):
@@ -101,7 +101,7 @@ def test_the_measured_asset_went_through_postprocessing(container: AppContainer)
         container.service, container.worker, suite=BenchmarkSuite(cases=_CASES[:1])
     )
 
-    report = run(runner.run(targets=["pixel_agent"]))
+    report = run(runner.run(targets=["mock-image-v1"]))
     outcome = report.targets[0].outcomes[0]
 
     assert outcome.succeeded
@@ -114,22 +114,12 @@ def test_the_measured_asset_went_through_postprocessing(container: AppContainer)
 
 def test_a_fallback_does_not_count_as_success_for_the_requested_engine():
     """Se outro motor atendeu, o motor pedido falhou — e o relatório diz isso."""
-    alvo = BenchmarkTarget(
-        strategy=GenerationStrategyType.MODEL, engine_id="motor-a"
-    )
+    alvo = BenchmarkTarget(engine_id="motor-a")
     honesto = CaseOutcome(
-        case_id="a",
-        target=alvo,
-        resolved_engine_id="motor-a",
-        resolved_strategy=GenerationStrategyType.MODEL,
-        succeeded=True,
+        case_id="a", target=alvo, resolved_engine_id="motor-a", succeeded=True
     )
     substituido = CaseOutcome(
-        case_id="b",
-        target=alvo,
-        resolved_engine_id="motor-b",
-        resolved_strategy=GenerationStrategyType.MODEL,
-        succeeded=True,
+        case_id="b", target=alvo, resolved_engine_id="motor-b", succeeded=True
     )
     report = TargetReport(target=alvo, outcomes=[honesto, substituido])
 
@@ -179,13 +169,14 @@ def test_report_document_explains_both_axes(container: AppContainer):
     runner = BenchmarkRunner(
         container.service, container.worker, suite=BenchmarkSuite(cases=_CASES[:1])
     )
-    document = run(runner.run(targets=["pixel_agent"])).document()
+    document = run(runner.run(targets=["mock-image-v1"])).document()
 
     assert "technical" in document["axes"]
     assert "visual" in document["axes"]
     assert document["suite_size"] == 1
-    assert document["targets"][0]["strategy"] == "pixel_agent"
-    assert document["targets"][0]["engine_id"] is None
+    assert document["targets"][0]["engine_id"] == "mock-image-v1"
+    # A coluna do §69: quanta correção a saída deste motor exigiu.
+    assert "average_optimizer_pixels_changed" in document["targets"][0]
 
 
 def test_suite_can_be_filtered_by_case():

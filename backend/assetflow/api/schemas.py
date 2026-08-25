@@ -15,7 +15,6 @@ from pydantic import Field
 from ..generation.prompting import render_semantic_prompt
 from ..generation.kernel.catalog import EngineCatalogEntry
 from ..generation.schemas import (
-    AgentRef,
     AssetFlowModel,
     AssetMode,
     AssetType,
@@ -26,10 +25,8 @@ from ..generation.schemas import (
     JobErrorInfo,
     JobEvent,
     JobStatus,
-    GenerationStrategyType,
     PromptPreview,
     StageTimings,
-    StrategyDescriptor,
     ValidationReport,
 )
 
@@ -47,8 +44,7 @@ __all__ = [
     "EngineSummary",
     "EngineListResponse",
     "EngineCatalogResponse",
-    "StrategyCatalogResponse",
-    "AgentSummary",
+    "PixelOptimizationView",
     "CapabilityResponse",
     "ProfileSummary",
     "ErrorResponse",
@@ -88,8 +84,73 @@ class AssetVariantView(AssetFlowModel):
     status: str | None = None
     preview_uri: str | None = None
     preview_url: str | None = None
+    #: O que o Pixel Optimizer fez com esta variação (plano Optimizer §30).
+    #: ``None`` em arte 2D convencional, onde ele não roda.
+    optimization: "PixelOptimizationView | None" = None
     #: Arquivos auxiliares já resolvidos para URL (plano Pixel §70).
     artifacts: dict[str, str] = Field(default_factory=dict)
+
+
+class PixelOptimizationView(AssetFlowModel):
+    """O laudo do Pixel Optimizer, para a tela (plano Optimizer §30 e §48).
+
+    A interface mostra "Motor / Otimização" lado a lado, e é este bloco que
+    preenche a segunda metade. Sem ele, uma correção que salvou o asset — ou
+    uma que foi descartada por piorá-lo — não apareceria em lugar nenhum, e a
+    pessoa veria apenas uma nota final que não explica nada.
+
+    ``status`` fala por si:
+
+    ``skipped``
+        o Optimizer olhou e não havia o que corrigir. **Não** quer dizer que
+        ele foi pulado (§46).
+    ``optimized``
+        houve correção.
+    ``no_safe_repairs``
+        havia problema, e nenhum com correção honesta.
+    ``exhausted``
+        as três voltas acabaram com problema em aberto.
+    ``disabled``
+        a instalação desligou o Optimizer.
+    """
+
+    status: str = "skipped"
+    reviewer: str = "heuristic"
+    iterations: int = 0
+    tool_calls: int = 0
+    pixels_changed: int = 0
+    #: A nota antes e depois. A diferença é a resposta a "a otimização valeu a
+    #: pena neste motor?", que o benchmark do §69 faz o tempo todo.
+    score_before: int | None = None
+    score_after: int | None = None
+    improvement: int | None = None
+    #: A correção foi descartada por ter piorado o asset (§20)?
+    reverted: bool = False
+    duration_ms: float = 0.0
+
+    @classmethod
+    def from_metrics(cls, metrics: dict | None) -> "PixelOptimizationView | None":
+        """Extrai o bloco das métricas do módulo Pixel.
+
+        Devolve ``None`` quando não há métrica de otimização — um asset 2D, ou
+        um registro anterior ao Optimizer. Um bloco zerado no lugar do ``None``
+        faria a tela afirmar "0 pixels corrigidos" sobre um asset que nunca
+        passou pelo estágio.
+        """
+        if not metrics or "optimizer_status" not in metrics:
+            return None
+        return cls(
+            status=str(metrics.get("optimizer_status") or "skipped"),
+            reviewer=str(metrics.get("optimizer_reviewer") or "heuristic"),
+            iterations=int(metrics.get("optimizer_iterations") or 0),
+            tool_calls=int(metrics.get("optimizer_tool_calls") or 0),
+            pixels_changed=int(metrics.get("optimizer_pixels_changed") or 0),
+            score_before=metrics.get("quality_score_before_optimizer"),
+            score_after=metrics.get("quality_score"),
+            improvement=metrics.get("quality_improvement"),
+            reverted=bool(metrics.get("optimizer_reverted")),
+            duration_ms=float(metrics.get("optimizer_time_ms") or 0.0),
+        )
 
 
 class AssetView(AssetFlowModel):
@@ -103,14 +164,9 @@ class AssetView(AssetFlowModel):
     name: str = ""
     profile_id: str | None = None
     pipeline_id: str | None = None
-    #: Como o asset foi criado, e por quem (plano de correção §42).
-    #:
-    #: ``engine`` deixou de ser obrigatório: um asset desenhado pelo Pixel
-    #: Agent não tem motor, e preencher o campo para satisfazer o modelo faria
-    #: a resposta afirmar que um modelo gerou o que nenhum modelo gerou.
-    strategy: GenerationStrategyType = GenerationStrategyType.MODEL
+    #: O motor que gerou a imagem. ``None`` só em registro montado fora do
+    #: Kernel — em geração normal existe sempre (plano Optimizer §25).
     engine: EngineRef | None = None
-    agent: AgentRef | None = None
     variants: tuple[AssetVariantView, ...] = ()
     created_at: datetime
 
@@ -128,9 +184,7 @@ class AssetView(AssetFlowModel):
             name=asset.name,
             profile_id=asset.profile_id,
             pipeline_id=asset.pipeline_id,
-            strategy=asset.strategy,
             engine=asset.engine,
-            agent=asset.agent,
             created_at=asset.created_at,
             variants=tuple(
                 AssetVariantView(
@@ -153,6 +207,9 @@ class AssetView(AssetFlowModel):
                     pixel_exact=variant.pixel_exact,
                     quality_score=variant.quality_score,
                     status=variant.status,
+                    optimization=PixelOptimizationView.from_metrics(
+                        variant.metadata.get("pixel_metrics")
+                    ),
                     preview_uri=variant.preview_uri,
                     preview_url=(
                         resolve(variant.preview_uri) if variant.preview_uri else None
@@ -177,14 +234,7 @@ class EngineSelectionView(AssetFlowModel):
     está comparando motores.
     """
 
-    #: O método de criação pedido e o resolvido (plano de correção §41).
-    requested_strategy: GenerationStrategyType = GenerationStrategyType.AUTO
-    resolved_strategy: GenerationStrategyType = GenerationStrategyType.MODEL
-    strategy_reason: str = ""
-    #: O agente, quando foi ele quem desenhou. ``None`` na geração por modelo.
-    agent: AgentRef | None = None
-
-    #: ``auto`` ou ``manual``, como a pessoa pediu — sobre o **motor**.
+    #: ``auto`` ou ``manual``, como a pessoa pediu.
     mode: str = "auto"
     #: Em ``manual``, o motor exigido; em ``auto``, o preferido pela política.
     requested_engine_id: str | None = None
@@ -209,19 +259,7 @@ class EngineSelectionView(AssetFlowModel):
     def from_job(cls, job: Job) -> "EngineSelectionView":
         resolved = job.resolved_spec
         engine = resolved.engine if resolved is not None else None
-        strategy = resolved.strategy if resolved is not None else None
-        asset = job.asset
         return cls(
-            requested_strategy=(
-                strategy.requested if strategy else GenerationStrategyType.AUTO
-            ),
-            resolved_strategy=(
-                asset.strategy
-                if asset is not None
-                else (strategy.mode if strategy else GenerationStrategyType.MODEL)
-            ),
-            strategy_reason=strategy.reason if strategy else "",
-            agent=asset.agent if asset is not None else None,
             mode=engine.selection_mode if engine else "auto",
             requested_engine_id=engine.engine_id if engine else None,
             reason=engine.reason if engine else "",
@@ -401,34 +439,6 @@ class EngineCatalogResponse(AssetFlowModel):
 
     items: tuple[EngineCatalogEntry, ...] = ()
     #: Capacidade usada como filtro, quando houve uma.
-    capability: str | None = None
-
-
-class AgentSummary(AssetFlowModel):
-    """Um agente de desenho, para o seletor (plano de correção §32)."""
-
-    id: str
-    display_name: str
-    version: str
-    summary: str = ""
-
-
-class StrategyCatalogResponse(AssetFlowModel):
-    """Os métodos de criação servidos à interface (plano de correção §32).
-
-    Uma resposta só, com tudo que o seletor precisa: os métodos, os motores
-    (para quando o método for "Modelo de imagem") e os agentes com os modos de
-    qualidade (para quando for "Agente Pixel").
-
-    Juntos, e não em três chamadas, porque a tela precisa dos três ao mesmo
-    tempo para decidir o que mostrar — e porque é o backend que decide qual
-    seletor aparece, através de ``selects_engine`` e ``selects_agent`` (§5).
-    """
-
-    items: tuple[StrategyDescriptor, ...] = ()
-    engines: tuple[EngineCatalogEntry, ...] = ()
-    agents: tuple[AgentSummary, ...] = ()
-    quality_modes: tuple[str, ...] = ()
     capability: str | None = None
 
 
