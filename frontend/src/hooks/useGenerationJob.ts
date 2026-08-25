@@ -17,7 +17,7 @@ import {
 import type { AssetSelection } from "../components/AssetControls";
 import {
   type AssetVariant,
-  type EngineSelection,
+  type CreationSelection,
   type EngineSelectionView,
   type GenerationMode,
   type GenerationState,
@@ -40,8 +40,8 @@ export interface GenerationRequestInput {
   spec?: SpecOverrides | null;
   /** Semântica corrigida no painel. Ausente, o AssetFlow interpreta a frase. */
   semantic?: SemanticPrompt | null;
-  /** O motor escolhido na tela. Ausente ou `null` = Automático. */
-  engine?: EngineSelection | null;
+  /** Como criar, escolhido na tela. Ausente ou `null` = Automático. */
+  creation?: CreationSelection | null;
 }
 
 export interface GenerationOutcome {
@@ -66,6 +66,8 @@ export interface GenerationOutcome {
    * realmente rodou e qual modelo foi carregado.
    */
   engine: EngineSelectionView | null;
+  /** Avisos do backend sobre esta geração, prontos para exibir. */
+  warnings: string[];
 }
 
 export interface UseGenerationJob {
@@ -112,7 +114,7 @@ export function useGenerationJob(): UseGenerationJob {
       selection,
       spec,
       semantic,
-      engine,
+      creation,
     }: GenerationRequestInput) => {
       setError(null);
       setResult(null);
@@ -122,7 +124,7 @@ export function useGenerationJob(): UseGenerationJob {
         // O mesmo construtor da pré-visualização: o que o painel mostrou é o
         // que vai. Montar o corpo aqui de novo abriria espaço para diferença.
         const submission = await createGenerationJob(
-          buildJobPayload({ mode, prompt, selection, spec, semantic, engine }),
+          buildJobPayload({ mode, prompt, selection, spec, semantic, creation }),
         );
 
         for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
@@ -148,6 +150,7 @@ export function useGenerationJob(): UseGenerationJob {
               preview: job.prompt,
               fallbackUsed: Boolean(job.fallback_used),
               engine: job.engine_selection ?? null,
+              warnings: job.warnings ?? [],
             });
             setState("completed");
             return;

@@ -1,34 +1,57 @@
+import type { UseCreationCatalog } from "../hooks/useCreationCatalog";
 import type { EngineSelectionView } from "../types";
 
 interface EngineCreditProps {
   selection: EngineSelectionView | null;
-  nameOf: (engineId: string | null | undefined) => string;
+  catalog: UseCreationCatalog;
 }
 
 /**
- * Quem gerou este asset (plano de motores §25, regra 3).
+ * Como este asset foi criado (plano de correção §42; plano de motores §25.3).
  *
- * A regra 3 pede três informações na tela: o motor solicitado, o motor
- * realmente usado e a versão/modelo carregado. Este componente é onde elas
- * aparecem — e a razão de ele existir é o caso em que as duas primeiras
- * divergem.
+ * O §42 pede duas linhas discretas, e o que elas dizem depende do método:
  *
- * Nota sobre uma regra que mudou de forma
- * ---------------------------------------
- * A versão anterior deste aviso era deliberadamente **anônima**: dizia que
- * houve substituição sem dizer por quem, porque a interface não podia
- * conhecer o nome de um motor (plano da tela §32/§46). Isso deixava a pessoa
- * sabendo que algo tinha acontecido e sem saber o quê.
+ *     Método   Modelo de imagem        Método   Agente Pixel
+ *     Motor    FLUX Pixel              Agente   AssetFlow Pixel Agent
  *
- * Com o seletor de motores, a restrição perdeu o sentido: a pessoa **escolheu**
- * um motor pelo nome, e esconder dela qual motor atendeu seria absurdo. O
- * espírito da regra continua valendo — nenhum nome de motor está escrito neste
- * arquivo. Todos vêm do catálogo servido pelo backend, via `nameOf`.
+ * A separação não é cosmética. Antes de existir método, este bloco só sabia
+ * dizer "gerado por X", e X tanto podia ser um modelo quanto um agente — o
+ * mesmo achatamento que o plano de correção veio desfazer, agora na tela do
+ * resultado.
+ *
+ * O caso que ele existe para cobrir continua sendo o do §25.3: quando o que
+ * foi pedido e o que rodou **não** são a mesma coisa. Um fallback silencioso
+ * é o que ele impede.
+ *
+ * Nenhum nome de motor, agente ou método está escrito neste arquivo: todos
+ * vêm do catálogo servido pelo backend.
  */
-export function EngineCredit({ selection, nameOf }: EngineCreditProps) {
-  if (!selection?.resolved_engine_id) return null;
+export function EngineCredit({ selection, catalog }: EngineCreditProps) {
+  if (!selection) return null;
 
-  const used = nameOf(selection.resolved_engine_id);
+  const isAgent = selection.resolved_strategy === "pixel_agent";
+  const method = catalog.strategyNameOf(selection.resolved_strategy);
+
+  if (isAgent) {
+    if (!selection.agent) return null;
+    return (
+      <div className="result__engine">
+        <p>
+          <span className="result__engine-key">Método</span>{" "}
+          <strong>{method}</strong>
+        </p>
+        <p>
+          <span className="result__engine-key">Agente</span>{" "}
+          <strong>{catalog.agentNameOf(selection.agent.id)}</strong>
+        </p>
+        <p className="result__engine-model">versão {selection.agent.version}</p>
+      </div>
+    );
+  }
+
+  if (!selection.resolved_engine_id) return null;
+
+  const used = catalog.engineNameOf(selection.resolved_engine_id);
   const requested = selection.requested_engine_id;
   const substituted =
     selection.fallback_used ||
@@ -41,8 +64,8 @@ export function EngineCredit({ selection, nameOf }: EngineCreditProps) {
           <span aria-hidden="true">⚠</span>{" "}
           {requested ? (
             <>
-              O motor <strong>{nameOf(requested)}</strong> não pôde atender, e este
-              asset foi gerado por <strong>{used}</strong>.
+              O motor <strong>{catalog.engineNameOf(requested)}</strong> não pôde
+              atender, e este asset foi gerado por <strong>{used}</strong>.
             </>
           ) : (
             <>
@@ -60,7 +83,10 @@ export function EngineCredit({ selection, nameOf }: EngineCreditProps) {
   return (
     <div className="result__engine">
       <p>
-        Gerado por <strong>{used}</strong>
+        <span className="result__engine-key">Método</span> <strong>{method}</strong>
+      </p>
+      <p>
+        <span className="result__engine-key">Motor</span> <strong>{used}</strong>
         {selection.mode === "auto" ? " (escolha automática)" : ""}
       </p>
       <ModelLine selection={selection} />
@@ -69,7 +95,7 @@ export function EngineCredit({ selection, nameOf }: EngineCreditProps) {
 }
 
 /**
- * Versão do motor e modelo carregado — a terceira parte da regra 3.
+ * Versão do motor e modelo carregado — a terceira parte da regra 3 do §25.
  *
  * Parece detalhe técnico demais para a tela, e é justamente o que responde
  * "por que a mesma descrição saiu diferente da semana passada?". Sem esta

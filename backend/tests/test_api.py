@@ -67,24 +67,23 @@ def test_engine_catalog_is_what_the_selector_draws(
     """
     # A suíte roda com as gavetas de referência; habilitar esta é o que faz o
     # caso exercitar também o caminho "motor disponível".
-    container.registry.enable("texel-style-v1")
+    container.registry.enable("flux-pixel-v1")
 
     payload = client.get("/api/generation/engines/catalog").json()
     ids = {item["engine_id"] for item in payload["items"]}
 
-    # Os quatro motores do §4.1 aparecem na vitrine...
-    assert {"flux-pixel-v1", "sdpixl-v1", "pixel-forge-v1", "texel-style-v1"} <= ids
+    # Os motores do §4.1 aparecem na vitrine...
+    assert {"flux-pixel-v1", "sdpixl-v1", "pixel-forge-v1"} <= ids
     # ...e as gavetas de referência, não: elas continuam resolvendo por
     # capacidade, só não são oferecidas.
     assert "mock-image-v1" not in ids
 
-    texel = next(item for item in payload["items"] if item["engine_id"] == "texel-style-v1")
-    assert texel["display_name"] == "Texel-style Agent"
-    assert texel["engine_family"] == "agentic"
-    assert texel["summary"], "sem resumo, o seletor não tem o que mostrar (§4.2)"
-    assert texel["highlights"], "o §4.2 pede os pontos fortes em tópicos"
-    assert texel["available"] is True
-    assert texel["supports_exact_resolution"] is True
+    flux = next(item for item in payload["items"] if item["engine_id"] == "flux-pixel-v1")
+    assert flux["display_name"] == "FLUX Pixel"
+    assert flux["engine_family"] == "diffusion"
+    assert flux["summary"], "sem resumo, o seletor não tem o que mostrar (§4.2)"
+    assert flux["highlights"], "o §4.2 pede os pontos fortes em tópicos"
+    assert flux["available"] is True
 
 
 def test_engine_catalog_explains_an_unavailable_engine(client: TestClient):

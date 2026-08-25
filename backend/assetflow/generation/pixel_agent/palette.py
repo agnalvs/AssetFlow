@@ -15,8 +15,17 @@ a paleta de árvore e com a de pedra sem nenhuma linha condicional.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Sequence
 
-__all__ = ["SpritePalette", "PALETTES", "palette_for", "DEFAULT_PALETTE"]
+from .canvas import RGBA
+
+__all__ = [
+    "DEFAULT_PALETTE",
+    "PALETTES",
+    "PaletteManager",
+    "SpritePalette",
+    "palette_for",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +59,24 @@ class SpritePalette:
         if fallback is not None:
             return fallback
         raise KeyError(f"papel de cor desconhecido na paleta: '{name}'")
+
+    def roles(self) -> dict[str, str]:
+        """Os papéis nomeados, como o ``palette_roles`` do §17.
+
+        O plano de desenho declara papéis, não uma lista de hexadecimais: é o
+        papel que permite a uma correção pedir "mais highlight na copa" em vez
+        de "mais #74AA59", e é o que faz a mesma receita funcionar com paletas
+        diferentes.
+        """
+        named = {
+            "base": self.base,
+            "shade": self.shade,
+            "light": self.light,
+            "accent": self.accent,
+            "outline": self.outline,
+        }
+        named.update(self.extra or {})
+        return named
 
     def colors(self) -> tuple[str, ...]:
         """Todas as cores, sem repetição, na ordem de importância visual."""
@@ -116,6 +143,19 @@ PALETTES: dict[str, SpritePalette] = {
         accent="#8fd96a",
         outline="#1e2a1a",
         extra={"trunk": "#6b4a2b", "trunk_shade": "#4a3220"},
+    ),
+    "house": SpritePalette(
+        base="#d9c9a8",
+        shade="#ab9877",
+        light="#f0e4c8",
+        accent="#a4453a",
+        outline="#2a2019",
+        extra={
+            "roof": "#a4453a",
+            "roof_shade": "#7a2f28",
+            "door": "#6b4a2b",
+            "window": "#6ea8c9",
+        },
     ),
     "rock": SpritePalette(
         base="#8a8a92",
@@ -186,3 +226,110 @@ DEFAULT_PALETTE = SpritePalette(
 def palette_for(recipe: str) -> SpritePalette:
     """A paleta de uma receita, ou a neutra."""
     return PALETTES.get(recipe, DEFAULT_PALETTE)
+
+
+class PaletteManager:
+    """O guarda da paleta (plano de correção §22).
+
+    Regra do §22: *o agente só pode usar cores presentes na paleta resolvida*.
+    Se o pedido diz 16 cores, não existe décima sétima — e a regra vale
+    **durante** o desenho, não só na conferência do fim.
+
+    A diferença entre as duas coisas é grande. Corrigir a paleta depois é
+    remapear pixels que já foram pintados: o desenho perde tonalidades em
+    lugares que o agente escolheu a dedo, e o resultado é uma imagem que
+    ninguém planejou. Barrar a cor na hora faz a substituição acontecer onde a
+    decisão está sendo tomada, com a informação de qual papel ela deveria
+    cumprir.
+
+    Cor desconhecida não é erro: ela é **resolvida** para a mais próxima que
+    já está em uso. Erro seria recusar a pincelada e deixar um buraco no
+    sprite por causa de dois pontos de diferença em um canal.
+    """
+
+    def __init__(self, allowed: Sequence[str], *, max_colors: int | None = None) -> None:
+        self._allowed: list[RGBA] = []
+        self._max_colors = max_colors
+        for color in allowed:
+            self.admit(color)
+
+    @property
+    def colors(self) -> tuple[RGBA, ...]:
+        return tuple(self._allowed)
+
+    @property
+    def is_full(self) -> bool:
+        return self._max_colors is not None and len(self._allowed) >= self._max_colors
+
+    def admit(self, color: "str | RGBA") -> bool:
+        """Acrescenta uma cor à paleta, se ainda houver espaço."""
+        rgba = _as_rgba(color)
+        if rgba[3] == 0 or rgba in self._allowed:
+            return True
+        if self.is_full:
+            return False
+        self._allowed.append(rgba)
+        return True
+
+    def resolve(self, color: "str | RGBA") -> RGBA:
+        """A cor que o agente pode de fato usar no lugar da pedida.
+
+        Transparente passa direto: apagar não gasta uma entrada da paleta, e
+        tratar o alpha 0 como cor faria o orçamento ser consumido pela
+        borracha.
+        """
+        rgba = _as_rgba(color)
+        if rgba[3] == 0:
+            return rgba
+        if rgba in self._allowed:
+            return rgba
+        if not self.is_full:
+            self._allowed.append(rgba)
+            return rgba
+        if not self._allowed:  # pragma: no cover - paleta de tamanho zero
+            return rgba
+        return _closest(rgba, self._allowed)
+
+
+def _as_rgba(value: "str | RGBA") -> RGBA:
+    """Aceita ``#rgb``, ``#rrggbb``, ``#rrggbbaa`` e tuplas."""
+    if isinstance(value, str):
+        text = value.strip().lstrip("#")
+        if len(text) in (3, 4):
+            text = "".join(char * 2 for char in text)
+        if len(text) == 6:
+            text += "ff"
+        if len(text) != 8:
+            raise ValueError(f"cor hexadecimal inválida: {value!r}")
+        return (
+            int(text[0:2], 16),
+            int(text[2:4], 16),
+            int(text[4:6], 16),
+            int(text[6:8], 16),
+        )
+    components = [int(item) for item in value]
+    if len(components) == 3:
+        components.append(255)
+    if len(components) != 4:
+        raise ValueError(f"cor precisa de 3 ou 4 componentes: {value!r}")
+    return (
+        max(0, min(255, components[0])),
+        max(0, min(255, components[1])),
+        max(0, min(255, components[2])),
+        max(0, min(255, components[3])),
+    )
+
+
+def _closest(color: RGBA, candidates: Sequence[RGBA]) -> RGBA:
+    """A mais próxima em distância euclidiana no RGB.
+
+    RGB simples, e não um espaço perceptual: as paletas do agente têm meia
+    dúzia de cores bem separadas, e a diferença entre RGB e CIELAB nesse
+    cenário não muda a escolha — muda só o custo.
+    """
+    return min(
+        candidates,
+        key=lambda item: sum(
+            (int(item[index]) - int(color[index])) ** 2 for index in range(3)
+        ),
+    )

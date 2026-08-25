@@ -17,10 +17,12 @@ from assetflow.generation.benchmark import (
     BenchmarkCase,
     BenchmarkRunner,
     BenchmarkSuite,
+    BenchmarkTarget,
     CaseOutcome,
-    EngineReport,
+    TargetReport,
     TechnicalMetrics,
 )
+from assetflow.generation.schemas import GenerationStrategyType
 from assetflow.settings import load_settings
 from tests.conftest import BACKEND_ROOT, run
 
@@ -38,6 +40,16 @@ _CASES = (
 )
 
 
+def test_a_bare_engine_id_is_read_as_generation_by_model():
+    """Conveniência de linha de comando, e leitura correta do que se quis."""
+    assert BenchmarkTarget.parse("flux-pixel-v1") == BenchmarkTarget(
+        strategy=GenerationStrategyType.MODEL, engine_id="flux-pixel-v1"
+    )
+    assert BenchmarkTarget.parse("pixel_agent") == BenchmarkTarget(
+        strategy=GenerationStrategyType.PIXEL_AGENT
+    )
+
+
 def test_the_shipped_suite_matches_the_plan():
     """Os casos do §19 estão no YAML entregue, com os nomes do plano."""
     settings = load_settings(base_dir=BACKEND_ROOT)
@@ -50,21 +62,32 @@ def test_the_shipped_suite_matches_the_plan():
     assert all(case.seed for case in suite.cases)
 
 
-def test_runner_produces_one_block_per_engine(container: AppContainer):
-    container.registry.enable("texel-style-v1")
+def test_runner_compares_a_method_with_an_engine(container: AppContainer):
+    """O §43 em forma de teste: agente e motor na mesma tabela.
+
+    E é a separação que torna a comparação honesta — cada bloco diz por qual
+    caminho o asset foi feito, em vez de pôr um agente na lista de motores.
+    """
     runner = BenchmarkRunner(
         container.service, container.worker, suite=BenchmarkSuite(cases=_CASES)
     )
 
-    report = run(runner.run(engines=["texel-style-v1", "mock-image-v1"]))
+    report = run(runner.run(targets=["pixel_agent", "model:mock-image-v1"]))
 
-    assert [block.engine_id for block in report.engines] == [
-        "texel-style-v1",
-        "mock-image-v1",
+    assert [block.target.label for block in report.targets] == [
+        "pixel_agent",
+        "model:mock-image-v1",
     ]
-    for block in report.engines:
+    for block in report.targets:
         assert block.total == 2
         assert block.succeeded == 2, [outcome.error for outcome in block.outcomes]
+
+    agente = report.targets[0]
+    assert agente.target.strategy is GenerationStrategyType.PIXEL_AGENT
+    assert agente.target.engine_id is None
+    assert all(
+        outcome.resolved_engine_id is None for outcome in agente.outcomes
+    ), "um asset do agente não pode ter motor"
 
 
 def test_the_measured_asset_went_through_postprocessing(container: AppContainer):
@@ -74,13 +97,12 @@ def test_the_measured_asset_went_through_postprocessing(container: AppContainer)
     borrado apareceria com as mesmas métricas de um que entrega 32×32 exato —
     e o §21 seria letra morta.
     """
-    container.registry.enable("texel-style-v1")
     runner = BenchmarkRunner(
         container.service, container.worker, suite=BenchmarkSuite(cases=_CASES[:1])
     )
 
-    report = run(runner.run(engines=["texel-style-v1"]))
-    outcome = report.engines[0].outcomes[0]
+    report = run(runner.run(targets=["pixel_agent"]))
+    outcome = report.targets[0].outcomes[0]
 
     assert outcome.succeeded
     assert outcome.technical.logical_size == (32, 32)
@@ -92,13 +114,24 @@ def test_the_measured_asset_went_through_postprocessing(container: AppContainer)
 
 def test_a_fallback_does_not_count_as_success_for_the_requested_engine():
     """Se outro motor atendeu, o motor pedido falhou — e o relatório diz isso."""
+    alvo = BenchmarkTarget(
+        strategy=GenerationStrategyType.MODEL, engine_id="motor-a"
+    )
     honesto = CaseOutcome(
-        case_id="a", engine_id="motor-a", resolved_engine_id="motor-a", succeeded=True
+        case_id="a",
+        target=alvo,
+        resolved_engine_id="motor-a",
+        resolved_strategy=GenerationStrategyType.MODEL,
+        succeeded=True,
     )
     substituido = CaseOutcome(
-        case_id="b", engine_id="motor-a", resolved_engine_id="motor-b", succeeded=True
+        case_id="b",
+        target=alvo,
+        resolved_engine_id="motor-b",
+        resolved_strategy=GenerationStrategyType.MODEL,
+        succeeded=True,
     )
-    report = EngineReport(engine_id="motor-a", outcomes=[honesto, substituido])
+    report = TargetReport(target=alvo, outcomes=[honesto, substituido])
 
     assert honesto.counts_for_engine is True
     assert substituido.counts_for_engine is False
@@ -111,8 +144,8 @@ def test_a_failed_engine_is_reported_not_swallowed(container: AppContainer):
     runner = BenchmarkRunner(
         container.service, container.worker, suite=BenchmarkSuite(cases=_CASES[:1])
     )
-    report = run(runner.run(engines=["motor-que-nao-existe"]))
-    block = report.engines[0]
+    report = run(runner.run(targets=["motor-que-nao-existe"]))
+    block = report.targets[0]
 
     assert block.total == 1
     assert block.failure_rate == 1.0
@@ -133,7 +166,7 @@ def test_correction_ratio_measures_how_much_the_postprocessor_had_to_fix():
 
 def test_the_visual_axis_starts_empty_and_stays_separate():
     """O §21 em forma de teste: o AssetFlow não inventa nota de beleza."""
-    outcome = CaseOutcome(case_id="a", engine_id="motor-a", succeeded=True)
+    outcome = CaseOutcome(case_id="a", succeeded=True)
     document = outcome.document()
 
     assert document["visual"]["pending"] is True
@@ -143,15 +176,16 @@ def test_the_visual_axis_starts_empty_and_stays_separate():
 
 
 def test_report_document_explains_both_axes(container: AppContainer):
-    container.registry.enable("texel-style-v1")
     runner = BenchmarkRunner(
         container.service, container.worker, suite=BenchmarkSuite(cases=_CASES[:1])
     )
-    document = run(runner.run(engines=["texel-style-v1"])).document()
+    document = run(runner.run(targets=["pixel_agent"])).document()
 
     assert "technical" in document["axes"]
     assert "visual" in document["axes"]
     assert document["suite_size"] == 1
+    assert document["targets"][0]["strategy"] == "pixel_agent"
+    assert document["targets"][0]["engine_id"] is None
 
 
 def test_suite_can_be_filtered_by_case():

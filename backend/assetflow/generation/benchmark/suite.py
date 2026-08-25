@@ -15,7 +15,50 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-__all__ = ["BenchmarkCase", "BenchmarkSuite", "DEFAULT_CASES"]
+from ..schemas import GenerationStrategyType
+
+__all__ = ["BenchmarkCase", "BenchmarkSuite", "BenchmarkTarget", "DEFAULT_CASES"]
+
+
+@dataclass(frozen=True, slots=True)
+class BenchmarkTarget:
+    """O que está sendo medido (plano de correção §43).
+
+    Antes era só um motor, e isso deixou de bastar quando "criar um asset"
+    passou a ter mais de um caminho. Comparar o Pixel Agent com o FLUX exige
+    poder nomear os dois no mesmo eixo — sem fingir que são a mesma
+    tecnologia, que é exatamente o que o §43 pede.
+
+        model:flux-pixel-v1     estratégia por modelo, com um motor
+        pixel_agent             o agente, que não tem motor
+    """
+
+    strategy: GenerationStrategyType = GenerationStrategyType.MODEL
+    #: Só faz sentido em ``model``. Vazio = deixa o roteamento escolher.
+    engine_id: str | None = None
+
+    @property
+    def label(self) -> str:
+        if self.engine_id:
+            return f"{self.strategy.value}:{self.engine_id}"
+        return self.strategy.value
+
+    @classmethod
+    def parse(cls, text: str) -> "BenchmarkTarget":
+        """Aceita ``pixel_agent``, ``model:flux-pixel-v1`` e ``flux-pixel-v1``.
+
+        A terceira forma existe por conveniência de linha de comando: um id de
+        motor sozinho é lido como "por modelo, com este motor", que é o que a
+        pessoa quis dizer.
+        """
+        raw = text.strip()
+        if ":" in raw:
+            head, _, tail = raw.partition(":")
+            return cls(strategy=GenerationStrategyType(head), engine_id=tail or None)
+        try:
+            return cls(strategy=GenerationStrategyType(raw))
+        except ValueError:
+            return cls(strategy=GenerationStrategyType.MODEL, engine_id=raw)
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,8 +156,8 @@ class BenchmarkSuite:
     """Os casos e os motores a comparar."""
 
     cases: tuple[BenchmarkCase, ...] = DEFAULT_CASES
-    #: Motores a exercitar. Vazio = todos os habilitados que atenderem.
-    engines: tuple[str, ...] = ()
+    #: O que exercitar. Vazio = tudo que estiver disponível.
+    targets: tuple[BenchmarkTarget, ...] = ()
     project_id: str = "benchmark"
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -128,7 +171,7 @@ class BenchmarkSuite:
         wanted = set(case_ids)
         return BenchmarkSuite(
             cases=tuple(case for case in self.cases if case.id in wanted),
-            engines=self.engines,
+            targets=self.targets,
             project_id=self.project_id,
             metadata=self.metadata,
         )
@@ -147,9 +190,12 @@ class BenchmarkSuite:
             if raw_cases
             else DEFAULT_CASES
         )
+        # `engines:` continua sendo lido: uma suíte escrita antes da camada
+        # de estratégias existir listava motores, e ela deve continuar valendo.
+        raw_targets = data.get("targets") or data.get("engines") or ()
         return cls(
             cases=cases,
-            engines=tuple(str(item) for item in (data.get("engines") or ())),
+            targets=tuple(BenchmarkTarget.parse(str(item)) for item in raw_targets),
             project_id=str(data.get("project_id", "benchmark")),
             metadata=dict(data.get("metadata") or {}),
         )

@@ -215,6 +215,14 @@ class EngineCatalogInfo(AssetFlowModel):
     #: capacidade e continuam sendo escolhíveis por quem souber o id.
     hidden: bool = False
 
+    #: Ferramenta interna: só existe fora de produção (plano de correção §6).
+    #:
+    #: Diferente de ``hidden``, que é sobre a vitrine. Uma gaveta ``hidden``
+    #: continua registrada e resolvível; uma ``dev_only`` **não é registrada**
+    #: quando ``ASSETFLOW_APP_ENV=production``. É a diferença entre "não
+    #: ofereço" e "não existe aqui".
+    dev_only: bool = False
+
 
 class EngineManifest(AssetFlowModel):
     """Manifesto da gaveta — o "rótulo" que o AssetFlow lê.
@@ -376,6 +384,13 @@ class EngineAdvice(AssetFlowModel):
 
     capability: Capability
     asset_type: str
+    #: O que está sendo desenhado — "tree", "small medieval house".
+    #:
+    #: Importa porque nem toda estratégia atende todo sujeito: o Pixel Agent
+    #: desenha por receitas, e um sujeito fora do vocabulário dele produz uma
+    #: forma genérica. Sem este campo, a escolha automática mandaria para ele
+    #: coisas que ele não sabe desenhar (plano de correção §40).
+    subject: str = ""
     mode: str
     logical_width: int | None = None
     logical_height: int | None = None

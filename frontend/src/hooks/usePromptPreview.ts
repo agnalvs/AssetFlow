@@ -34,7 +34,7 @@ import {
 } from "../services/generationApi";
 import type { AssetSelection } from "../components/AssetControls";
 import type {
-  EngineSelection,
+  CreationSelection,
   GenerationMode,
   PromptPreview,
   SemanticPrompt,
@@ -77,10 +77,10 @@ export function usePromptPreview(
   selection: AssetSelection,
   edit: PromptEdit | null,
   onEditChange: (edit: PromptEdit | null) => void,
-  // O motor entra na pré-visualização pelo mesmo motivo que os outros
+  // O método entra na pré-visualização pelo mesmo motivo que os outros
   // controles: a resposta precisa descrever a geração que **vai** acontecer.
-  // Em "Automático", é ela que traz o motor resolvido e o motivo (§17).
-  engine: EngineSelection | null = null,
+  // Em "Automático", é ela que traz a estratégia resolvida e o motivo (§5).
+  creation: CreationSelection | null = null,
 ): UsePromptPreview {
   const [preview, setPreview] = useState<PromptPreview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -95,7 +95,7 @@ export function usePromptPreview(
   // evita refazer a pré-visualização a cada tecla digitada em outro campo.
   const selectionKey = JSON.stringify(selection);
   const specKey = JSON.stringify(spec);
-  const engineKey = engine?.engineId ?? "";
+  const creationKey = JSON.stringify(creation);
 
   useEffect(() => {
     if (!trimmed) {
@@ -112,7 +112,7 @@ export function usePromptPreview(
       inFlight.current = controller;
 
       previewPrompt(
-        buildJobPayload({ mode, prompt: trimmed, selection, spec, semantic, engine }),
+        buildJobPayload({ mode, prompt: trimmed, selection, spec, semantic, creation }),
         controller.signal,
       )
         .then((result) => {
@@ -145,7 +145,7 @@ export function usePromptPreview(
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, trimmed, selectionKey, specKey, semantic, engineKey]);
+  }, [mode, trimmed, selectionKey, specKey, semantic, creationKey]);
 
   // Desmontou no meio de uma busca: não deixa a requisição pendurada.
   useEffect(() => () => inFlight.current?.abort(), []);

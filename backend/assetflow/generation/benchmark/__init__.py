@@ -1,7 +1,8 @@
 """Benchmark interno entre motores (plano de motores §19 a §21).
 
     BenchmarkSuite   os casos, iguais para todos      (config/benchmark_suite.yaml)
-    BenchmarkRunner  roda cada caso em cada motor     (pelo caminho normal do sistema)
+    BenchmarkTarget  o que medir: método + motor      (plano de correção §43)
+    BenchmarkRunner  roda cada caso em cada alvo      (pelo caminho normal do sistema)
     BenchmarkReport  o resultado, em dois eixos       (técnico medido, visual humano)
 
 A regra que organiza o módulo é o §21: **não misturar "engine bonito" com
@@ -15,11 +16,17 @@ from .metrics import (
     BenchmarkReport,
     CaseOutcome,
     EngineReport,
+    TargetReport,
     TechnicalMetrics,
     VisualScore,
 )
 from .runner import BenchmarkRunner
-from .suite import DEFAULT_CASES, BenchmarkCase, BenchmarkSuite
+from .suite import (
+    DEFAULT_CASES,
+    BenchmarkCase,
+    BenchmarkSuite,
+    BenchmarkTarget,
+)
 
 __all__ = [
     "DEFAULT_CASES",
@@ -27,8 +34,10 @@ __all__ = [
     "BenchmarkReport",
     "BenchmarkRunner",
     "BenchmarkSuite",
+    "BenchmarkTarget",
     "CaseOutcome",
     "EngineReport",
+    "TargetReport",
     "TechnicalMetrics",
     "VisualScore",
 ]

@@ -1,10 +1,11 @@
+import type { UseCreationCatalog } from "../hooks/useCreationCatalog";
 import { MODES, type HistoryEntry } from "../types";
 
 interface SessionHistoryProps {
   entries: readonly HistoryEntry[];
   activeJobId: string | null;
-  /** Nome de exibição de um motor, vindo do catálogo do backend. */
-  nameOf: (engineId: string | null | undefined) => string;
+  /** Os nomes de método, motor e agente, vindos do catálogo do backend. */
+  catalog: UseCreationCatalog;
   onSelect: (entry: HistoryEntry) => void;
 }
 
@@ -14,16 +15,16 @@ interface SessionHistoryProps {
  * Vive só em memória: recarregar a página limpa. A biblioteca persistente do
  * projeto é outra história, e o backend já guarda o histórico de verdade.
  *
- * Cada miniatura mostra o motor que a gerou. É a forma mais simples de
- * comparação entre motores que a tela oferece: gerar a mesma descrição em
- * dois motores e ver os dois resultados lado a lado, cada um com o nome de
- * quem o produziu. Sem o rótulo, as duas miniaturas são indistinguíveis — e a
- * comparação, impossível.
+ * Cada miniatura mostra **quem** a gerou — o motor ou o agente, conforme o
+ * método. É a forma mais simples de comparação que a tela oferece: gerar a
+ * mesma descrição por dois caminhos e ver os resultados lado a lado, cada um
+ * com o nome de quem o produziu. Sem o rótulo, as duas miniaturas são
+ * indistinguíveis — e a comparação, impossível (plano de correção §43).
  */
 export function SessionHistory({
   entries,
   activeJobId,
-  nameOf,
+  catalog,
   onSelect,
 }: SessionHistoryProps) {
   if (entries.length === 0) return null;
@@ -35,8 +36,10 @@ export function SessionHistory({
         {entries.map((entry) => {
           const mode = MODES[entry.mode];
           const thumbnail = entry.variant.thumbnail_url ?? entry.variant.url;
-          const engineId = entry.engine?.resolved_engine_id ?? null;
-          const engineName = engineId ? nameOf(engineId) : null;
+          // O rótulo nomeia **quem produziu**, e isso agora tem dois
+          // formatos: motor ou agente. Mostrar sempre "motor" faria a
+          // miniatura de um asset desenhado pelo agente mentir.
+          const producer = producerOf(entry, catalog);
           return (
             <li key={entry.jobId}>
               <button
@@ -45,10 +48,10 @@ export function SessionHistory({
                   entry.jobId === activeJobId ? " history__item--active" : ""
                 }`}
                 onClick={() => onSelect(entry)}
-                title={engineName ? `${entry.prompt} — ${engineName}` : entry.prompt}
+                title={producer ? `${entry.prompt} — ${producer}` : entry.prompt}
                 aria-label={
-                  engineName
-                    ? `Ver geração: ${entry.prompt}, gerada por ${engineName}`
+                  producer
+                    ? `Ver geração: ${entry.prompt}, gerada por ${producer}`
                     : `Ver geração: ${entry.prompt}`
                 }
               >
@@ -62,8 +65,8 @@ export function SessionHistory({
                     loading="lazy"
                   />
                 ) : null}
-                {engineName ? (
-                  <span className="history__engine">{engineName}</span>
+                {producer ? (
+                  <span className="history__engine">{producer}</span>
                 ) : null}
               </button>
             </li>
@@ -72,4 +75,19 @@ export function SessionHistory({
       </ul>
     </section>
   );
+}
+
+/** Quem produziu esta entrada: o agente, quando foi ele; o motor, quando foi. */
+function producerOf(
+  entry: HistoryEntry,
+  catalog: UseCreationCatalog,
+): string | null {
+  const selection = entry.engine;
+  if (!selection) return null;
+  if (selection.resolved_strategy === "pixel_agent") {
+    return selection.agent ? catalog.agentNameOf(selection.agent.id) : null;
+  }
+  return selection.resolved_engine_id
+    ? catalog.engineNameOf(selection.resolved_engine_id)
+    : null;
 }

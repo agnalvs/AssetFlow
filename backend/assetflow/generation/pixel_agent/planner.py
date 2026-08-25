@@ -1,4 +1,4 @@
-"""PlanningAgent — a etapa 2 do engine estilo Texel (plano de motores §9.1 e §9.2).
+"""RecipePlanner — o plano de desenho por receitas (plano de correção §17).
 
 O agente recebe o pedido já resolvido e produz um **plano de desenho**: o
 tamanho do canvas, a paleta, as regiões nomeadas e a sequência de tool calls
@@ -21,9 +21,15 @@ LLM aqui, e isso é uma escolha, não uma limitação temporária:
 * ela é legível: "tronco é um retângulo de 0.42 a 0.58 da largura" é uma
   afirmação que se discute.
 
-O ponto de extensão para um planejador com LLM está desenhado: quem quiser
-substituir esta classe só precisa devolver um :class:`DrawingPlan`. O resto do
-engine — executor, review loop, exportação — não muda uma linha.
+O limite deste planejador é o vocabulário: ele desenha bem os objetos que
+tem receita e cai em uma forma genérica no resto. Quem tira esse limite é o
+:class:`~.llm.LLMPlanner`, que produz o mesmo :class:`DrawingPlan` a partir de
+um modelo de linguagem — e o resto do agente não muda uma linha.
+
+Os dois continuam existindo, e não é indecisão: uma receita é determinística,
+roda em microssegundos, não depende de rede e desenha melhor os objetos que
+conhece. Ela é a reserva do planejador por LLM, e é o que o agente usa quando
+não há provedor configurado.
 """
 
 from __future__ import annotations
@@ -31,59 +37,43 @@ from __future__ import annotations
 import random
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Callable
 
+from typing import Protocol, runtime_checkable
+
+from .contracts.command import ToolCall
+from .contracts.plan import DrawingBrief, DrawingPlan
 from .palette import SpritePalette, palette_for
-from .tool_executor import ToolCall
 
-__all__ = ["DrawingBrief", "DrawingPlan", "PlanningAgent", "RECIPE_KEYWORDS"]
+__all__ = ["PixelPlanner", "PlanningAgent", "RecipePlanner", "RECIPE_KEYWORDS"]
 
 
-@dataclass(frozen=True, slots=True)
-class DrawingBrief:
-    """O pedido, na forma de que o planejador precisa.
+@runtime_checkable
+class PixelPlanner(Protocol):
+    """Quem decide **o que** desenhar (plano de correção §17 e §18).
 
-    É uma tradução do :class:`ImageGenerationRequest`, e existe para que o
-    planejador não dependa do contrato universal: ele fala de canvas, sujeito
-    e cores, não de capacidade, variação ou seed de motor.
+    A peça trocável do agente. O executor, o canvas e o revisor não sabem se o
+    plano veio de uma receita escrita à mão ou de um modelo de linguagem — e é
+    justamente por não saberem que trocar um pelo outro não custa nada.
     """
 
-    subject: str
-    asset_type: str
-    width: int
-    height: int
-    max_colors: int | None = None
-    transparent: bool = True
-    seed: int = 0
+    def plan(self, brief: DrawingBrief) -> DrawingPlan:
+        """O plano de desenho deste pedido."""
+        ...
 
+    def recognizes(self, subject: str, asset_type: str = "prop") -> bool:
+        """Este planejador sabe desenhar este sujeito?
 
-@dataclass(frozen=True, slots=True)
-class DrawingPlan:
-    """O plano intermediário do plano de motores §9.2."""
+        A resposta muda a escolha automática: um planejador que não conhece o
+        objeto faz o `auto` desviar para o método "Modelo de imagem", em vez
+        de entregar uma forma genérica sem explicação.
+        """
+        ...
 
-    canvas: tuple[int, int]
-    asset_type: str
-    subject: str
-    recipe: str
-    palette: SpritePalette
-    #: ``{"copa": (x0, y0, x1, y1)}`` — as regiões que a receita reconhece.
-    regions: dict[str, tuple[int, int, int, int]] = field(default_factory=dict)
-    calls: tuple[ToolCall, ...] = ()
-
-    def document(self) -> dict[str, Any]:
-        """O plano como JSON, no formato que o §9.2 mostra."""
-        return {
-            "canvas": list(self.canvas),
-            "asset_type": self.asset_type,
-            "subject": self.subject,
-            "recipe": self.recipe,
-            "palette": list(self.palette.colors()),
-            "regions": [
-                {"name": name, "bbox": list(bbox)}
-                for name, bbox in self.regions.items()
-            ],
-            "calls": len(self.calls),
-        }
+    @property
+    def recipes(self) -> tuple[str, ...]:
+        """O vocabulário conhecido, para diagnóstico."""
+        ...
 
 
 #: Palavras que escolhem a receita, em português e inglês — o mesmo princípio
@@ -109,20 +99,33 @@ RECIPE_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "coin",
         ("coin", "moeda", "gold piece", "medal", "medalha", "token", "ficha"),
     ),
+    # `house` antes de `tile`: "casa de tijolos" tem as duas palavras, e a que
+    # nomeia o objeto ganha da que nomeia o material.
+    (
+        "house",
+        ("house", "casa", "home", "lar", "hut", "cabana", "cottage", "chale",
+         "shack", "barraco", "building", "predio", "tower", "torre",
+         "windmill", "moinho", "church", "igreja", "castle", "castelo"),
+    ),
     (
         "tree",
         ("tree", "arvore", "pine", "pinheiro", "oak", "carvalho", "bush", "arbusto",
          "shrub", "palm", "palmeira", "foliage", "folhagem"),
     ),
+    # `tile` vem ANTES de `rock` de propósito. "stone tile" tem as duas
+    # palavras, e a que nomeia o *tipo* de asset tem de ganhar da que nomeia
+    # o *material* — é a mesma regra da taxonomia do AssetFlow, onde um
+    # `marker` ("tileset") ganha de uma `keyword` ("grass"). Invertidas, uma
+    # parede de pedra vira uma pedra.
+    (
+        "tile",
+        ("tile", "azulejo", "block", "bloco", "brick", "tijolo", "ground", "chao",
+         "floor", "piso", "wall", "parede", "tileset"),
+    ),
     (
         "rock",
         ("rock", "rocha", "stone", "pedra", "boulder", "pedregulho", "ore", "minerio",
          "crystal", "cristal", "gem", "gema"),
-    ),
-    (
-        "tile",
-        ("tile", "azulejo", "block", "bloco", "brick", "tijolo", "ground", "chao",
-         "floor", "piso", "grass tile", "wall", "parede", "tileset"),
     ),
     (
         "character",
@@ -143,12 +146,13 @@ _TYPE_RECIPES: dict[str, str] = {
 }
 
 
-class PlanningAgent:
+class RecipePlanner:
     """Escolhe a receita e monta a sequência de tool calls."""
 
     def __init__(self) -> None:
         self._recipes: dict[str, Callable[[_Layout], list[ToolCall]]] = {
             "tree": _recipe_tree,
+            "house": _recipe_house,
             "rock": _recipe_rock,
             "potion": _recipe_potion,
             "chest": _recipe_chest,
@@ -198,6 +202,24 @@ class PlanningAgent:
             if any(_contains_word(text, keyword) for keyword in keywords):
                 return recipe
         return _TYPE_RECIPES.get(asset_type, "generic")
+
+    def recognizes(self, subject: str, asset_type: str = "prop") -> bool:
+        """O agente sabe desenhar **este objeto**, ou vai improvisar?
+
+        Esta pergunta faltava, e a falta produzia o pior resultado possível:
+        um pedido de "house" caía na receita genérica, saía uma bolha
+        salpicada, e nada na tela dizia que o agente não conhecia o objeto. A
+        pessoa não tinha como distinguir "o sistema quebrou" de "este sujeito
+        está fora do vocabulário".
+
+        Com a resposta explícita, duas coisas passam a acontecer: a escolha
+        automática deixa de mandar para o agente o que ele não sabe desenhar
+        (plano de correção §40), e a escolha manual avisa antes de entregar.
+
+        Um tipo de asset conhecido conta como reconhecimento: um `tileset` sem
+        palavra reconhecida ainda tem uma receita adequada — a de tile.
+        """
+        return self.choose_recipe(subject, asset_type) != "generic"
 
 
 # ---------------------------------------------------------------------------
@@ -353,7 +375,51 @@ def _recipe_tree(layout: _Layout) -> list[ToolCall]:
         layout.noise("copa", "light", 0.28, note="luz na copa"),
         layout.noise("copa_esquerda", "shade", 0.30, note="sombra à esquerda"),
         layout.noise("copa_direita", "shade", 0.22, note="sombra à direita"),
-        ToolCall(tool="view_canvas", params={}, note="conferir a copa"),
+        ToolCall(tool="inspect_canvas", params={}, note="conferir a copa"),
+    ]
+
+
+def _recipe_house(layout: _Layout) -> list[ToolCall]:
+    """Casa: parede, telhado triangular, porta e janelas.
+
+    A ordem é a de quem desenha à mão: primeiro o volume da parede, depois o
+    telhado por cima, e só então as aberturas — que precisam existir para a
+    silhueta ser lida como construção, e não como caixa.
+
+    Sem janelas e porta, o mesmo desenho é um bloco. São elas, e não o
+    telhado, que fazem o olho reconhecer uma casa em 32×32.
+    """
+    return [
+        layout.rect("parede", 0.18, 0.42, 0.82, 0.90, "base"),
+        layout.rect("parede_sombra", 0.68, 0.42, 0.82, 0.90, "shade",
+                    note="lado sombreado da parede"),
+        ToolCall(
+            tool="draw_triangle",
+            params={
+                "x0": layout.x(0.06), "y0": layout.y(0.46),
+                "x1": layout.x(0.50), "y1": layout.y(0.08),
+                "x2": layout.x(0.94), "y2": layout.y(0.46),
+                "color": layout.color("roof", layout.palette.accent),
+            },
+            note="telhado",
+        ),
+        ToolCall(
+            tool="draw_triangle",
+            params={
+                "x0": layout.x(0.50), "y0": layout.y(0.08),
+                "x1": layout.x(0.94), "y1": layout.y(0.46),
+                "x2": layout.x(0.50), "y2": layout.y(0.46),
+                "color": layout.color("roof_shade", layout.palette.shade),
+            },
+            note="água sombreada do telhado",
+        ),
+        layout.rect("porta", 0.43, 0.64, 0.57, 0.90, "door",
+                    fallback=layout.palette.outline),
+        layout.rect("janela_esquerda", 0.25, 0.52, 0.35, 0.62, "window",
+                    fallback=layout.palette.light),
+        layout.rect("janela_direita", 0.65, 0.52, 0.75, 0.62, "window",
+                    fallback=layout.palette.light),
+        ToolCall(tool="inspect_canvas", params={}, note="conferir a silhueta"),
     ]
 
 
@@ -375,7 +441,7 @@ def _recipe_rock(layout: _Layout) -> list[ToolCall]:
         layout.rect("faceta_luz", 0.30, 0.34, 0.52, 0.60, "light", note="face iluminada"),
         layout.noise("base", "shade", 0.34, note="sombra na base"),
         layout.noise("massa", "accent", 0.14, note="granulado"),
-        ToolCall(tool="view_canvas", params={}, note="conferir a silhueta"),
+        ToolCall(tool="inspect_canvas", params={}, note="conferir a silhueta"),
     ]
 
 
@@ -406,7 +472,7 @@ def _recipe_potion(layout: _Layout) -> list[ToolCall]:
             },
             note="reflexo no vidro",
         ),
-        ToolCall(tool="view_canvas", params={}, note="conferir o vidro"),
+        ToolCall(tool="inspect_canvas", params={}, note="conferir o vidro"),
     ]
 
 
@@ -425,7 +491,7 @@ def _recipe_chest(layout: _Layout) -> list[ToolCall]:
         layout.rect("buraco_fechadura", 0.48, 0.49, 0.52, 0.54, "outline",
                     note="furo da fechadura"),
         layout.noise("corpo", "shade", 0.16, note="veios da madeira"),
-        ToolCall(tool="view_canvas", params={}, note="conferir o fecho"),
+        ToolCall(tool="inspect_canvas", params={}, note="conferir o fecho"),
     ]
 
 
@@ -444,7 +510,7 @@ def _recipe_tile(layout: _Layout) -> list[ToolCall]:
         layout.rect("lateral_direita", 0.92, 0.0, 1.0, 1.0, "shade"),
         layout.noise("face", "accent", 0.18, note="granulado da face"),
         layout.noise("fundo", "outline", 0.12, note="sujeira na base"),
-        ToolCall(tool="view_canvas", params={}, note="conferir o encaixe"),
+        ToolCall(tool="inspect_canvas", params={}, note="conferir o encaixe"),
     ]
 
 
@@ -468,7 +534,7 @@ def _recipe_sword(layout: _Layout) -> list[ToolCall]:
         layout.rect("cabo", 0.45, 0.69, 0.55, 0.88, "handle",
                     fallback=layout.palette.shade),
         layout.circle("pomo", 0.50, 0.91, 0.07, "guard", fallback=layout.palette.accent),
-        ToolCall(tool="view_canvas", params={}, note="conferir a silhueta"),
+        ToolCall(tool="inspect_canvas", params={}, note="conferir a silhueta"),
     ]
 
 
@@ -490,7 +556,7 @@ def _recipe_coin(layout: _Layout) -> list[ToolCall]:
             },
             note="brilho",
         ),
-        ToolCall(tool="view_canvas", params={}, note="conferir o disco"),
+        ToolCall(tool="inspect_canvas", params={}, note="conferir o disco"),
     ]
 
 
@@ -527,23 +593,33 @@ def _recipe_character(layout: _Layout) -> list[ToolCall]:
             },
             note="olhos",
         ),
-        ToolCall(tool="view_canvas", params={}, note="conferir a pose"),
+        ToolCall(tool="inspect_canvas", params={}, note="conferir a pose"),
     ]
 
 
 def _recipe_generic(layout: _Layout) -> list[ToolCall]:
-    """Prop genérico: massa central sobre uma base, com luz e sombra.
+    """Prop genérico: um volume sólido com luz e sombra, e nada mais.
 
-    O fallback honesto. Ele não tenta adivinhar o que é o objeto — produz um
-    volume centrado, legível e com silhueta limpa, que é o mínimo que um asset
-    precisa ter. Reconhecer um sujeito novo é acrescentar termos em
-    :data:`RECIPE_KEYWORDS` e uma receita ao lado desta.
+    O fallback honesto — e ele mudou de forma depois de um pedido de "house"
+    sair como uma bolha salpicada. A versão anterior jogava ruído por cima do
+    volume, e o ruído era o problema: em um objeto que ninguém reconhece, a
+    textura não sugere material nenhum, só parece defeito. Um volume chapado,
+    com um lado claro e um escuro, ao menos **lê** como um objeto sólido.
+
+    Ele continua não adivinhando o que é o objeto, e isso é o ponto: quando
+    esta receita entra, quem pediu é avisado de que o agente não conhece o
+    sujeito (:meth:`PlanningAgent.recognizes`). Reconhecer um sujeito novo é
+    acrescentar termos em :data:`RECIPE_KEYWORDS` e uma receita ao lado desta.
     """
     return [
-        layout.circle("massa", 0.50, 0.52, 0.28, "base"),
-        layout.rect("base", 0.26, 0.62, 0.74, 0.86, "base"),
-        layout.rect("luz", 0.34, 0.34, 0.52, 0.52, "light", note="face iluminada"),
-        layout.noise("base", "shade", 0.30, note="sombra na base"),
-        layout.noise("massa", "accent", 0.12, note="detalhe"),
-        ToolCall(tool="view_canvas", params={}, note="conferir o volume"),
+        layout.circle("massa", 0.50, 0.48, 0.28, "base"),
+        layout.rect("base", 0.26, 0.48, 0.74, 0.86, "base"),
+        layout.rect("luz", 0.30, 0.30, 0.50, 0.56, "light", note="face iluminada"),
+        layout.rect("sombra", 0.60, 0.56, 0.74, 0.86, "shade", note="face sombreada"),
+        ToolCall(tool="inspect_canvas", params={}, note="conferir o volume"),
     ]
+
+
+#: Nome anterior da classe, de quando ela era o único planejador. Mantido
+#: porque "PlanningAgent" ainda é como se fala dela em conversa.
+PlanningAgent = RecipePlanner

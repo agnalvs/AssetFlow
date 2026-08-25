@@ -39,11 +39,14 @@ from .schemas import (
     EngineDescriptor,
     EngineHealth,
     FinalResolvedSpec,
+    GenerationStrategyType,
     Job,
     JobStatus,
     PromptPreview,
+    StrategyDescriptor,
 )
 from .spec import ConstraintResolver, SpecResolution
+from .strategies import GenerationStrategyRegistry
 
 __all__ = ["GenerationService"]
 
@@ -65,6 +68,7 @@ class GenerationService:
         records: GenerationRecordRepository | None = None,
         catalog: CapabilityCatalog = CATALOG,
         engine_catalog: EngineCatalog | None = None,
+        strategies: GenerationStrategyRegistry | None = None,
         default_max_attempts: int = 2,
     ) -> None:
         self._kernel = kernel
@@ -85,6 +89,7 @@ class GenerationService:
         # não passa a sua, para que um serviço montado à mão em teste continue
         # respondendo `engine_catalog()` sem precisar do bootstrap inteiro.
         self._engine_catalog = engine_catalog or EngineCatalog(kernel.registry)
+        self._strategies = strategies
         self._default_max_attempts = default_max_attempts
 
     # ------------------------------------------------------------------
@@ -292,6 +297,62 @@ class GenerationService:
             include_hidden=include_hidden,
             check_health=check_health,
         )
+
+    async def strategy_catalog(
+        self, *, capability: Capability | str | None = None
+    ) -> list[StrategyDescriptor]:
+        """Os métodos de criação, prontos para o seletor (plano de correção §32).
+
+        É a lista que o "Método de criação" desenha, e o nível acima do
+        catálogo de motores. Cada entrada diz se a tela deve mostrar o seletor
+        de motor (``selects_engine``) ou o de agente (``selects_agent``) — a
+        decisão do §5, tomada no backend, onde ela pode ser justificada.
+
+        ``auto`` entra na lista sem estar no registro: ele não é uma
+        estratégia executável, é a ausência de escolha, e mesmo assim precisa
+        aparecer como primeira opção do seletor.
+        """
+        if self._strategies is None:
+            return []
+
+        items: list[StrategyDescriptor] = []
+        usable = 0
+        real: list[StrategyDescriptor] = []
+
+        for strategy in self._strategies.list():
+            available, reason = await strategy.available()
+            usable += int(available)
+            real.append(
+                StrategyDescriptor(
+                    id=strategy.strategy_id,
+                    display_name=strategy.display_name,
+                    summary=strategy.summary,
+                    highlights=strategy.highlights,
+                    available=available,
+                    unavailable_reason=reason,
+                    selects_engine=strategy.strategy_id.uses_engine,
+                    selects_agent=not strategy.strategy_id.uses_engine,
+                )
+            )
+
+        items.append(
+            StrategyDescriptor(
+                id=GenerationStrategyType.AUTO,
+                display_name="Automático",
+                summary=(
+                    "O AssetFlow escolhe o método mais adequado ao tipo de "
+                    "asset e mostra o motivo antes de gerar."
+                ),
+                available=usable > 0,
+                unavailable_reason=(
+                    None if usable else "nenhum método de criação está disponível"
+                ),
+                selects_engine=False,
+                selects_agent=False,
+            )
+        )
+        items.extend(real)
+        return items
 
     async def engine_catalog_entry(self, engine_id: str) -> EngineCatalogEntry:
         entry = await self._engine_catalog.find(engine_id)

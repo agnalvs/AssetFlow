@@ -56,7 +56,8 @@
     "badges": [
       "referência"
     ],
-    "hidden": true
+    "hidden": true,
+    "dev_only": true
   },
   "status": "disabled",
   "requires": []

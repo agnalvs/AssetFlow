@@ -1,14 +1,16 @@
+import type { UseCreationCatalog } from "../hooks/useCreationCatalog";
 import type { GenerationOutcome } from "../hooks/useGenerationJob";
 import { MODES } from "../types";
 import { AssetPreview } from "./AssetPreview";
 import { EngineCredit } from "./EngineCredit";
+import { GenerationNotices } from "./GenerationNotices";
 import { ResultActions } from "./ResultActions";
 
 interface GenerationResultProps {
   outcome: GenerationOutcome;
   busy: boolean;
-  /** Nome de exibição de um motor, vindo do catálogo do backend. */
-  nameOf: (engineId: string | null | undefined) => string;
+  /** Os nomes de método, motor e agente, vindos do catálogo do backend. */
+  catalog: UseCreationCatalog;
   onRegenerate: () => void;
   onNewPrompt: () => void;
 }
@@ -17,7 +19,7 @@ interface GenerationResultProps {
 export function GenerationResult({
   outcome,
   busy,
-  nameOf,
+  catalog,
   onRegenerate,
   onNewPrompt,
 }: GenerationResultProps) {
@@ -33,7 +35,11 @@ export function GenerationResult({
       <p className="result__prompt" title={outcome.prompt}>
         {outcome.prompt}
       </p>
-      <EngineCredit selection={outcome.engine} nameOf={nameOf} />
+      <GenerationNotices
+        warnings={outcome.warnings}
+        fallbackUsed={outcome.fallbackUsed}
+      />
+      <EngineCredit selection={outcome.engine} catalog={catalog} />
       <ResultActions
         variant={outcome.variant}
         fileName={`assetflow-${outcome.jobId}.png`}

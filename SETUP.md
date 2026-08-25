@@ -243,27 +243,29 @@ Esse script existe justamente para isso: ele controla o próprio
 Depois que o modelo está em cache, a interface responde normal — as gerações
 seguintes só pagam a inferência, bem dentro dos 900s.
 
-### 6.3 Os outros motores de Pixel Art
+### 6.3 Os outros caminhos de Pixel Art
 
-O AssetFlow traz mais quatro gavetas (veja
-[backend/docs/ENGINES.md](backend/docs/ENGINES.md)). Só uma delas está
-habilitada por padrão, e é a única que não precisa de nada:
+O AssetFlow tem dois métodos de criação e três gavetas novas (veja
+[backend/docs/CREATION_METHODS.md](backend/docs/CREATION_METHODS.md) e
+[backend/docs/ENGINES.md](backend/docs/ENGINES.md)). Só um deles funciona sem
+configurar nada:
 
-| motor | para habilitar |
+| método / motor | para habilitar |
 |---|---|
-| **Texel-style Agent** | já habilitado — não baixa nada, não usa GPU |
+| **Agente Pixel** (método) | já disponível — não baixa nada, não usa GPU |
 | **FLUX Pixel** | `pip install -e ".[diffusers]"` + GPU + `enabled: true` em `engines.yaml` |
 | **SD-πXL** | clone do projeto + `options.command` apontando para a CLI dele |
 | **Pixel Forge** | binário Rust compilado + `options.binary` |
 
-Comece pelo Texel-style: ele responde em milissegundos e serve para conferir o
-fluxo inteiro — seletor de motor, seleção automática com motivo, Pixel Exact,
-selo técnico — antes de qualquer download.
+Comece pelo **Agente Pixel**: ele responde em milissegundos e serve para
+conferir o fluxo inteiro — seletor de método, escolha automática com motivo,
+Pixel Exact, selo técnico — antes de qualquer download. Ele não é um motor, é
+um método de criação; veja
+[backend/docs/CREATION_METHODS.md](backend/docs/CREATION_METHODS.md).
 
 ```bash
 cd backend
-python scripts/preview_engine.py --engine texel-style-v1 -n 2
-python scripts/benchmark_engines.py --engines texel-style-v1 --cases tree_32
+python scripts/benchmark_engines.py --targets pixel_agent --cases tree_32
 ```
 
 Ao habilitar o **FLUX Pixel**, confira os dois ids no HuggingFace antes

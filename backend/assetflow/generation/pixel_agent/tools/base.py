@@ -74,8 +74,45 @@ def as_color(value: Any) -> RGBA:
 
 
 def as_int(value: Any, name: str) -> int:
-    """Converte um parâmetro de coordenada, com o nome no erro."""
-    try:
+    """Uma coordenada inteira — e **só** inteira (plano de correção §21).
+
+    Um ``12.5`` é recusado em vez de virar ``12``. A regra parece severa para
+    quem vem de canvas em ponto flutuante, e é o contrário: em uma grade de
+    32×32, meio pixel não existe. Truncar em silêncio esconderia um erro de
+    planejamento — o plano *achava* que estava desenhando entre duas colunas —
+    e o defeito só apareceria na imagem, meia dúzia de etapas depois.
+
+    ``12.0`` passa: é um inteiro escrito como float, o que acontece o tempo
+    todo quando o plano vem de JSON. O que não passa é fração de pixel.
+    """
+    if isinstance(value, bool):
+        # `bool` é `int` em Python, e "desenhe na coluna True" é sempre um bug.
+        raise ValueError(f"parâmetro '{name}' precisa ser inteiro: {value!r}")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if not value.is_integer():
+            raise ValueError(
+                f"parâmetro '{name}' não aceita coordenada fracionária: {value!r} "
+                "— a grade não tem meio pixel"
+            )
         return int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"parâmetro '{name}' precisa ser inteiro: {value!r}") from exc
+    if isinstance(value, str):
+        text = value.strip()
+        try:
+            return int(text)
+        except ValueError:
+            pass
+        try:
+            number = float(text)
+        except ValueError as exc:
+            raise ValueError(
+                f"parâmetro '{name}' precisa ser inteiro: {value!r}"
+            ) from exc
+        if not number.is_integer():
+            raise ValueError(
+                f"parâmetro '{name}' não aceita coordenada fracionária: {value!r} "
+                "— a grade não tem meio pixel"
+            )
+        return int(number)
+    raise ValueError(f"parâmetro '{name}' precisa ser inteiro: {value!r}")

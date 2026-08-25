@@ -10,9 +10,17 @@ SDXL. Ele pede uma capacidade ao Kernel e recebe imagens normalizadas.
 
 Proibição arquitetural (plano §18): é proibido escrever aqui
 ``from generation.engines.diffusers_sdxl.engine import SDXLEngine``.
-O caminho correto é sempre::
 
-    result = await kernel.execute(request, ...)   # capability routing
+E, desde o plano de correção, o pipeline também não fala mais com o Kernel
+diretamente. Entre ele e os pixels existe uma **estratégia**::
+
+    strategy = strategies.resolve(context.resolved)
+    result = await strategy.generate(strategy_context)
+
+A diferença importa: "gerar" deixou de significar necessariamente "chamar um
+motor". A estratégia por modelo chama; a do Pixel Agent planeja e desenha. O
+pipeline não sabe qual das duas rodou — ele recebe imagens normalizadas dos
+dois jeitos, e segue para pós-processamento, validação e storage.
 """
 
 from __future__ import annotations
@@ -40,6 +48,7 @@ from ..prompting import (
     render_semantic_prompt,
     resolve_semantic_prompt,
 )
+from ..strategies import GenerationStrategyResolver, StrategyContext
 from ..schemas import (
     AssetGenerationRequest,
     AssetSpec,
@@ -78,6 +87,12 @@ class PipelineContext:
     kernel: GenerationKernel
     storage: AssetStorageService
     prompt_builders: PromptBuilderRegistry
+    #: Quem decide **como** os pixels nascem (plano de correção §11).
+    #:
+    #: ``None`` mantém funcionando um contexto montado à mão em teste: sem
+    #: resolvedor, o pipeline usa a estratégia por modelo, que é o caminho que
+    #: ele seguia antes de a camada existir.
+    strategies: GenerationStrategyResolver | None = None
     cancellation: CancellationToken = field(default_factory=CancellationToken)
     progress: ProgressReporter = field(default_factory=NullProgressReporter)
     logger: logging.Logger = field(default_factory=lambda: _LOG)
@@ -160,10 +175,15 @@ class ImageAssetPipeline(AssetPipeline):
     def build_generation_request(
         self, context: PipelineContext, semantic: SemanticPrompt
     ) -> ImageGenerationRequest:
-        """Monta o request universal.
+        """Monta o request universal — como a estratégia por modelo o monta.
 
-        O texto neutro é gerado aqui; se o motor escolhido tiver um adapter
-        próprio, ele reinterpreta o ``semantic`` internamente (plano §27).
+        Quem constrói o request de verdade, na geração, é a
+        :class:`~assetflow.generation.strategies.model.ModelGenerationStrategy`.
+        Este método continua aqui porque ele é a resposta à pergunta "o que
+        seria enviado a um motor?", que a pré-visualização e o diagnóstico
+        fazem sem gerar nada — e porque um pipeline pode querer sobrescrevê-lo.
+
+        As duas construções precisam concordar; é a estratégia que manda.
         """
         profile = context.profile
         request = context.request
@@ -224,6 +244,21 @@ class ImageAssetPipeline(AssetPipeline):
             },
         )
 
+    def resolve_strategy(self, context: PipelineContext):
+        """A estratégia deste job (plano de correção §11).
+
+        Sem resolvedor no contexto — pipeline montado à mão em teste —, cai na
+        estratégia por modelo. É o comportamento que o pipeline tinha antes da
+        camada existir, e mantê-lo evita que cada teste antigo precise montar
+        um registro de estratégias para exercitar pós-processamento.
+        """
+        if context.strategies is not None:
+            return context.strategies.resolve(context.resolved)
+
+        from ..strategies import ModelGenerationStrategy
+
+        return ModelGenerationStrategy()
+
     # ------------------------------------------------------------------
     # Execução
     # ------------------------------------------------------------------
@@ -237,12 +272,20 @@ class ImageAssetPipeline(AssetPipeline):
 
         context.cancellation.raise_if_cancelled()
 
-        # --- Geração (o único ponto que fala com o Kernel) --------------
-        result = await context.kernel.execute(
-            generation_request,
-            job_id=context.job_id,
-            cancellation=context.cancellation,
-            progress=context.progress,
+        # --- Geração (o único ponto que produz pixels) ------------------
+        strategy = self.resolve_strategy(context)
+        result = await strategy.generate(
+            StrategyContext(
+                job_id=context.job_id,
+                request=context.request,
+                profile=profile,
+                resolved=context.resolved,
+                semantic=semantic,
+                kernel=context.kernel,
+                cancellation=context.cancellation,
+                progress=context.progress,
+                metadata={"pipeline_id": self.id},
+            )
         )
 
         context.cancellation.raise_if_cancelled()
@@ -275,7 +318,7 @@ class ImageAssetPipeline(AssetPipeline):
             context.report(
                 0.9 + 0.05 * ((position + 1) / total),
                 "postprocessing",
-                engine_id=result.engine.id,
+                engine_id=result.producer_id,
             )
         postprocess_ms = postprocess_watch.elapsed_ms
 
@@ -354,10 +397,13 @@ class ImageAssetPipeline(AssetPipeline):
             name=request.name or semantic.subject[:80],
             profile_id=profile.id,
             pipeline_id=self.id,
+            strategy=result.strategy,
             engine=result.engine,
+            agent=result.agent,
             variants=tuple(variants),
             metadata={
                 "capability": str(generation_request.capability),
+                "strategy": result.strategy.value,
                 "fallback_used": result.fallback_used,
                 "user_prompt": request.prompt,
                 # Prova de qual configuração gerou este asset (plano T→J §34).
@@ -386,7 +432,7 @@ class ImageAssetPipeline(AssetPipeline):
             )
         )
 
-        context.report(1.0, "completed", engine_id=result.engine.id)
+        context.report(1.0, "completed", engine_id=result.producer_id)
         return PipelineOutcome(
             asset=asset,
             result=result.without_payloads(),
@@ -439,25 +485,45 @@ def _parsed_document(
 
 
 def _selection_document(context: PipelineContext, result: GenerationResult) -> bytes:
-    """``engine_selection.json`` — pedido × usado, lado a lado (plano de motores §18 e §25.3).
+    """``engine_selection.json`` — pedido × usado, lado a lado (§18, §25.3, §41).
 
-    Este arquivo existe para uma pergunta específica: *o motor que eu escolhi
-    foi o motor que gerou isto?* Sem ele, a resposta depende de correlacionar
-    log de servidor com horário de job — e é a pergunta mais frequente de
-    quem compara motores.
+    Este arquivo existe para uma pergunta específica: *o que eu escolhi foi o
+    que gerou isto?* Desde o plano de correção ela tem duas metades — método e
+    motor —, e o arquivo registra as duas: ``requested_strategy`` ao lado de
+    ``resolved_strategy``, ``requested_engine_id`` ao lado de
+    ``resolved_engine_id``.
+
+    Em um job de agente o bloco de motor vem nulo, e isso é informação: quer
+    dizer que nenhum motor participou.
     """
-    engine = context.resolved.engine
+    resolved = context.resolved
+    engine = resolved.engine
+    strategy = resolved.strategy
+
     payload = {
+        # -- método (plano de correção §41) ---------------------------
+        "requested_strategy": strategy.requested.value,
+        "resolved_strategy": result.strategy.value,
+        "strategy_reason": strategy.reason,
+        "strategy_source": resolved.source_of("strategy").value,
+        # -- motor, quando houve ---------------------------------------
         "selection_mode": engine.selection_mode,
-        "requested_engine_id": engine.engine_id,
+        "requested_engine_id": engine.engine_id if strategy.uses_engine else None,
         "reason": engine.reason,
         "allow_fallback": engine.allow_fallback,
-        "source": context.resolved.source_of("engine").value,
-        "resolved_engine_id": result.engine.id,
+        "source": resolved.source_of("engine").value,
+        "resolved_engine_id": result.engine.id if result.engine else None,
         "fallback_used": result.fallback_used,
         "attempted_engines": list(result.attempted_engines),
         "resolution_chain": list(result.metadata.get("resolution_chain") or ()),
         "rejected_engines": dict(result.metadata.get("rejected_engines") or {}),
+        # -- agente, quando houve --------------------------------------
+        "agent_id": result.agent.id if result.agent else None,
+        "agent_version": result.agent.version if result.agent else None,
+        "concept_reference": {
+            "enabled": resolved.concept_reference.enabled,
+            "engine_id": resolved.concept_reference.engine_id,
+        },
     }
     return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
 
@@ -471,14 +537,21 @@ def _engine_output_document(result: GenerationResult) -> bytes:
     duas gerações vira adivinhação.
     """
     engine = result.engine
+    agent = result.agent
     payload = {
-        "engine_id": engine.id,
-        "engine_version": engine.version,
-        "adapter_version": engine.adapter_version,
-        "model_id": engine.model_id,
-        "model_revision": engine.model_revision,
-        "lora_id": engine.lora_id,
-        "provider": engine.provider,
+        "strategy": result.strategy.value,
+        "engine_id": engine.id if engine else None,
+        "engine_version": engine.version if engine else None,
+        "adapter_version": engine.adapter_version if engine else None,
+        "model_id": engine.model_id if engine else None,
+        "model_revision": engine.model_revision if engine else None,
+        "lora_id": engine.lora_id if engine else None,
+        "provider": engine.provider if engine else None,
+        # O produtor do outro lado da arquitetura (plano de correção §28).
+        "agent_id": agent.id if agent else None,
+        "agent_version": agent.version if agent else None,
+        "planner_provider": agent.planner_provider if agent else None,
+        "planner_model": agent.planner_model if agent else None,
         "timings_ms": result.timings.model_dump(mode="json"),
         "warnings": list(result.warnings),
         "engine_metadata": result.metadata.get("engine_metadata") or {},
@@ -542,6 +615,18 @@ def _build_record(
         "reason": context.resolved.engine.reason,
         "allow_fallback": context.resolved.engine.allow_fallback,
     }
+    metadata["strategy_selection"] = {
+        "requested": context.resolved.strategy.requested.value,
+        "resolved": result.strategy.value,
+        "reason": context.resolved.strategy.reason,
+    }
+    # O que o agente decidiu, quando foi ele quem desenhou (§28).
+    if result.agent is not None:
+        metadata["pixel_agent"] = {
+            key: value
+            for key, value in result.metadata.items()
+            if key in {"agent", "quality_mode", "sessions", "concept_reference"}
+        }
     pixel_metrics = {
         str(variant.index): variant.metadata["pixel_metrics"]
         for variant in asset.variants
@@ -563,8 +648,14 @@ def _build_record(
         # O motor **pedido**, ao lado do usado (plano de motores §18 e §25.3). Guardar só
         # quem gerou esconde exatamente o caso interessante: aquele em que os
         # dois são diferentes.
-        requested_engine_id=context.resolved.engine.engine_id,
+        requested_engine_id=(
+            context.resolved.engine.engine_id
+            if context.resolved.strategy.uses_engine
+            else None
+        ),
         engine_selection_mode=context.resolved.engine.selection_mode,
+        strategy=result.strategy,
+        requested_strategy=context.resolved.strategy.requested,
         user_prompt=context.request.prompt,
         positive_prompt=effective.get("positive") or generation_request.prompt.positive,
         negative_prompt=effective.get("negative") or generation_request.prompt.negative,
@@ -601,4 +692,5 @@ def _build_record(
         warnings=result.warnings,
         metadata=metadata,
         **GenerationRecord.engine_fields(result.engine),
+        **GenerationRecord.agent_fields(result.agent),
     )

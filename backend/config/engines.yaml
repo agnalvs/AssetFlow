@@ -24,7 +24,6 @@ discovery:
     - "flux-pixel-v1"
     - "sdpixl-v1"
     - "pixel-forge-v1"
-    - "texel-style-v1"
 
 defaults:
   # Tempo máximo padrão de uma geração, quando o manifesto não declara o seu.
@@ -146,16 +145,17 @@ engines:
     # -----------------------------------------------------------------------
 
   # =========================================================================
-  # MÚLTIPLOS MOTORES DE PIXEL ART (plano de seleção de modelos, §2 e §12-§15)
+  # MOTORES DE PIXEL ART (plano de seleção de modelos, §2 e §12-§15)
   #
-  # As quatro gavetas abaixo entram DESABILITADAS. Não é excesso de cautela:
-  # três delas exigem alguma coisa que esta máquina pode não ter — GPU, um
-  # clone do SD-πXL, um binário Rust compilado — e uma gaveta habilitada que
-  # não roda entra na cadeia de fallback e transforma cada falha do motor
-  # principal em uma segunda falha, mais lenta.
+  # As três gavetas abaixo entram DESABILITADAS, e não é excesso de cautela:
+  # cada uma exige algo que esta máquina pode não ter — GPU, um clone do
+  # SD-πXL, um binário Rust compilado. Uma gaveta habilitada que não roda
+  # entra na cadeia de fallback e transforma cada falha do motor principal em
+  # uma segunda falha, mais lenta.
   #
-  # A exceção é `texel-style-v1`, que só depende de Python e por isso nasce
-  # habilitada logo abaixo.
+  # O AssetFlow Pixel Agent NÃO está aqui, e é o ponto do plano de correção:
+  # ele não é um motor. Ele é um método de criação, configurado em
+  # `config/strategies.yaml` (plano de correção §34 e §36).
   # =========================================================================
 
   # -------------------------------------------------------------------------
@@ -265,18 +265,3 @@ engines:
       # args: ["--prompt", "{prompt}", "--seed", "{seed}", "--out", "{output}"]
       output_glob: "*.png"
       process_timeout_s: 300
-
-  # -------------------------------------------------------------------------
-  # Texel-style Agent (plano §9 e §15) — desenha pixel a pixel, sem modelo.
-  #
-  # HABILITADA por padrão, e é a única das quatro que pode ser: ela não baixa
-  # nada, não usa GPU e não depende de nenhum projeto externo. Roda em
-  # milissegundos e é determinística por seed, o que a torna também a gaveta
-  # mais confiável da estante para servir de fallback.
-  # -------------------------------------------------------------------------
-  texel-style-v1:
-    enabled: true
-    options:
-      # Passadas do Review Loop (plano §9.4). Duas resolvem o caso real;
-      # mais do que isso corre o risco de apagar sprites finos pixel a pixel.
-      review_passes: 2

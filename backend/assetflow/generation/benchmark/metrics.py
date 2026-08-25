@@ -28,12 +28,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..schemas import GenerationStrategyType
+from .suite import BenchmarkTarget
+
 __all__ = [
-    "TechnicalMetrics",
-    "VisualScore",
+    "BenchmarkReport",
     "CaseOutcome",
     "EngineReport",
-    "BenchmarkReport",
+    "TargetReport",
+    "TechnicalMetrics",
+    "VisualScore",
 ]
 
 
@@ -147,14 +151,15 @@ class VisualScore:
 
 @dataclass(slots=True)
 class CaseOutcome:
-    """O resultado de um caso em um motor."""
+    """O resultado de um caso em um alvo (método + motor)."""
 
     case_id: str
-    engine_id: str
-    #: O motor que realmente rodou. Diferente de ``engine_id`` significa que
-    #: houve fallback — e um caso com fallback **não** conta para o motor
-    #: pedido, senão o benchmark credita a um motor o trabalho de outro.
+    target: BenchmarkTarget = field(default_factory=BenchmarkTarget)
+    #: O que realmente rodou. Diferente do alvo significa fallback — e um caso
+    #: com fallback **não** conta para o alvo pedido, senão o benchmark
+    #: credita a um motor o trabalho de outro.
     resolved_engine_id: str | None = None
+    resolved_strategy: GenerationStrategyType | None = None
     succeeded: bool = False
     error: str | None = None
     duration_ms: float = 0.0
@@ -167,19 +172,39 @@ class CaseOutcome:
     warnings: tuple[str, ...] = ()
 
     @property
+    def engine_id(self) -> str:
+        """Rótulo do alvo. Nome antigo, mantido para leitura rápida."""
+        return self.target.label
+
+    @property
     def counts_for_engine(self) -> bool:
-        """Este resultado pode ser creditado ao motor pedido?"""
+        """Este resultado pode ser creditado ao alvo pedido?
+
+        Duas condições, e as duas importam: a estratégia tem de ser a pedida
+        (senão o número descreve outro método) e, quando um motor foi
+        nomeado, ele tem de ser o que rodou (senão descreve outro motor).
+        """
         if not self.succeeded:
             return False
-        if self.resolved_engine_id is None:
+        if (
+            self.resolved_strategy is not None
+            and self.resolved_strategy is not self.target.strategy
+        ):
+            return False
+        if self.target.engine_id is None or self.resolved_engine_id is None:
             return True
-        return self.resolved_engine_id == self.engine_id
+        return self.resolved_engine_id == self.target.engine_id
 
     def document(self) -> dict[str, Any]:
         return {
             "case_id": self.case_id,
-            "engine_id": self.engine_id,
+            "target": self.target.label,
+            "strategy": self.target.strategy.value,
+            "engine_id": self.target.engine_id,
             "resolved_engine_id": self.resolved_engine_id,
+            "resolved_strategy": (
+                self.resolved_strategy.value if self.resolved_strategy else None
+            ),
             "succeeded": self.succeeded,
             "counts_for_engine": self.counts_for_engine,
             "error": self.error,
@@ -195,11 +220,16 @@ class CaseOutcome:
 
 
 @dataclass(slots=True)
-class EngineReport:
-    """O agregado de um motor sobre a suíte inteira."""
+class TargetReport:
+    """O agregado de um alvo sobre a suíte inteira."""
 
-    engine_id: str
+    target: BenchmarkTarget
     outcomes: list[CaseOutcome] = field(default_factory=list)
+
+    @property
+    def engine_id(self) -> str:
+        """Rótulo do alvo. Nome antigo, mantido para leitura rápida."""
+        return self.target.label
 
     @property
     def total(self) -> int:
@@ -254,7 +284,9 @@ class EngineReport:
 
     def document(self) -> dict[str, Any]:
         return {
-            "engine_id": self.engine_id,
+            "target": self.target.label,
+            "strategy": self.target.strategy.value,
+            "engine_id": self.target.engine_id,
             "cases": self.total,
             "succeeded": self.succeeded,
             "failure_rate": round(self.failure_rate, 4),
@@ -277,18 +309,23 @@ class EngineReport:
 
 @dataclass(slots=True)
 class BenchmarkReport:
-    """O relatório completo: um bloco por motor."""
+    """O relatório completo: um bloco por alvo."""
 
-    engines: list[EngineReport] = field(default_factory=list)
+    targets: list[TargetReport] = field(default_factory=list)
     suite_size: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def for_engine(self, engine_id: str) -> EngineReport:
-        for report in self.engines:
-            if report.engine_id == engine_id:
+    @property
+    def engines(self) -> list[TargetReport]:
+        """Nome antigo da lista de blocos."""
+        return self.targets
+
+    def for_target(self, target: BenchmarkTarget) -> TargetReport:
+        for report in self.targets:
+            if report.target == target:
                 return report
-        report = EngineReport(engine_id=engine_id)
-        self.engines.append(report)
+        report = TargetReport(target=target)
+        self.targets.append(report)
         return report
 
     def document(self) -> dict[str, Any]:
@@ -302,9 +339,13 @@ class BenchmarkReport:
                 "technical": "medido pelo AssetFlow (PixelPostProcessor + PixelValidator)",
                 "visual": "avaliação humana; preenchida à mão, nunca inferida",
             },
-            "engines": [report.document() for report in self.engines],
+            "targets": [report.document() for report in self.targets],
         }
 
 
 def _rounded(value: float | None, digits: int) -> float | None:
     return None if value is None else round(value, digits)
+
+
+#: Nome anterior, de quando o benchmark só comparava motores.
+EngineReport = TargetReport

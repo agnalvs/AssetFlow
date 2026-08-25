@@ -12,6 +12,10 @@
 # de 128×128 têm exatamente as mesmas capacidades e motores muito diferentes.
 # Uma lista fixa não consegue expressar isso; uma lista de regras, sim.
 #
+# Ele só é consultado quando o MÉTODO DE CRIAÇÃO é "Modelo de imagem". Com o
+# método "Agente Pixel" não há motor a escolher, e este arquivo é ignorado
+# (plano de correção §8). Quem escolhe o método é `config/strategies.yaml`.
+#
 # TRÊS COISAS QUE ESTE ARQUIVO NÃO FAZ:
 #
 # 1. Não manda. A resposta é preferência. Se o motor preferido estiver fora do
@@ -63,7 +67,6 @@ rules:
       max_logical: 32
       max_colors_at_most: 16
     prefer:
-      - texel-style-v1
       - pixel-forge-v1
       - flux-pixel-v1
     reason: >-
@@ -78,7 +81,6 @@ rules:
       asset_type: ["tile", "tileset"]
       max_logical: 64
     prefer:
-      - texel-style-v1
       - flux-pixel-v1
     reason: >-
       tiles precisam encostar sem falha nas bordas, e o desenho por
@@ -111,7 +113,6 @@ rules:
       mode: ["pixel"]
     prefer:
       - flux-pixel-v1
-      - texel-style-v1
       - diffusers-sdxl-v1
     reason: >-
       melhor equilíbrio entre qualidade e tempo para Pixel Art em geral

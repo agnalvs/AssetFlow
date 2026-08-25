@@ -210,3 +210,15 @@ export function qualityLabel(value: string): string {
 export function engineBadgeLabel(value: string): string {
   return ENGINE_BADGES[value] ?? value;
 }
+
+/** Modos de qualidade do agente (plano de correção §5 e §25). */
+const AGENT_QUALITY: Record<string, string> = {
+  auto: "Automático",
+  fast: "Rápido",
+  balanced: "Balanceado",
+  detailed: "Detalhado",
+};
+
+export function qualityModeLabel(value: string): string {
+  return AGENT_QUALITY[value] ?? value;
+}

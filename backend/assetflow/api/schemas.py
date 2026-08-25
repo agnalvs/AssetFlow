@@ -15,6 +15,7 @@ from pydantic import Field
 from ..generation.prompting import render_semantic_prompt
 from ..generation.kernel.catalog import EngineCatalogEntry
 from ..generation.schemas import (
+    AgentRef,
     AssetFlowModel,
     AssetMode,
     AssetType,
@@ -25,8 +26,10 @@ from ..generation.schemas import (
     JobErrorInfo,
     JobEvent,
     JobStatus,
+    GenerationStrategyType,
     PromptPreview,
     StageTimings,
+    StrategyDescriptor,
     ValidationReport,
 )
 
@@ -44,6 +47,8 @@ __all__ = [
     "EngineSummary",
     "EngineListResponse",
     "EngineCatalogResponse",
+    "StrategyCatalogResponse",
+    "AgentSummary",
     "CapabilityResponse",
     "ProfileSummary",
     "ErrorResponse",
@@ -98,7 +103,14 @@ class AssetView(AssetFlowModel):
     name: str = ""
     profile_id: str | None = None
     pipeline_id: str | None = None
-    engine: EngineRef
+    #: Como o asset foi criado, e por quem (plano de correção §42).
+    #:
+    #: ``engine`` deixou de ser obrigatório: um asset desenhado pelo Pixel
+    #: Agent não tem motor, e preencher o campo para satisfazer o modelo faria
+    #: a resposta afirmar que um modelo gerou o que nenhum modelo gerou.
+    strategy: GenerationStrategyType = GenerationStrategyType.MODEL
+    engine: EngineRef | None = None
+    agent: AgentRef | None = None
     variants: tuple[AssetVariantView, ...] = ()
     created_at: datetime
 
@@ -116,7 +128,9 @@ class AssetView(AssetFlowModel):
             name=asset.name,
             profile_id=asset.profile_id,
             pipeline_id=asset.pipeline_id,
+            strategy=asset.strategy,
             engine=asset.engine,
+            agent=asset.agent,
             created_at=asset.created_at,
             variants=tuple(
                 AssetVariantView(
@@ -163,7 +177,14 @@ class EngineSelectionView(AssetFlowModel):
     está comparando motores.
     """
 
-    #: ``auto`` ou ``manual``, como a pessoa pediu.
+    #: O método de criação pedido e o resolvido (plano de correção §41).
+    requested_strategy: GenerationStrategyType = GenerationStrategyType.AUTO
+    resolved_strategy: GenerationStrategyType = GenerationStrategyType.MODEL
+    strategy_reason: str = ""
+    #: O agente, quando foi ele quem desenhou. ``None`` na geração por modelo.
+    agent: AgentRef | None = None
+
+    #: ``auto`` ou ``manual``, como a pessoa pediu — sobre o **motor**.
     mode: str = "auto"
     #: Em ``manual``, o motor exigido; em ``auto``, o preferido pela política.
     requested_engine_id: str | None = None
@@ -188,7 +209,19 @@ class EngineSelectionView(AssetFlowModel):
     def from_job(cls, job: Job) -> "EngineSelectionView":
         resolved = job.resolved_spec
         engine = resolved.engine if resolved is not None else None
+        strategy = resolved.strategy if resolved is not None else None
+        asset = job.asset
         return cls(
+            requested_strategy=(
+                strategy.requested if strategy else GenerationStrategyType.AUTO
+            ),
+            resolved_strategy=(
+                asset.strategy
+                if asset is not None
+                else (strategy.mode if strategy else GenerationStrategyType.MODEL)
+            ),
+            strategy_reason=strategy.reason if strategy else "",
+            agent=asset.agent if asset is not None else None,
             mode=engine.selection_mode if engine else "auto",
             requested_engine_id=engine.engine_id if engine else None,
             reason=engine.reason if engine else "",
@@ -368,6 +401,34 @@ class EngineCatalogResponse(AssetFlowModel):
 
     items: tuple[EngineCatalogEntry, ...] = ()
     #: Capacidade usada como filtro, quando houve uma.
+    capability: str | None = None
+
+
+class AgentSummary(AssetFlowModel):
+    """Um agente de desenho, para o seletor (plano de correção §32)."""
+
+    id: str
+    display_name: str
+    version: str
+    summary: str = ""
+
+
+class StrategyCatalogResponse(AssetFlowModel):
+    """Os métodos de criação servidos à interface (plano de correção §32).
+
+    Uma resposta só, com tudo que o seletor precisa: os métodos, os motores
+    (para quando o método for "Modelo de imagem") e os agentes com os modos de
+    qualidade (para quando for "Agente Pixel").
+
+    Juntos, e não em três chamadas, porque a tela precisa dos três ao mesmo
+    tempo para decidir o que mostrar — e porque é o backend que decide qual
+    seletor aparece, através de ``selects_engine`` e ``selects_agent`` (§5).
+    """
+
+    items: tuple[StrategyDescriptor, ...] = ()
+    engines: tuple[EngineCatalogEntry, ...] = ()
+    agents: tuple[AgentSummary, ...] = ()
+    quality_modes: tuple[str, ...] = ()
     capability: str | None = None
 
 

@@ -1,9 +1,10 @@
-"""PixelCanvas — a superfície onde o agente desenha (plano de motores §9).
+"""PixelCanvas — a superfície onde o agente desenha (plano de correção §20).
 
-A diferença entre esta gaveta e as de difusão está inteira nesta classe: aqui
-não existe uma imagem grande que depois encolhe. Existe uma grade de 32×32
-posições, e cada uma delas é preenchida por uma decisão. É o que o plano de motores §9.2
-chama de "pixels realmente intencionais".
+A diferença entre o agente e um modelo de difusão está inteira nesta classe:
+aqui não existe uma imagem grande que depois encolhe. Existe uma grade de
+32×32 posições, e cada uma é preenchida por uma decisão. O plano de correção
+§20 chama isso de canvas *pixel-native*: se a resolução lógica é 32×32, o
+canvas é 32×32, e cada coordenada corresponde a exatamente um pixel lógico.
 
 Consequências práticas de trabalhar na grade:
 
@@ -32,7 +33,7 @@ TRANSPARENT: RGBA = (0, 0, 0, 0)
 
 @dataclass(frozen=True, slots=True)
 class CanvasStats:
-    """O que o Review Loop precisa saber sobre o desenho (plano de motores §9.4)."""
+    """O que o revisor precisa saber sobre o desenho (plano de correção §23)."""
 
     width: int
     height: int
@@ -111,7 +112,7 @@ class PixelCanvas:
                 yield x, y, self._pixels[y * self.width + x]
 
     # ------------------------------------------------------------------
-    # Leitura agregada (o `view_canvas` do plano de motores §9.3)
+    # Leitura agregada (o `inspect_canvas` do plano de correção §16)
     # ------------------------------------------------------------------
     def colors(self) -> dict[RGBA, int]:
         """Cores opacas usadas e quantas vezes, da mais frequente para a menos.

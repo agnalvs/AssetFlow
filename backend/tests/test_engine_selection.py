@@ -28,6 +28,7 @@ from assetflow.generation.schemas import (
     AssetOutputOverrides,
     EngineAdvice,
     EngineSelector,
+    GenerationStrategySelection,
     SpecOverrides,
     SpecSource,
 )
@@ -106,16 +107,21 @@ def test_catalog_filters_by_capability(container: AppContainer):
 def test_spec_carries_the_engine_decision(container: AppContainer):
     """Em `auto`, a política do projeto responde — e sempre explica.
 
-    O teste habilita `texel-style-v1` porque a suíte roda com as gavetas de
+    O teste habilita `flux-pixel-v1` porque a suíte roda com as gavetas de
     referência, e as regras de `engine_policy.yaml` falam dos motores de
     produção. Habilitar um deles é o que faz este caso exercitar a
     configuração **entregue**, e não uma política montada no teste.
+
+    O pedido fixa o método em `model`: em `auto`, um prop de 32×32 vai para o
+    Pixel Agent (plano de correção §40) e não haveria motor a escolher.
     """
-    container.registry.enable("texel-style-v1")
-    spec = container.service.resolve_spec(_request(container))
+    container.registry.enable("flux-pixel-v1")
+    spec = container.service.resolve_spec(
+        _request(container, generation_strategy=GenerationStrategySelection(mode="model"))
+    )
 
     assert spec.engine.selection_mode == "auto"
-    assert spec.engine.engine_id == "texel-style-v1"
+    assert spec.engine.engine_id == "flux-pixel-v1"
     # O motivo não é enfeite: é o que a tela mostra no "Motor resolvido" (§17).
     assert spec.engine.reason
     assert spec.source_of("engine") is SpecSource.INFERENCE
@@ -130,9 +136,13 @@ def test_choosing_automatic_is_not_choosing_an_engine(container: AppContainer):
     ninguém escolheu — e a origem existe justamente para separar essas duas
     coisas (plano T→J §16).
     """
-    container.registry.enable("texel-style-v1")
+    container.registry.enable("flux-pixel-v1")
     spec = container.service.resolve_spec(
-        _request(container, engine=EngineSelector(mode="auto"))
+        _request(
+            container,
+            engine=EngineSelector(mode="auto"),
+            generation_strategy=GenerationStrategySelection(mode="model"),
+        )
     )
 
     assert spec.engine.selection_mode == "auto"

@@ -23,6 +23,15 @@ from .generation.kernel import (
     discover_manifests,
 )
 from .generation.pipelines import PipelineRegistry
+from .generation.pixel_agent import (
+    AssetFlowPixelAgent,
+    ChatClient,
+    ChatConfig,
+    LLMPlanner,
+    QualityMode,
+    RecipePlanner,
+)
+from .generation.pixel_agent.strategy import PixelAgentStrategy
 from .generation.profiles import ProfileRegistry
 from .generation.prompting import PromptBuilderRegistry
 from .generation.service import GenerationService
@@ -30,6 +39,11 @@ from .generation.spec import (
     AssetTaxonomy,
     AssetTypeClassifier,
     ConstraintResolver,
+)
+from .generation.strategies import (
+    GenerationStrategyRegistry,
+    GenerationStrategyResolver,
+    ModelGenerationStrategy,
 )
 from .jobs import (
     GenerationWorker,
@@ -66,6 +80,10 @@ class AppContainer:
     engine_policy: AutoEnginePolicy
     resolver: EngineResolver
     kernel: GenerationKernel
+    #: Os métodos de criação e quem resolve `auto` (plano de correção §35).
+    strategies: GenerationStrategyRegistry
+    strategy_resolver: GenerationStrategyResolver
+    pixel_agent: AssetFlowPixelAgent
     profiles: ProfileRegistry
     pixel_profiles: PixelProfileRegistry
     pipelines: PipelineRegistry
@@ -111,6 +129,17 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         settings.engine_discovery_paths, allowlist=settings.engine_allowlist
     )
     for entry in discovered:
+        # Ferramenta interna não existe em produção (plano de correção §6).
+        # Note que ela é pulada no **registro**, e não escondida depois: uma
+        # gaveta registrada continua resolvível por capacidade, e "escondida
+        # mas usável" não é o que o §6 pede.
+        if entry.manifest.catalog.dev_only and not settings.show_mock_engines:
+            _LOG.info(
+                "gaveta '%s' é de desenvolvimento e foi ignorada (APP_ENV=%s)",
+                entry.manifest.id,
+                settings.app_env.value,
+            )
+            continue
         config = runtime_configs.get(entry.manifest.id)
         if config is None:
             _LOG.info(
@@ -143,6 +172,24 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         default_timeout_s=float(defaults.get("timeout_s", 300)),
     )
 
+    # -- Métodos de criação (plano de correção §2 e §35) ------------------
+    #
+    # A camada que separa "como criar" de "com qual motor". O agente entra
+    # aqui, e não no EngineRegistry: ele não é uma tecnologia de geração de
+    # imagem, é uma estratégia inteira (§34).
+    pixel_agent = AssetFlowPixelAgent(planner=_pixel_planner(settings))
+    strategies = GenerationStrategyRegistry(
+        [
+            ModelGenerationStrategy(registry),
+            PixelAgentStrategy(
+                pixel_agent, quality_budgets=_quality_budgets(settings)
+            ),
+        ]
+    )
+    strategy_resolver = GenerationStrategyResolver.from_config(
+        strategies, settings.strategies_config
+    )
+
     # -- Produto: profiles, pipelines, prompts ---------------------------
     profiles = ProfileRegistry.from_config(settings.profiles_config)
     # Profiles Pixel Exact: o contrato do arquivo final (resolução lógica,
@@ -160,7 +207,12 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     # "Auto" ganha um motor e um motivo já na pré-visualização, sem que a
     # camada que resolve o contrato precise conhecer a estante (plano de motores §17).
     constraints = ConstraintResolver(
-        AssetTypeClassifier(taxonomy), advisor=engine_policy
+        AssetTypeClassifier(taxonomy),
+        advisor=engine_policy,
+        # O conselheiro de **método**. Ele responde antes do de motor, e é o
+        # que faz "Automático" trazer estratégia e motivo já na
+        # pré-visualização (plano de correção §5 e §41).
+        strategy_advisor=strategy_resolver,
     )
 
     # -- Storage ----------------------------------------------------------
@@ -187,6 +239,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         manager=jobs,
         kernel=kernel,
         pipelines=pipelines,
+        strategies=strategy_resolver,
         profiles=profiles,
         storage=storage,
         prompt_builders=prompt_builders,
@@ -206,18 +259,20 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         constraints=constraints,
         records=records,
         engine_catalog=catalog,
+        strategies=strategies,
         default_max_attempts=settings.worker.max_attempts,
     )
 
     _LOG.info(
-        "AssetFlow pronto: %s gaveta(s), %s profile(s), %s profile(s) Pixel, "
-        "%s pipeline(s), %s vocabulário(s) de asset, %s regra(s) de motor",
+        "AssetFlow pronto [%s]: %s método(s), %s gaveta(s), %s profile(s), "
+        "%s profile(s) Pixel, %s pipeline(s), %s vocabulário(s) de asset",
+        settings.app_env.value,
+        len(strategies),
         len(registry),
         len(profiles),
         len(pixel_profiles),
         len(pipelines.ids()),
         len(taxonomy),
-        len(engine_policy.rules),
     )
 
     return AppContainer(
@@ -226,6 +281,9 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         catalog=catalog,
         engine_policy=engine_policy,
         resolver=resolver,
+        strategies=strategies,
+        strategy_resolver=strategy_resolver,
+        pixel_agent=pixel_agent,
         kernel=kernel,
         profiles=profiles,
         pixel_profiles=pixel_profiles,
@@ -240,4 +298,53 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         jobs=jobs,
         worker=worker,
         service=service,
+    )
+
+
+def _quality_budgets(settings: Settings) -> dict[QualityMode, int]:
+    """Iterações por modo de qualidade, de ``config/strategies.yaml`` (§25).
+
+    Ausente ou incompleto, valem os números do plano — 2, 4, 6. Um modo com
+    valor inválido é ignorado com aviso em vez de derrubar o boot: o agente
+    funciona com o padrão, e uma configuração torta não deve impedir o
+    sistema de subir.
+    """
+    raw = ((settings.strategies_config.get("pixel_agent") or {}).get("quality_modes")) or {}
+    budgets: dict[QualityMode, int] = {}
+    for key, value in raw.items():
+        try:
+            budgets[QualityMode(str(key))] = int(value)
+        except (ValueError, TypeError):
+            _LOG.warning("modo de qualidade inválido em strategies.yaml: %r", key)
+    return budgets
+
+
+def _pixel_planner(settings: Settings):
+    """O planejador do agente (plano de correção §18).
+
+    ``recipes`` por padrão. Com ``type: llm`` e um provedor configurado, o
+    agente deixa de ter vocabulário fixo — e continua com as mesmas garantias
+    de grade, paleta e contorno, porque só o planejador muda.
+
+    Configuração incompleta não derruba o boot nem vira surpresa em tempo de
+    geração: o aviso sai aqui, e o agente segue com as receitas.
+    """
+    config = (settings.strategies_config.get("pixel_agent") or {}).get("planner") or {}
+    kind = str(config.get("type") or "recipes").strip().lower()
+    if kind != "llm":
+        return RecipePlanner()
+
+    chat = ChatConfig.from_config(config)
+    if not chat.configured:
+        _LOG.warning(
+            "planner.type='llm' mas falta `base_url`/`model` em strategies.yaml; "
+            "o Pixel Agent vai usar as receitas"
+        )
+        return RecipePlanner()
+
+    _LOG.info("planejador do Pixel Agent: %s", ChatClient(chat).describe())
+    return LLMPlanner(
+        ChatClient(chat),
+        fallback=RecipePlanner(),
+        max_attempts=int(config.get("max_attempts", 2)),
     )

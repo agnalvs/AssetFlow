@@ -6,7 +6,13 @@ biblioteca de IA.
 """
 
 from .asset import AssetVariant, GeneratedAsset, ValidationIssue, ValidationReport
-from .asset_request import AssetGenerationRequest, AssetOutputOverrides
+from .asset_request import (
+    AssetGenerationRequest,
+    AssetOutputOverrides,
+    ConceptReferenceSelection,
+    GenerationStrategySelection,
+    PixelAgentSelection,
+)
 from .capability import Capability, CapabilityParseError
 from .common import (
     AssetFlowModel,
@@ -63,11 +69,20 @@ from .resolved_spec import (
     ResolvedAsset,
     ResolvedBackground,
     ResolvedComposition,
+    ResolvedConceptReference,
     ResolvedEngine,
     ResolvedGeneration,
     ResolvedPalette,
+    ResolvedPixelAgent,
+    ResolvedStrategy,
     SpecOverrides,
     SpecSource,
+)
+from .strategy import (
+    AgentQualityMode,
+    AgentRef,
+    GenerationStrategyType,
+    StrategyDescriptor,
 )
 from .result import (
     EngineGenerationResult,
@@ -89,6 +104,8 @@ __all__ = [
     "SUPPORTED_ENGINE_API_VERSIONS",
     "TERMINAL_JOB_STATUSES",
     "AssetFlowModel",
+    "AgentQualityMode",
+    "AgentRef",
     "AssetGenerationRequest",
     "AssetMode",
     "AssetOutputOverrides",
@@ -97,6 +114,7 @@ __all__ = [
     "AssetVariant",
     "Capability",
     "CapabilityParseError",
+    "ConceptReferenceSelection",
     "EngineAdvice",
     "EngineCatalogInfo",
     "EngineDescriptor",
@@ -127,6 +145,8 @@ __all__ = [
     "GenerationParams",
     "GenerationResult",
     "GenerationStatus",
+    "GenerationStrategySelection",
+    "GenerationStrategyType",
     "ImageArtifact",
     "ImageGenerationRequest",
     "Job",
@@ -135,6 +155,7 @@ __all__ = [
     "JobStatus",
     "LogicalResolution",
     "OutputSpec",
+    "PixelAgentSelection",
     "PromptPreview",
     "PromptSpec",
     "QualityLevel",
@@ -143,9 +164,12 @@ __all__ = [
     "ResolvedAsset",
     "ResolvedBackground",
     "ResolvedComposition",
+    "ResolvedConceptReference",
     "ResolvedEngine",
     "ResolvedGeneration",
     "ResolvedPalette",
+    "ResolvedPixelAgent",
+    "ResolvedStrategy",
     "SemanticComposition",
     "SemanticPrompt",
     "SemanticTechnical",
@@ -153,6 +177,7 @@ __all__ = [
     "SpecSource",
     "StageTimings",
     "Stopwatch",
+    "StrategyDescriptor",
     "StructuralControl",
     "ValidationIssue",
     "ValidationReport",

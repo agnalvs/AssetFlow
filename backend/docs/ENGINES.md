@@ -4,6 +4,12 @@
 > Pixel Art"*. As docstrings do código citam este arquivo como `plano de
 > motores §N`, onde `N` é a seção **daquele plano**, não deste documento.
 
+> **Leia antes:** [CREATION_METHODS.md](CREATION_METHODS.md). A escolha de
+> motor descrita aqui acontece **dentro** do método de criação "Modelo de
+> imagem". O AssetFlow Pixel Agent, que este documento chamava de gaveta
+> `texel-style-v1`, deixou de ser um motor — ele é um método, e vive em
+> `generation/pixel_agent/`.
+
 O AssetFlow deixou de ser uma interface com um gerador e passou a ser uma
 plataforma com motores intercambiáveis. Este documento explica o que mudou,
 onde cada peça mora e como acrescentar a próxima gaveta.
@@ -12,7 +18,8 @@ onde cada peça mora e como acrescentar a próxima gaveta.
 
 ## 1. O que a pessoa vê
 
-A tela de geração ganhou um seletor de motor com cinco opções:
+Depois de escolher o método **Modelo de imagem**, a tela mostra o seletor de
+motor:
 
 ```
 Motor:  [ Automático ▾ ]
@@ -20,7 +27,7 @@ Motor:  [ Automático ▾ ]
         FLUX Pixel
         SD-πXL              (indisponível)
         Pixel Forge         (indisponível)
-        Texel-style Agent
+        SDXL Diffusers
 ```
 
 Escolhido um motor, aparece um resumo do que ele faz bem e o que ele custa. Em
@@ -28,17 +35,17 @@ Escolhido um motor, aparece um resumo do que ele faz bem e o que ele custa. Em
 de gerar:
 
 ```
-Motor resolvido: Texel-style Agent
-Motivo: prop pequeno com paleta curta: motores especializados em sprites
-        desenham direto na grade, sem perder a silhueta na redução
+Motor resolvido: FLUX Pixel
+Motivo: personagem com espaço para detalhe: a difusão lê melhor o pedido,
+        e o Pixel Exact garante o grid depois
 ```
 
 Depois de gerar, o resultado diz quem gerou — e, se o motor pedido não pôde
 atender, diz isso em vez de entregar outro em silêncio.
 
 **Nenhum id de motor está escrito no frontend.** A lista inteira vem de
-`GET /api/generation/engines/catalog`. Uma gaveta nova aparece no seletor sem
-que nenhum arquivo de React mude.
+`GET /api/generation/strategies`, junto dos métodos e dos agentes. Uma gaveta
+nova aparece no seletor sem que nenhum arquivo de React mude.
 
 ---
 
@@ -49,17 +56,16 @@ que nenhum arquivo de React mude.
 | `flux-pixel-v1` | difusão | desabilitada | GPU, `diffusers`, `peft`, download do modelo |
 | `sdpixl-v1` | otimização | desabilitada | clone do SD-πXL + `options.command` |
 | `pixel-forge-v1` | sprites nativos | desabilitada | binário Rust + `options.binary` |
-| `texel-style-v1` | agente | **habilitada** | nada |
 | `diffusers-sdxl-v1` | difusão | habilitada | GPU, `diffusers`, download do modelo |
 | `mock-*` | procedural | referência | nada (fora da vitrine) |
 
-Três nascem desabilitadas porque dependem de algo que a máquina pode não ter —
-e uma gaveta habilitada que não roda entra na **cadeia de fallback**,
+Todas nascem desabilitadas porque dependem de algo que a máquina pode não ter
+— e uma gaveta habilitada que não roda entra na **cadeia de fallback**,
 transformando cada falha do motor principal em uma segunda falha, mais lenta.
 
-`texel-style-v1` é a exceção: ela só depende de Python, roda em
-milissegundos e é determinística por seed. É por isso que ela também é a
-gaveta mais confiável da estante para servir de fallback.
+Sem nenhuma delas configurada, o método que funciona imediatamente é o
+**Agente Pixel** (veja [CREATION_METHODS.md](CREATION_METHODS.md)): ele não
+baixa nada, não usa GPU e é determinístico por seed.
 
 ### FLUX Pixel (`flux_pixel/`)
 
@@ -108,45 +114,15 @@ teste de fronteiras — uma gaveta não importa outra —, e ela vale aqui: um
 módulo comum faria mexer no timeout do SD-πXL, que leva horas, alterar o Pixel
 Forge, que responde em segundos.
 
-### Texel-style Agent (`texel_style/`)
-
-A única gaveta que **não** pinta grande para depois reduzir. Ela desenha na
-resolução lógica, pixel a pixel, com ferramentas:
-
-```
-FinalResolvedSpec
-  -> PlanningAgent   plano de desenho: canvas, paleta, regiões, tool calls
-  -> ToolExecutor    draw_pixel, fill_rect, draw_circle, noise_fill_rect...
-  -> PixelCanvas     o estado
-  -> ReviewLoop      inspeciona e corrige: órfãos, contorno, paleta
-  -> exportação      PNG no grid + histórico das tool calls
-```
-
-Três propriedades que vêm de graça por trabalhar na grade: não existe
-anti-aliasing para remover, o alpha já é binário, e a paleta é conhecida antes
-de pintar (não estimada depois de quantizar).
-
-**Sobre licença** (plano §2.4): o Texel Studio é *source-available*, com
-restrição contra hospedagem como SaaS concorrente. Esta gaveta não incorpora,
-importa nem revende aquele projeto — é implementação própria, inspirada na
-arquitetura tool-based dele. O que foi adotado é o vocabulário de ferramentas,
-que descreve bem o problema.
-
-O planejador é **determinístico e por receitas**, sem LLM. É escolha, não
-limitação: a mesma seed produz o mesmo sprite (o que torna o motor comparável
-no benchmark), roda sem rede e é legível. Trocar por um planejador com LLM
-exige apenas devolver um `DrawingPlan` — executor, review loop e exportação
-não mudam.
-
-Receitas: árvore, pedra, poção, baú, tile/bloco, espada, moeda, personagem
-simples e um fallback genérico. Acrescentar um sujeito é acrescentar termos em
-`RECIPE_KEYWORDS` e uma função ao lado das outras.
-
 ---
 
 ## 3. Como um motor é escolhido
 
-Três camadas, nesta ordem:
+Antes de tudo isto vem a escolha do **método**: nada abaixo acontece quando o
+método é "Agente Pixel", porque nele não há motor
+([CREATION_METHODS.md](CREATION_METHODS.md)).
+
+Dentro de "Modelo de imagem", três camadas, nesta ordem:
 
 ```
 1. seleção manual        a pessoa escolheu   ->  é usado, ou o job falha
@@ -192,8 +168,8 @@ Cada variação gerada deixa, ao lado do PNG:
 | `raw_prompt.txt` | a frase, exatamente como foi escrita |
 | `parsed_spec.json` | o que o AssetFlow entendeu **e** o texto que o motor recebeu |
 | `resolved_spec.json` | o contrato executado, com a origem de cada campo |
-| `engine_selection.json` | motor pedido × motor usado, motivo, cadeia, rejeições |
-| `engine_output.json` | motor, versão, versão do adapter, modelo, revisão, LoRA |
+| `engine_selection.json` | método e motor pedidos × usados, motivos, cadeia, rejeições |
+| `engine_output.json` | motor/agente, versão, versão do adapter, modelo, revisão, LoRA |
 | `processing.json` | o que o Pixel Exact fez |
 | `validation.json` | o veredito técnico |
 | `palette.json`, `preview.png`, `raw.png` | paleta medida, ampliação, saída crua |
@@ -209,9 +185,12 @@ adapter, ou com outra LoRA, produz outro asset.
 
 ```bash
 python scripts/benchmark_engines.py --list
-python scripts/benchmark_engines.py --engines texel-style-v1,flux-pixel-v1
+python scripts/benchmark_engines.py --targets pixel_agent,model:flux-pixel-v1
 python scripts/benchmark_engines.py --cases tree_32 --json data/benchmark/r.json
 ```
+
+O alvo é **método + motor** (plano de correção §43): é o que permite pôr o
+Pixel Agent e o FLUX na mesma tabela sem fingir que são a mesma tecnologia.
 
 A suíte (`config/benchmark_suite.yaml`) é fixa e versionada, com seed por caso:
 comparar motores com prompts diferentes não compara nada.
@@ -219,8 +198,8 @@ comparar motores com prompts diferentes não compara nada.
 O runner usa o **caminho normal** do sistema — prompt adapter,
 pós-processamento, validação — porque o que interessa comparar é o asset
 entregue, não a saída crua do motor. A seleção é manual e sem fallback: um
-caso atendido por outro motor conta como **falha** do motor pedido, senão o
-relatório credita a um motor o trabalho de outro.
+caso atendido por outro motor — ou por outro método — conta como **falha** do
+alvo pedido, senão o relatório credita a um caminho o trabalho de outro.
 
 **Os dois eixos ficam separados**, e essa é a regra central do §21:
 

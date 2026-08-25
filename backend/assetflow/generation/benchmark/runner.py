@@ -15,6 +15,10 @@ Seleção manual com ``allow_fallback=False``, por um motivo: se o motor pedido
 cair e outro atender, o benchmark estaria creditando a um motor o trabalho de
 outro. Sem fallback, a queda vira o que ela é — uma falha daquele motor, que
 entra na taxa de falha do §20.
+
+Desde o plano de correção, o alvo é **método + motor** (§43). É o que
+permite pôr "Pixel Agent" e "Modelo / FLUX" na mesma tabela sem fingir
+que são a mesma tecnologia — que é justamente o que o §43 pede.
 """
 
 from __future__ import annotations
@@ -29,12 +33,14 @@ from ..schemas import (
     AssetGenerationRequest,
     AssetOutputOverrides,
     EngineSelector,
+    GenerationStrategySelection,
+    GenerationStrategyType,
     Job,
     JobStatus,
 )
 from ..service import GenerationService
 from .metrics import BenchmarkReport, CaseOutcome, TechnicalMetrics
-from .suite import BenchmarkCase, BenchmarkSuite
+from .suite import BenchmarkCase, BenchmarkSuite, BenchmarkTarget
 
 __all__ = ["BenchmarkRunner"]
 
@@ -66,47 +72,72 @@ class BenchmarkRunner:
     async def run(
         self,
         *,
+        targets: Sequence[BenchmarkTarget | str] | None = None,
         engines: Sequence[str] | None = None,
         cases: Iterable[str] | None = None,
         progress: Any = None,
     ) -> BenchmarkReport:
-        """Roda cada caso em cada motor e devolve o relatório."""
+        """Roda cada caso em cada alvo e devolve o relatório.
+
+        ``engines`` continua aceito e é lido como "por modelo, com este
+        motor": chamadas escritas antes da camada de estratégias existir
+        continuam valendo, e dizem a mesma coisa.
+        """
         suite = self._suite.filtered(cases)
-        engine_ids = list(engines or suite.engines or await self._default_engines())
+        chosen = targets if targets is not None else engines
+        if chosen is None:
+            resolved = list(suite.targets) or await self._default_targets()
+        else:
+            resolved = [
+                item if isinstance(item, BenchmarkTarget) else BenchmarkTarget.parse(item)
+                for item in chosen
+            ]
 
         report = BenchmarkReport(
             suite_size=len(suite.cases),
-            metadata={"engines": engine_ids, **suite.metadata},
+            metadata={"targets": [item.label for item in resolved], **suite.metadata},
         )
-        if not engine_ids:
-            _LOG.warning("nenhum motor disponível para o benchmark")
+        if not resolved:
+            _LOG.warning("nenhum alvo disponível para o benchmark")
             return report
 
-        for engine_id in engine_ids:
-            engine_report = report.for_engine(engine_id)
+        for target in resolved:
+            block = report.for_target(target)
             for case in suite.cases:
                 if progress is not None:
-                    progress(engine_id, case)
-                outcome = await self._run_case(case, engine_id, suite.project_id)
-                engine_report.outcomes.append(outcome)
+                    progress(target.label, case)
+                outcome = await self._run_case(case, target, suite.project_id)
+                block.outcomes.append(outcome)
         return report
 
     # ------------------------------------------------------------------
-    async def _default_engines(self) -> list[str]:
-        """Os motores oferecíveis hoje, sem os de teste.
+    async def _default_targets(self) -> list[BenchmarkTarget]:
+        """Tudo que dá para medir agora: o agente e cada motor disponível.
 
-        Gavetas ocultas ficam de fora: um número de referência ao lado dos
-        motores de produção sugeriria que os quatro são comparáveis, e o mock
-        não gera arte — ele gera um padrão determinístico.
+        Gavetas ocultas ficam de fora — um número de referência ao lado dos
+        motores de produção sugeriria que são comparáveis, e o mock não gera
+        arte, gera um padrão determinístico.
         """
-        entries = await self._service.engine_catalog(check_health=True)
-        return [entry.engine_id for entry in entries if entry.available]
+        found: list[BenchmarkTarget] = []
+        for strategy in await self._service.strategy_catalog():
+            if strategy.id is GenerationStrategyType.AUTO or not strategy.available:
+                continue
+            if strategy.id is GenerationStrategyType.MODEL:
+                entries = await self._service.engine_catalog(check_health=True)
+                found.extend(
+                    BenchmarkTarget(strategy=strategy.id, engine_id=entry.engine_id)
+                    for entry in entries
+                    if entry.available
+                )
+            else:
+                found.append(BenchmarkTarget(strategy=strategy.id))
+        return found
 
     async def _run_case(
-        self, case: BenchmarkCase, engine_id: str, project_id: str
+        self, case: BenchmarkCase, target: BenchmarkTarget, project_id: str
     ) -> CaseOutcome:
-        """Um caso em um motor, do pedido ao asset."""
-        request = _build_request(case, engine_id, project_id)
+        """Um caso em um alvo, do pedido ao asset."""
+        request = _build_request(case, target, project_id)
         started = time.perf_counter()
 
         try:
@@ -114,7 +145,7 @@ class BenchmarkRunner:
         except GenerationError as exc:
             return CaseOutcome(
                 case_id=case.id,
-                engine_id=engine_id,
+                target=target,
                 succeeded=False,
                 error=f"{exc.code.value}: {exc.message}",
                 duration_ms=(time.perf_counter() - started) * 1000.0,
@@ -126,7 +157,7 @@ class BenchmarkRunner:
         if job.status is not JobStatus.COMPLETED or job.asset is None:
             return CaseOutcome(
                 case_id=case.id,
-                engine_id=engine_id,
+                target=target,
                 resolved_engine_id=job.engine.id if job.engine else None,
                 succeeded=False,
                 error=job.error.message if job.error else f"job terminou {job.status.value}",
@@ -134,7 +165,7 @@ class BenchmarkRunner:
                 warnings=job.warnings,
             )
 
-        return _outcome_from_job(case, engine_id, job, duration_ms)
+        return _outcome_from_job(case, target, job, duration_ms)
 
     async def _drain(self, job: Job) -> Job:
         """Roda o worker até o job terminar.
@@ -152,9 +183,9 @@ class BenchmarkRunner:
 
 
 def _build_request(
-    case: BenchmarkCase, engine_id: str, project_id: str
+    case: BenchmarkCase, target: BenchmarkTarget, project_id: str
 ) -> AssetGenerationRequest:
-    """O pedido de um caso, com o motor fixado."""
+    """O pedido de um caso, com método e motor fixados."""
     output = AssetOutputOverrides(variations=case.variations)
     if case.logical_size:
         output = output.model_copy(
@@ -173,19 +204,24 @@ def _build_request(
         asset_type=case.asset_type,
         output=output,
         seed=case.seed,
-        engine=EngineSelector(
-            mode="manual",
-            engine_id=engine_id,
-            # Sem fallback: ver a docstring do módulo. Um caso atendido por
-            # outro motor não mede este motor.
-            allow_fallback=False,
+        generation_strategy=GenerationStrategySelection(mode=target.strategy),
+        engine=(
+            EngineSelector(
+                mode="manual",
+                engine_id=target.engine_id,
+                # Sem fallback: ver a docstring do módulo. Um caso atendido
+                # por outro motor não mede este motor.
+                allow_fallback=False,
+            )
+            if target.engine_id
+            else EngineSelector()
         ),
-        metadata={"benchmark_case": case.id},
+        metadata={"benchmark_case": case.id, "benchmark_target": target.label},
     )
 
 
 def _outcome_from_job(
-    case: BenchmarkCase, engine_id: str, job: Job, duration_ms: float
+    case: BenchmarkCase, target: BenchmarkTarget, job: Job, duration_ms: float
 ) -> CaseOutcome:
     """Extrai as métricas do §20 de um job concluído."""
     variant = job.asset.variants[0] if job.asset and job.asset.variants else None
@@ -218,8 +254,11 @@ def _outcome_from_job(
 
     return CaseOutcome(
         case_id=case.id,
-        engine_id=engine_id,
+        target=target,
         resolved_engine_id=job.engine.id if job.engine else None,
+        resolved_strategy=(
+            job.resolved_spec.strategy.mode if job.resolved_spec else None
+        ),
         succeeded=True,
         duration_ms=duration_ms,
         inference_ms=job.timings.inference_ms or 0.0,

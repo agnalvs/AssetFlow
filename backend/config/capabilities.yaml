@@ -13,7 +13,6 @@ routing:
     engines:
       - flux-pixel-v1
       - diffusers-sdxl-v1
-      - texel-style-v1
       - mock-pixel-alt-v1
       - mock-image-v1
 
@@ -26,7 +25,6 @@ routing:
   character.pixel:
     engines:
       - flux-pixel-v1
-      - texel-style-v1
       - mock-pixel-alt-v1
       - mock-image-v1
 
@@ -37,7 +35,6 @@ routing:
 
   prop.pixel:
     engines:
-      - texel-style-v1
       - pixel-forge-v1
       - flux-pixel-v1
       - mock-pixel-alt-v1

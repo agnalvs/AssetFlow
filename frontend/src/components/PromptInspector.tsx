@@ -280,10 +280,23 @@ function Reading({ preview }: { preview: PromptPreview }) {
           source={resolved.sources["generation.variations"]}
         />
         <Row
-          label="Motor"
-          value={engineValue(resolved)}
-          source={resolved.sources["engine"]}
+          label="Método"
+          value={methodValue(resolved)}
+          source={resolved.sources["strategy"]}
         />
+        {resolved.strategy.mode === "model" ? (
+          <Row
+            label="Motor"
+            value={engineValue(resolved)}
+            source={resolved.sources["engine"]}
+          />
+        ) : (
+          <Row
+            label="Agente"
+            value={resolved.pixel_agent.agent_id}
+            source={resolved.sources["strategy"]}
+          />
+        )}
       </dl>
 
       {resolved.notes.length > 0 ? (
@@ -297,6 +310,18 @@ function Reading({ preview }: { preview: PromptPreview }) {
       <NeutralReading preview={preview} />
     </div>
   );
+}
+
+/**
+ * O método de criação, em uma linha (plano de correção §7).
+ *
+ * Como no motor abaixo, o valor cru é o certo aqui: esta aba mostra o
+ * **contrato**, campo por campo, e precisa casar com o JSON da aba ao lado.
+ */
+function methodValue(resolved: FinalResolvedSpec): string {
+  const strategy = resolved.strategy;
+  const rotulo = strategy.mode === "pixel_agent" ? "pixel_agent" : "model";
+  return strategy.requested === "auto" ? `${rotulo} (automático)` : rotulo;
 }
 
 /**

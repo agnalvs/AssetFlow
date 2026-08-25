@@ -1,0 +1,172 @@
+# ---------------------------------------------------------------------------
+# AssetFlow — Métodos de criação (plano de correção §7, §25, §40)
+# ---------------------------------------------------------------------------
+# Este arquivo responde a pergunta que vem ANTES da escolha de motor:
+#
+#   strategies.yaml     COMO criar    -> Automático | Modelo de imagem | Agente
+#   engine_policy.yaml  COM QUAL      -> só quando o método for "Modelo"
+#   capabilities.yaml   quem consegue -> último recurso do roteamento
+#
+# A ordem é a arquitetura. Antes dela, "Texel-style Agent" aparecia no mesmo
+# seletor que "FLUX Pixel", e a interface sugeria que os dois eram a mesma
+# categoria de coisa — quando um é uma estratégia inteira e o outro é um
+# modelo (plano de correção §1).
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Resolução automática (§40)
+#
+# Avaliadas NA ORDEM; a primeira que casar e tiver uma estratégia utilizável
+# responde. `reason` é obrigatório na prática: é a frase que a tela mostra em
+# "Estratégia escolhida", e um "Automático" sem motivo é a caixa preta que o
+# §41 existe para acabar.
+# ---------------------------------------------------------------------------
+auto:
+  rules:
+    # -----------------------------------------------------------------------
+    # Sprite pequeno: o agente ganha, e ganha por construção.
+    #
+    # Até 32×32, o que decide a leitura do asset é a silhueta, e a silhueta é
+    # exatamente o que se perde quando uma imagem de 1024px é reduzida. O
+    # agente desenha na grade final — não há redução que possa estragá-la.
+    # -----------------------------------------------------------------------
+    - id: sprite_pequeno
+      when:
+        mode: ["pixel"]
+        asset_type: ["prop", "icon", "tile", "tileset", "ui"]
+        max_logical: 32
+      prefer: ["pixel_agent"]
+      reason: >-
+        sprite pequeno: desenhar na própria grade preserva a silhueta, que é
+        o que se lê em 32×32
+
+    # -----------------------------------------------------------------------
+    # Paleta muito curta, em qualquer tamanho até 64.
+    #
+    # Com 8 cores ou menos, cada cor é uma decisão. O agente escolhe a paleta
+    # antes de pintar; um modelo produz milhares de tons e alguém quantiza
+    # depois, sem saber que papel cada um cumpria.
+    # -----------------------------------------------------------------------
+    - id: paleta_curta
+      when:
+        mode: ["pixel"]
+        max_logical: 64
+        max_colors_at_most: 8
+      prefer: ["pixel_agent"]
+      reason: >-
+        paleta muito curta: o agente escolhe as cores antes de pintar, em vez
+        de quantizar milhares delas depois
+
+    # -----------------------------------------------------------------------
+    # Personagem com espaço para detalhe: aqui a difusão ganha.
+    #
+    # O inverso da primeira regra, e pelo mesmo motivo: com 64px ou mais, o
+    # que pesa é a leitura do pedido — rosto, pose, roupa —, e é nisso que um
+    # modelo generativo é melhor do que uma receita de desenho.
+    # -----------------------------------------------------------------------
+    - id: personagem_detalhado
+      when:
+        mode: ["pixel"]
+        asset_type: ["character"]
+        min_logical: 48
+      prefer: ["model"]
+      reason: >-
+        personagem com espaço para detalhe: um modelo lê melhor o pedido, e o
+        Pixel Exact garante a grade depois
+
+    # -----------------------------------------------------------------------
+    # Qualidade máxima pedida: vale o motor de referência.
+    # -----------------------------------------------------------------------
+    - id: qualidade_maxima
+      when:
+        quality: ["high"]
+      prefer: ["model"]
+      reason: >-
+        qualidade máxima pedida: os motores de referência entregam mais
+        detalhe do que o vocabulário de desenho do agente
+
+    # -----------------------------------------------------------------------
+    # Arte 2D convencional: o agente nem é candidato (não há grade).
+    # -----------------------------------------------------------------------
+    - id: arte_2d
+      when:
+        mode: ["studio"]
+      prefer: ["model"]
+      reason: "arte 2D convencional não tem grade lógica para desenhar"
+
+  # Onde `auto` cai quando nenhuma regra se aplica. `model` é o padrão certo:
+  # é o caminho geral do sistema e atende qualquer pedido.
+  default:
+    strategy: "model"
+    reason: "geração por modelo é o caminho mais direto para este pedido"
+
+# ---------------------------------------------------------------------------
+# O Agente Pixel (§25 e §32)
+# ---------------------------------------------------------------------------
+pixel_agent:
+  default_agent: "assetflow_pixel_agent"
+
+  agents:
+    assetflow_pixel_agent:
+      display_name: "AssetFlow Pixel Agent"
+      summary: >-
+        Planeja o desenho, pinta com ferramentas na própria grade e revisa o
+        resultado.
+
+  # -------------------------------------------------------------------------
+  # O PLANEJADOR (plano de correção §18)
+  #
+  # É a peça que decide *o que* desenhar, e a única do agente com limite de
+  # vocabulário. Trocá-la é o que separa "desenha oito objetos" de "desenha
+  # qualquer coisa".
+  #
+  #   recipes   receitas escritas à mão. Determinístico, instantâneo, sem
+  #             rede — e limitado a árvore, pedra, poção, baú, tile, casa,
+  #             espada, moeda e boneco.
+  #   llm       um modelo de linguagem produz o plano. Sem vocabulário fixo:
+  #             desenha o que for pedido, mantendo grade, paleta e contorno.
+  #
+  # O `llm` fala com qualquer API compatível com OpenAI. O caminho gratuito é
+  # o Ollama rodando na própria máquina:
+  #
+  #     ollama serve
+  #     ollama pull qwen2.5:7b
+  #
+  # e então trocar `type` para "llm" abaixo. Modelos maiores desenham melhor;
+  # um 7B já produz sprites legíveis para objetos simples.
+  #
+  # A CHAVE NUNCA VAI NESTE ARQUIVO — ele é versionado. O que fica aqui é o
+  # nome da variável de ambiente que a guarda; provedores locais dispensam.
+  #
+  # Sem provedor no ar, o agente cai nas receitas e AVISA no job: uma queda
+  # silenciosa seria o mesmo defeito de entregar uma forma genérica sem
+  # explicação.
+  # -------------------------------------------------------------------------
+  planner:
+    type: "recipes"          # recipes | llm
+
+    # base_url: "http://localhost:11434/v1"     # Ollama
+    # base_url: "http://localhost:1234/v1"      # LM Studio
+    # base_url: "https://api.openai.com/v1"     # OpenAI
+    base_url: ""
+    model: ""                # ex.: "qwen2.5:7b", "gpt-4o-mini"
+    api_key_env: "ASSETFLOW_PLANNER_API_KEY"
+
+    # Baixa de propósito: um plano de desenho é estrutura, não prosa, e
+    # temperatura alta produz coordenada criativa — que é coordenada errada.
+    temperature: 0.4
+    timeout_s: 60
+    # Tentativas por desenho. A segunda leva junto o motivo da recusa da
+    # primeira, e é o que resolve a maioria dos planos malformados.
+    max_attempts: 2
+
+  # Iterações por modo de qualidade. "Iteração" é uma volta de revisar e
+  # corrigir, não uma pincelada: o desenho do plano acontece uma vez.
+  #
+  # `auto` não aparece aqui de propósito — ele é resolvido a partir do tamanho
+  # do canvas, porque grades pequenas convergem em duas voltas e gastar seis
+  # nelas cobra tempo sem mudar o resultado.
+  quality_modes:
+    fast: 2
+    balanced: 4
+    detailed: 6

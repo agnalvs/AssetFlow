@@ -12,8 +12,7 @@ import {
 } from "../components/AssetControls";
 import {
   type CreateJobPayload,
-  type EngineCatalogEntry,
-  type EngineSelection,
+  type CreationSelection,
   type GenerationMode,
   type Job,
   type JobSubmission,
@@ -21,6 +20,7 @@ import {
   type PromptPreview,
   type SemanticPrompt,
   type SpecOverrides,
+  type StrategyCatalog,
 } from "../types";
 
 const BASE_URL = "/api/generation";
@@ -52,7 +52,7 @@ export function buildJobPayload(input: {
   selection?: AssetSelection | null;
   spec?: SpecOverrides | null;
   semantic?: SemanticPrompt | null;
-  engine?: EngineSelection | null;
+  creation?: CreationSelection | null;
 }): CreateJobPayload {
   const config = MODES[input.mode];
   const selection = input.selection ?? null;
@@ -69,13 +69,46 @@ export function buildJobPayload(input: {
     output: selection ? selectionToOutput(selection) : { variations: 1 },
     ...(input.spec ? { spec_overrides: input.spec } : {}),
     ...(input.semantic ? { semantic_prompt: input.semantic } : {}),
-    // Auto vai só com o modo. Mandar um `engine_id` junto de `auto` seria
-    // dizer "escolha por mim, mas use este" — e o backend, corretamente,
-    // trataria isso como escolha manual.
-    engine: input.engine?.engineId
-      ? { mode: "manual", engine_id: input.engine.engineId }
-      : { mode: "auto" },
+    ...creationPayload(input.creation ?? null),
   };
+}
+
+/**
+ * O bloco de "como criar" do pedido (plano de correção §8, §9 e §10).
+ *
+ * A regra que esta função existe para respeitar: **motor só vai com
+ * `model`**. Em "Agente Pixel" o backend recusa o pedido que traz motor
+ * (§38), e mandar os dois seria transformar um bug de tela em um erro 400 na
+ * cara de quem só queria um sprite.
+ */
+function creationPayload(creation: CreationSelection | null) {
+  const strategy = creation?.strategy ?? "auto";
+
+  if (strategy === "pixel_agent") {
+    return {
+      generation_strategy: { mode: "pixel_agent" as const },
+      pixel_agent: {
+        quality_mode: creation?.quality ?? ("auto" as const),
+        ...(creation?.agentId ? { agent_id: creation.agentId } : {}),
+      },
+    };
+  }
+
+  if (strategy === "model") {
+    return {
+      generation_strategy: { mode: "model" as const },
+      // Auto vai só com o modo. Mandar um `engine_id` junto de `auto` seria
+      // dizer "escolha por mim, mas use este" — e o backend, corretamente,
+      // trataria isso como escolha manual.
+      engine: creation?.engineId
+        ? { mode: "manual" as const, engine_id: creation.engineId }
+        : { mode: "auto" as const },
+    };
+  }
+
+  // Automático: nem método, nem motor, nem agente. É a ausência de escolha,
+  // e o backend a resolve com a política dele — dizendo o motivo.
+  return { generation_strategy: { mode: "auto" as const } };
 }
 
 /** Um campo recusado pelo backend, no formato normalizado do erro 422. */
@@ -176,25 +209,23 @@ export function previewPrompt(
 }
 
 /**
- * O catálogo de motores oferecíveis (plano de motores §6).
+ * Os métodos de criação, motores e agentes (plano de correção §32).
  *
- * A tela desenha o seletor inteiro a partir desta resposta — nomes, resumos,
- * selos e disponibilidade —, e é isso que permite acrescentar uma gaveta no
- * backend sem tocar em nenhum componente.
+ * Uma chamada só, porque a tela precisa dos três ao mesmo tempo para decidir
+ * o que mostrar. E quem decide **é o backend**: cada método vem com
+ * `selects_engine` e `selects_agent`, em vez de o React inferir isso de um
+ * `if id === "pixel_agent"`.
  *
  * O filtro por capacidade importa: em Pixel Art e em 2D convencional os
  * motores disponíveis não são os mesmos, e oferecer um motor que o backend
  * vai recusar é pior do que não oferecer.
  */
-export function listEngineCatalog(
+export function listStrategyCatalog(
   capability?: string,
   signal?: AbortSignal,
-): Promise<{ items: EngineCatalogEntry[]; capability: string | null }> {
+): Promise<StrategyCatalog> {
   const query = capability ? `?capability=${encodeURIComponent(capability)}` : "";
-  return request<{ items: EngineCatalogEntry[]; capability: string | null }>(
-    `${BASE_URL}/engines/catalog${query}`,
-    { signal },
-  );
+  return request<StrategyCatalog>(`${BASE_URL}/strategies${query}`, { signal });
 }
 
 /** Consulta o estado atual de um job. */

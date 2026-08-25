@@ -24,6 +24,7 @@ from pydantic import Field
 from .capability import Capability
 from .common import AssetFlowModel, StageTimings
 from .engine import EngineRef
+from .strategy import AgentRef, GenerationStrategyType
 
 __all__ = [
     "GenerationStatus",
@@ -110,13 +111,28 @@ class GenerationOutput(AssetFlowModel):
 
 
 class GenerationResult(AssetFlowModel):
-    """Envelope do Generation Kernel — o formato único do sistema."""
+    """Envelope de uma geração — o formato único do sistema.
+
+    Quem o produz é a **estratégia**, e não mais só o Kernel. É por isso que
+    ``engine`` deixou de ser obrigatório: um asset desenhado pelo Pixel Agent
+    não tem motor, e preencher o campo com algo para satisfazer o modelo faria
+    o histórico afirmar que um modelo gerou o que nenhum modelo gerou
+    (plano de correção §44, teste 2).
+
+    Exatamente um dos dois vem preenchido — ``engine`` na estratégia por
+    modelo, ``agent`` na do agente.
+    """
 
     job_id: str
     request_id: str
     status: GenerationStatus = GenerationStatus.COMPLETED
     capability: Capability
-    engine: EngineRef
+    #: Como o asset foi criado (plano de correção §41).
+    strategy: GenerationStrategyType = GenerationStrategyType.MODEL
+    #: O motor que gerou. ``None`` quando a estratégia não usa motor.
+    engine: EngineRef | None = None
+    #: O agente que desenhou. ``None`` quando a estratégia usa motor.
+    agent: AgentRef | None = None
     outputs: tuple[GenerationOutput, ...] = ()
     timings: StageTimings = Field(default_factory=StageTimings)
 
@@ -126,6 +142,20 @@ class GenerationResult(AssetFlowModel):
     attempted_engines: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def producer_id(self) -> str:
+        """Quem produziu isto, como uma string única para log e histórico.
+
+        Existe para os lugares que só precisam de um rótulo — uma linha de
+        log, uma chave de agrupamento — e não deveriam ter de saber se a
+        geração veio de motor ou de agente.
+        """
+        if self.engine is not None:
+            return self.engine.id
+        if self.agent is not None:
+            return self.agent.id
+        return "desconhecido"  # pragma: no cover - defensivo
 
     def without_payloads(self) -> "GenerationResult":
         """Cópia sem bytes — segura para logs e para respostas de API."""

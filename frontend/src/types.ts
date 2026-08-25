@@ -5,11 +5,20 @@
  * motores §4 e §24): esta camada conhece **Pixel Art** e **2D Normal**,
  * traduzidos para *capacidades*.
  *
- * Sobre motores, a regra mudou de forma e não de espírito. A tela agora
- * **oferece** a escolha do motor — o plano de motores §4.1 pede isso — mas
- * continua sem **conhecer** motor nenhum: a lista vem inteira de
- * `GET /api/generation/engines/catalog`, com id, nome, resumo, selos e
+ * Sobre motores e métodos, a regra mudou de forma e não de espírito. A tela
+ * **oferece** as escolhas — método de criação, e depois motor ou agente — mas
+ * continua sem **conhecer** nenhum dos dois: as listas vêm inteiras de
+ * `GET /api/generation/strategies`, com id, nome, resumo, selos e
  * disponibilidade. Nenhum id de motor está escrito neste código.
+ *
+ * A ordem das perguntas é a arquitetura (plano de correção §4 e §52):
+ *
+ *     1. Como criar?   Automático | Modelo de imagem | Agente Pixel
+ *     2. Com o quê?    (só em Modelo) o motor / (só em Agente) o agente
+ *
+ * Antes disso havia um seletor só, chamado "Motor", com FLUX, SDXL e o agente
+ * lado a lado — e a tela dizia à pessoa que as três coisas eram a mesma
+ * categoria, quando não são.
  *
  * A diferença importa. Se amanhã entrar uma gaveta nova, ela aparece no
  * seletor sozinha; se `flux-pixel-v1` estivesse escrito aqui, cada motor novo
@@ -111,7 +120,76 @@ export interface SemanticPrompt {
 }
 
 // ---------------------------------------------------------------------------
-// Catálogo de motores (plano de motores §6) — o que o seletor desenha
+// Métodos de criação (plano de correção §4 e §32)
+// ---------------------------------------------------------------------------
+
+/** Como o asset será criado. `auto` é a ausência de escolha, não um método. */
+export type GenerationStrategyId = "auto" | "model" | "pixel_agent";
+
+/** Quanto esforço o agente pode gastar (plano de correção §25). */
+export type AgentQualityMode = "auto" | "fast" | "balanced" | "detailed";
+
+/**
+ * Um método de criação como o backend o apresenta.
+ *
+ * `selects_engine` e `selects_agent` são a decisão do §5 tomada no backend: é
+ * ele que diz qual controle a tela deve mostrar depois desta escolha. A
+ * alternativa — um `if id === "pixel_agent"` no React — poria no frontend uma
+ * regra de arquitetura que não é dele.
+ */
+export interface StrategyDescriptor {
+  id: GenerationStrategyId;
+  display_name: string;
+  summary: string;
+  description: string;
+  available: boolean;
+  unavailable_reason: string | null;
+  selects_engine: boolean;
+  selects_agent: boolean;
+  highlights: string[];
+}
+
+/** Um agente de desenho oferecido na tela. */
+export interface AgentSummary {
+  id: string;
+  display_name: string;
+  version: string;
+  summary: string;
+}
+
+/** A resposta de `GET /api/generation/strategies` — tudo que o seletor usa. */
+export interface StrategyCatalog {
+  items: StrategyDescriptor[];
+  engines: EngineCatalogEntry[];
+  agents: AgentSummary[];
+  quality_modes: AgentQualityMode[];
+  capability: string | null;
+}
+
+/**
+ * O que a tela escolheu sobre **como** criar.
+ *
+ * `engineId` só vale com `strategy === "model"`, e `agentId`/`quality` só com
+ * `"pixel_agent"`. Mandar motor junto de agente é recusado pelo backend
+ * (plano de correção §38) — e é assim que se descobre um bug de tela em vez
+ * de gerar o asset errado em silêncio.
+ */
+export interface CreationSelection {
+  strategy: GenerationStrategyId;
+  engineId: string | null;
+  agentId: string | null;
+  quality: AgentQualityMode;
+}
+
+export const AUTO_CREATION: CreationSelection = {
+  strategy: "auto",
+  engineId: null,
+  agentId: null,
+  quality: "auto",
+};
+
+// ---------------------------------------------------------------------------
+// Catálogo de motores (plano de motores §6) — o que o seletor de motor desenha
 // ---------------------------------------------------------------------------
 
 /** A tecnologia por trás da gaveta. A tela usa só para agrupar e rotular. */
@@ -171,19 +249,6 @@ export interface EngineCatalogEntry {
   recommended_timeout_s: number;
 }
 
-/**
- * A escolha de motor feita na tela.
- *
- * `null` em `engineId` é **Auto**, e Auto não é um motor: é a ausência de
- * escolha, que o backend resolve com a política dele. Mandar um id de
- * "motor automático" apagaria essa diferença.
- */
-export interface EngineSelection {
-  engineId: string | null;
-}
-
-export const AUTO_ENGINE: EngineSelection = { engineId: null };
-
 // ---------------------------------------------------------------------------
 // Final Resolved Spec — o contrato que a geração executa (plano T→J §15)
 // ---------------------------------------------------------------------------
@@ -234,6 +299,34 @@ export interface ResolvedPalette {
 }
 
 /**
+ * Como este asset será criado (plano de correção §7 e §41).
+ *
+ * `requested` guarda o que a pessoa escolheu — inclusive `auto` — e `mode`
+ * guarda o que isso virou. Os dois, porque sem o pedido original não há como
+ * saber, olhando um job antigo, se o método foi decidido por alguém ou pelo
+ * sistema.
+ */
+export interface ResolvedStrategy {
+  requested: GenerationStrategyId;
+  mode: "model" | "pixel_agent";
+  reason: string;
+}
+
+/** A configuração do agente resolvida para este job. */
+export interface ResolvedPixelAgent {
+  agent_id: string;
+  quality_mode: AgentQualityMode;
+  max_iterations: number | null;
+  auto_review: boolean;
+}
+
+/** Referência visual opcional do agente (plano de correção §39). */
+export interface ResolvedConceptReference {
+  enabled: boolean;
+  engine_id: string | null;
+}
+
+/**
  * A decisão de motor deste pedido (plano de motores §5 e §17).
  *
  * Em `auto`, `engine_id` é o motor que a política **prefere** e `reason` diz
@@ -269,7 +362,10 @@ export interface FinalResolvedSpec {
   background: { mode: "transparent" | "solid" };
   composition: { view: string | null; centered: boolean; margin_ratio: number | null };
   generation: { variations: number; seed: number | null; quality: string };
+  strategy: ResolvedStrategy;
   engine: ResolvedEngine;
+  pixel_agent: ResolvedPixelAgent;
+  concept_reference: ResolvedConceptReference;
   sources: Record<string, SpecSource>;
   notes: string[];
 }
@@ -296,6 +392,9 @@ export interface SpecOverrides {
   engine_id?: string | null;
   engine_mode?: "auto" | "manual" | null;
   allow_engine_fallback?: boolean | null;
+  strategy?: GenerationStrategyId | null;
+  agent_id?: string | null;
+  agent_quality?: AgentQualityMode | null;
 }
 
 /** Resposta de `POST /api/generation/prompt/preview`, e o campo `prompt` do job. */
@@ -337,9 +436,17 @@ export interface CreateJobPayload {
   spec_overrides?: SpecOverrides;
   /** Semântica corrigida à mão. Presente, ela substitui o PromptBuilder. */
   semantic_prompt?: SemanticPrompt;
+  /** Como criar. Ausente = `auto`, que o backend resolve com a política. */
+  generation_strategy?: { mode: GenerationStrategyId };
+  /** Configuração do agente. Só enviada quando o método é o dele. */
+  pixel_agent?: { quality_mode: AgentQualityMode; agent_id?: string };
   /**
    * O motor escolhido. Em `auto` o campo vai só com o modo: um `engine_id`
    * junto com `auto` seria dizer duas coisas ao mesmo tempo.
+   *
+   * **Nunca** enviado junto com `pixel_agent`: o backend recusa o pedido
+   * contraditório (plano de correção §38), e é assim que um bug de tela
+   * aparece como erro em vez de virar o asset errado.
    */
   engine?: { mode: "auto" | "manual"; engine_id?: string };
 }
@@ -395,6 +502,13 @@ export interface Asset {
  * de outro sem saber — é exatamente o que ela existe para impedir.
  */
 export interface EngineSelectionView {
+  /** O método pedido e o resolvido (plano de correção §41 e §42). */
+  requested_strategy: GenerationStrategyId;
+  resolved_strategy: "model" | "pixel_agent";
+  strategy_reason: string;
+  /** O agente, quando foi ele quem desenhou. `null` na geração por modelo. */
+  agent: { id: string; version: string } | null;
+
   mode: "auto" | "manual";
   requested_engine_id: string | null;
   reason: string;
@@ -424,6 +538,15 @@ export interface Job {
   fallback_used: boolean;
   /** O que o AssetFlow entendeu. Chega preenchido quando o job termina. */
   prompt: PromptPreview | null;
+  /**
+   * Avisos do backend, já escritos para serem lidos.
+   *
+   * Eles não chegavam à tela, e a ausência tinha um custo concreto: um pedido
+   * de "house" saía como uma forma genérica, o backend avisava que o agente
+   * não conhecia o objeto, e a pessoa via só o resultado estranho — sem
+   * nenhuma pista de que o sistema **sabia** o que tinha acontecido.
+   */
+  warnings: string[];
   error: { code: string; message: string } | null;
 }
 
@@ -437,8 +560,9 @@ export interface HistoryEntry {
   preview: PromptPreview | null;
   /** Reabrir uma geração antiga precisa reabrir o aviso junto com ela. */
   fallbackUsed: boolean;
-  /** Qual motor gerou esta entrada — é o que torna o histórico comparável. */
+  /** Quem gerou esta entrada — é o que torna o histórico comparável. */
   engine: EngineSelectionView | null;
+  warnings: string[];
   createdAt: number;
 }
 

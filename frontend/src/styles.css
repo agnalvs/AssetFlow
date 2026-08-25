@@ -363,6 +363,40 @@ input {
 }
 
 /* --------------------------------------------------------------------------
+   Seletor de método de criação (plano de correção §4, §5 e §52)
+   --------------------------------------------------------------------------
+   Duas perguntas encadeadas: primeiro COMO criar, depois COM O QUÊ. O segundo
+   bloco é recuado para deixar claro que ele é consequência do primeiro — e
+   ele nem existe em "Automático", onde não há nada a escolher.
+   -------------------------------------------------------------------------- */
+.creation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.creation__control {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.creation__label {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.creation__nested {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+}
+
+/* --------------------------------------------------------------------------
    Seletor de motor (plano de motores §4.1 e §4.2)
    --------------------------------------------------------------------------
    Fica abaixo dos controles do asset, e não entre eles, por uma razão de
@@ -789,6 +823,30 @@ input {
   font-size: 0.76rem;
 }
 
+/* Avisos da geração -------------------------------------------------------
+   Discretos, mas presentes. Eles existiam no backend e não chegavam à tela, e
+   é por isso que um asset estranho parecia um defeito em vez de uma limitação
+   conhecida. */
+.result__notices {
+  max-width: 46ch;
+  margin: 0 auto;
+  padding: 9px 13px;
+  border: 1px solid rgba(242, 180, 112, 0.3);
+  border-radius: var(--radius-sm);
+  background: rgba(242, 180, 112, 0.08);
+  list-style: none;
+}
+
+.result__notice {
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.result__notice + .result__notice {
+  margin-top: 6px;
+}
+
 /* Crédito do motor (plano de motores §25, regra 3) ------------------------
    Discreto quando o motor pedido foi o usado, e alarmante quando não foi: a
    diferença entre os dois casos é a informação inteira deste bloco. */
@@ -817,6 +875,15 @@ input {
   background: rgba(242, 112, 127, 0.1);
   color: var(--text);
   font-size: 0.82rem;
+}
+
+.result__engine-key {
+  display: inline-block;
+  min-width: 4.5rem;
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .result__engine-model {

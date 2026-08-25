@@ -12,6 +12,7 @@ mudar a ordem de preferência sem tocar em código nem reconstruir imagem.
 from __future__ import annotations
 
 import os
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,7 @@ __all__ = [
     "StorageSettings",
     "WorkerSettings",
     "ApiSettings",
+    "AppEnvironment",
     "Settings",
     "load_settings",
     "engine_runtime_configs",
@@ -37,6 +39,30 @@ __all__ = [
 
 _ENV_PREFIX = "ASSETFLOW_"
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
+
+
+class AppEnvironment(str, Enum):
+    """Onde o AssetFlow está rodando (plano de correção §6).
+
+    A única coisa que isto muda hoje é se as gavetas de referência — os mocks
+    — são registradas. Elas são ferramenta interna: em produção, oferecer
+    "Mock Image Engine" a quem quer um sprite é ruído, e pior, é um caminho
+    para alguém gerar um placeholder achando que gerou arte.
+
+    O padrão é ``development``, e a escolha é deliberada. O contrário —
+    esconder por padrão e exigir um flag para desenvolver — deixaria uma
+    máquina sem GPU sem nenhum motor utilizável logo depois do `git clone`,
+    e a primeira experiência do projeto seria uma tela que não gera nada.
+    Produção é um ambiente que alguém configura; desenvolvimento é onde se
+    cai sem configurar.
+    """
+
+    DEVELOPMENT = "development"
+    PRODUCTION = "production"
+
+    @property
+    def shows_mock_engines(self) -> bool:
+        return self is AppEnvironment.DEVELOPMENT
 
 
 class StorageSettings(AssetFlowModel):
@@ -75,6 +101,9 @@ class ApiSettings(AssetFlowModel):
 class Settings(AssetFlowModel):
     """Configuração completa do backend."""
 
+    #: Ambiente de execução (plano de correção §6). ``ASSETFLOW_APP_ENV``.
+    app_env: AppEnvironment = AppEnvironment.DEVELOPMENT
+
     base_dir: Path = _BACKEND_ROOT
     config_dir: Path = _BACKEND_ROOT / "config"
     data_dir: Path = _BACKEND_ROOT / "data"
@@ -95,6 +124,14 @@ class Settings(AssetFlowModel):
     engine_policy_config: dict[str, Any] = Field(default_factory=dict)
     #: `benchmark_suite.yaml` — a suíte comparativa entre motores (plano de motores §19).
     benchmark_config: dict[str, Any] = Field(default_factory=dict)
+    #: `strategies.yaml` — os métodos de criação e o que "Automático" prefere
+    #: (plano de correção §7, §25 e §40).
+    strategies_config: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def show_mock_engines(self) -> bool:
+        """As gavetas de referência entram nesta instalação?"""
+        return self.app_env.shows_mock_engines
 
     # ------------------------------------------------------------------
     @property
@@ -187,6 +224,7 @@ def load_settings(
     pixel_profiles_config = _read_yaml(configs / "pixel_profiles.yaml")
     engine_policy_config = _read_yaml(configs / "engine_policy.yaml")
     benchmark_config = _read_yaml(configs / "benchmark_suite.yaml")
+    strategies_config = _read_yaml(configs / "strategies.yaml")
 
     storage = StorageSettings(
         root=_env("STORAGE_ROOT") or str(data / "assets"),
@@ -209,6 +247,7 @@ def load_settings(
     )
 
     return Settings(
+        app_env=_app_env(),
         base_dir=base,
         config_dir=configs,
         data_dir=data,
@@ -221,7 +260,32 @@ def load_settings(
         pixel_profiles_config=pixel_profiles_config,
         engine_policy_config=engine_policy_config,
         benchmark_config=benchmark_config,
+        strategies_config=strategies_config,
     )
+
+
+def _app_env() -> AppEnvironment:
+    """Lê ``ASSETFLOW_APP_ENV``, tolerando valor desconhecido.
+
+    Um valor errado cai em ``development`` **e** avisa: silenciar um
+    ``ASSETFLOW_APP_ENV=prod`` (em vez de ``production``) faria uma instalação
+    achar que está escondendo os mocks quando não está.
+    """
+    raw = (_env("APP_ENV") or "").strip().lower()
+    if not raw:
+        return AppEnvironment.DEVELOPMENT
+    try:
+        return AppEnvironment(raw)
+    except ValueError:
+        import logging
+
+        logging.getLogger("assetflow.settings").warning(
+            "ASSETFLOW_APP_ENV=%r não é reconhecido; usando 'development'. "
+            "Valores válidos: %s",
+            raw,
+            ", ".join(item.value for item in AppEnvironment),
+        )
+        return AppEnvironment.DEVELOPMENT
 
 
 def _parse_queue_routes(raw: str | None) -> dict[str, str]:

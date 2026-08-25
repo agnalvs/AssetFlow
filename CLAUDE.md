@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (~1024 passed, 34 skipped)
+pytest -q                                # suíte completa (~1128 passed, 34 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -22,7 +22,7 @@ ruff check .                             # lint (sem config própria: defaults d
     --reload --reload-dir assetflow --reload-dir config
 ```
 
-`ruff check .` tem **195 achados pré-existentes** (nenhuma config própria, então
+`ruff check .` tem **225 achados pré-existentes** (nenhuma config própria, então
 valem os defaults, bem mais rígidos que o estilo do projeto). Compare com esse
 baseline antes de concluir que uma alteração sua introduziu lint novo — e, se
 mexer nele, atualize o número aqui: o baseline só serve enquanto estiver certo.
@@ -52,13 +52,15 @@ Sempre nomeie a gaveta. `--engine all` e `--engine config` (o padrão) alcançam
 Para **comparar** motores na mesma suíte de pedidos (plano de motores §19):
 
 ```bash
-python scripts/benchmark_engines.py --list          # casos e motores disponíveis
-python scripts/benchmark_engines.py --engines texel-style-v1
-python scripts/benchmark_engines.py --cases tree_32 --json data/benchmark/r.json
+python scripts/benchmark_engines.py --list          # casos, métodos e motores
+python scripts/benchmark_engines.py --targets pixel_agent
+python scripts/benchmark_engines.py --targets pixel_agent,model:flux-pixel-v1
 ```
 
-Vale o mesmo cuidado, e mais um: sem `--engines`, o benchmark roda em **todos**
-os motores disponíveis. Com `sdpixl-v1` habilitado e configurado, o próprio
+O alvo é **método + motor**, e é o que permite comparar o Agente Pixel com um
+modelo sem fingir que são a mesma tecnologia. Vale o mesmo cuidado do
+`preview_engine.py`, e mais um: sem `--targets`, o benchmark roda em **tudo**
+que estiver disponível. Com `sdpixl-v1` habilitado e configurado, o próprio
 projeto declara execuções de horas por imagem.
 
 Frontend (a partir de `frontend/`):
@@ -86,7 +88,18 @@ a nenhuma tecnologia de IA específica**. Toda a estrutura existe para isso:
 
 ```
 Engine   (gaveta)  sabe -> gerar imagem     conhece SDXL, torch, diffusers
+Strategy           sabe -> produzir pixels  conhece motor OU agente, nunca os dois
 Pipeline           sabe -> gerar asset      conhece Pixel Art, personagem, paleta
+```
+
+Cinco conceitos que **nunca** se misturam:
+
+```
+STRATEGY       como o asset será criado
+ENGINE         qual tecnologia/modelo gera uma imagem
+AGENT          sistema que toma decisões e usa ferramentas
+POSTPROCESSOR  normaliza/corrige propriedades técnicas
+VALIDATOR      mede e aprova/reprova
 ```
 
 Um pipeline **nunca** importa uma gaveta. Ele pede uma **capacidade**
@@ -97,15 +110,15 @@ Um pipeline **nunca** importa uma gaveta. Ele pede uma **capacidade**
 ```
 API (/api/generation/jobs)
   -> GenerationService.submit       resolve o FinalResolvedSpec  <- uma única vez
-       AutoEnginePolicy             em modo "auto", escolhe o motor + o motivo
+       StrategyResolver             em "auto", escolhe o MÉTODO + o motivo
+       AutoEnginePolicy             em "auto", escolhe o MOTOR  + o motivo
   -> JobManager + JobQueue          jobs/
   -> GenerationWorker               jobs/worker.py     <- teto job_timeout_s
   -> Pipeline (pixel.character)     generation/pipelines/
        lê o FinalResolvedSpec       generation/spec/  (nunca o reinterpreta)
-  -> GenerationKernel               generation/kernel/service.py
-       EngineResolver               capability -> cadeia ordenada de candidatos
-       fallback automático          se o preferido falhar/estiver indisponível
-  -> Engine.generate()              generation/engines/<id>/
+  -> GenerationStrategy             generation/strategies/  <- COMO nascem os pixels
+       ModelGenerationStrategy      -> Kernel -> EngineResolver -> Engine
+       PixelAgentStrategy           -> Planner -> Tools -> Canvas -> Reviewer
   -> Postprocessing                 generation/postprocessing/  (resize, paleta, alpha)
   -> AssetStorageService            storage/
 ```
@@ -172,11 +185,28 @@ Os testes permanentes dos dois bugs estão em `tests/test_resolved_spec.py`.
 Detalhes em [backend/docs/RESOLVED_SPEC.md](backend/docs/RESOLVED_SPEC.md) — é
 o documento que as docstrings citam como `plano T→J §N`.
 
-### Múltiplos motores e seleção de modelo
+### Métodos de criação, motores e agentes
 
-A pessoa escolhe o motor na tela — **Automático**, FLUX Pixel, SD-πXL, Pixel
-Forge ou Texel-style Agent — e a escolha é respeitada. Quatro regras
-organizam isso:
+A tela pergunta duas coisas, **nesta ordem**:
+
+```
+1. Método de criação   Automático | Modelo de imagem | Agente Pixel
+2. Com o quê           (só em Modelo) o motor / (só em Agente) o agente
+```
+
+A ordem é a arquitetura. Antes dela havia um seletor só, chamado "Motor", com
+FLUX, SDXL e o agente de desenho lado a lado — e um agente **não é** um motor:
+um motor recebe prompt e devolve imagem; o agente planeja, desenha com
+ferramentas, olha o resultado e volta atrás.
+
+O `EngineRegistry` guarda só motores de verdade. O agente vive em
+`generation/pixel_agent/` e é oferecido pelo `GenerationStrategyRegistry`.
+Detalhes em [backend/docs/CREATION_METHODS.md](backend/docs/CREATION_METHODS.md).
+
+#### Seleção de motor, dentro do método "Modelo de imagem"
+
+A pessoa escolhe o motor — **Automático**, FLUX Pixel, SD-πXL, Pixel Forge ou
+SDXL — e a escolha é respeitada. Quatro regras organizam isso:
 
 1. **motor escolhido é motor usado.** Não podendo atender, o job falha dizendo
    por quê; nunca vira outro em silêncio;
@@ -193,14 +223,23 @@ regras por tipo de asset, tamanho lógico, paleta e qualidade, cada uma com um
 obriga: um motor preferido que caia é substituído pelo fallback, porque em
 `auto` ninguém tinha escolhido.
 
-Das quatro gavetas novas, só `texel-style-v1` nasce habilitada — é a única que
-não depende de GPU, de download ou de um projeto externo instalado. Ela desenha
-pixel a pixel com ferramentas, direto na resolução lógica.
+As três gavetas novas nascem desabilitadas: cada uma exige GPU, um clone de
+projeto externo ou um binário Rust. Sem nada disso, o método que funciona
+imediatamente é o **Agente Pixel**, que não baixa nada.
 
-**O frontend continua sem conhecer motor nenhum**, e a regra só mudou de
-forma: a lista inteira vem de `GET /api/generation/engines/catalog`,
-com nome, resumo, selos e disponibilidade. Nenhum id de motor está escrito no
-React — é o que faz uma gaveta nova aparecer no seletor sozinha.
+O agente tem um **planejador trocável** (`config/strategies.yaml` →
+`pixel_agent.planner`): `recipes` desenha nove objetos conhecidos e é o
+padrão; `llm` produz o plano com um modelo de linguagem e não tem vocabulário
+fixo — desenha qualquer sujeito, mantendo grade, paleta e contorno. Qualquer
+API compatível com OpenAI serve, inclusive Ollama local. Sem provedor no ar,
+ele cai nas receitas **e avisa no job**.
+
+**O frontend continua sem conhecer motor, método nem agente**, e a regra só
+mudou de forma: as listas vêm de `GET /api/generation/strategies`, com nome,
+resumo, selos e disponibilidade. Nenhum id está escrito no React — é o que faz
+uma gaveta nova aparecer no seletor sozinha. Quem decide **qual** seletor
+aparece depois do método também é o backend, em `selects_engine` /
+`selects_agent`.
 
 Detalhes, incluindo como acrescentar a próxima gaveta e como rodar o
 benchmark: [backend/docs/ENGINES.md](backend/docs/ENGINES.md).
@@ -230,9 +269,13 @@ peça que conhece as duas pontas. Detalhes em
 - `capabilities.yaml` — catálogo descritivo, não restritivo. Com o modo
   "Automático", ele é o **último recurso**: quem responde primeiro é
   `engine_policy.yaml`.
-- `engine_policy.yaml` — as regras do modo "Automático" (plano de motores
-  §16): tipo de asset + tamanho + paleta → motor preferido + motivo. Ausente,
-  `auto` volta a ser só o roteamento por capacidade.
+- `strategies.yaml` — os **métodos de criação** (plano de correção §7 e §40):
+  tipo de asset + tamanho + paleta → método preferido + motivo, mais os modos
+  de qualidade do agente. É consultado **antes** do arquivo abaixo.
+- `engine_policy.yaml` — as regras do motor no modo "Automático" (plano de
+  motores §16): tipo + tamanho + paleta → motor preferido + motivo. Só vale
+  quando o método é "Modelo de imagem". Ausente, `auto` volta a ser só o
+  roteamento por capacidade.
 - `benchmark_suite.yaml` — os casos fixos da comparação entre motores.
 - `asset_taxonomy/*.yaml` — vocabulário semântico por tipo de asset, em
   português e inglês. Um arquivo por tipo; o nome do arquivo não importa, o
@@ -293,6 +336,11 @@ os imports são bare specifiers que só o Vite resolve.
   e o cache do modelo (vários GB) moram lá. Nunca faça `rmtree` na pasta toda.
 - **Diferenças de hardware vão em env var, não no YAML.** `engines.yaml` é
   versionado e compartilhado; editar direto gera conflito de merge a cada pull.
+- **`ASSETFLOW_APP_ENV=production` remove as gavetas de referência.** Os
+  mocks declaram `catalog.dev_only` e deixam de ser **registrados** fora de
+  desenvolvimento — não são apenas escondidos. Em uma máquina sem GPU e sem
+  projetos externos, isso deixa o método "Modelo de imagem" sem motor
+  utilizável, e só o "Agente Pixel" funciona. O padrão é `development`.
 - **A suíte roda com as gavetas de referência, não com as entregues.** O
   `container` de teste desabilita tudo fora de `REFERENCE_ENGINES`
   (`tests/conftest.py`). A maior parte dos testes exercita *mecanismo* —

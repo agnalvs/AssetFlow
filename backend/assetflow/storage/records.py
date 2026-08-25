@@ -14,9 +14,11 @@ from typing import Any
 from pydantic import Field
 
 from ..generation.schemas import (
+    AgentRef,
     AssetFlowModel,
     Capability,
     EngineRef,
+    GenerationStrategyType,
     SemanticPrompt,
     StageTimings,
     new_id,
@@ -65,9 +67,19 @@ class GenerationRecord(AssetFlowModel):
     pipeline_id: str | None = None
     capability: Capability
 
-    # -- Rastreabilidade do motor (plano §42) --------------------------
-    engine_id: str
-    engine_version: str
+    # -- Rastreabilidade do produtor (plano §42; correção §41) ---------
+    #
+    # `engine_id` deixou de ser obrigatório porque um asset desenhado pelo
+    # Pixel Agent não tem motor. Quem sempre existe é `strategy`.
+    strategy: GenerationStrategyType = GenerationStrategyType.MODEL
+    requested_strategy: GenerationStrategyType = GenerationStrategyType.AUTO
+    agent_id: str | None = None
+    agent_version: str | None = None
+    planner_provider: str | None = None
+    planner_model: str | None = None
+
+    engine_id: str | None = None
+    engine_version: str | None = None
     model_id: str | None = None
     model_revision: str | None = None
     engine_provider: str | None = None
@@ -101,8 +113,10 @@ class GenerationRecord(AssetFlowModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def engine_fields(cls, engine: EngineRef) -> dict[str, Any]:
+    def engine_fields(cls, engine: EngineRef | None) -> dict[str, Any]:
         """Extrai os campos de rastreabilidade de um :class:`EngineRef`."""
+        if engine is None:
+            return {}
         return {
             "engine_id": engine.id,
             "engine_version": engine.version,
@@ -111,4 +125,16 @@ class GenerationRecord(AssetFlowModel):
             "engine_provider": engine.provider,
             "adapter_version": engine.adapter_version,
             "lora_id": engine.lora_id,
+        }
+
+    @classmethod
+    def agent_fields(cls, agent: AgentRef | None) -> dict[str, Any]:
+        """O equivalente para o agente (plano de correção §28)."""
+        if agent is None:
+            return {}
+        return {
+            "agent_id": agent.id,
+            "agent_version": agent.version,
+            "planner_provider": agent.planner_provider,
+            "planner_model": agent.planner_model,
         }
