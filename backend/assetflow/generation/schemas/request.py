@@ -72,6 +72,28 @@ class OutputSpec(AssetFlowModel):
     transparent: bool = False
     format: str = Field(default="png", pattern=r"^(png|webp)$")
 
+    #: O grid lógico do asset, quando existir (plano de motores §5 e §9).
+    #:
+    #: Não substitui ``width``/``height``, que continuam sendo o tamanho de
+    #: render: é informação **a mais**, para os motores que sabem trabalhar na
+    #: grade em vez de pintar grande e deixar reduzir. Um agente que desenha
+    #: pixel a pixel precisa saber que o canvas é 32×32; um modelo de difusão
+    #: ignora o campo e nada muda para ele.
+    #:
+    #: Quem não souber usar não perde nada — a redução para o grid continua
+    #: sendo do pós-processamento, e é ele quem garante o resultado (§8.1).
+    logical_width: int | None = Field(default=None, ge=8, le=1024)
+    logical_height: int | None = Field(default=None, ge=8, le=1024)
+    #: Limite de cores do asset, para motores com controle de paleta nativo
+    #: (SD-πXL, Texel-style). Os demais ignoram e o Pixel Exact quantiza.
+    max_colors: int | None = Field(default=None, ge=2, le=256)
+
+    @property
+    def logical_size(self) -> tuple[int, int] | None:
+        if self.logical_width is None or self.logical_height is None:
+            return None
+        return (self.logical_width, self.logical_height)
+
 
 class GenerationParams(AssetFlowModel):
     """Parâmetros universais de geração.
@@ -98,11 +120,30 @@ class EngineSelector(AssetFlowModel):
     engine_id: str | None = None
     allow_fallback: bool = True
 
+    #: Dica da :class:`AutoEnginePolicy` para o modo ``auto`` (plano de motores §16).
+    #:
+    #: É preferência, não exigência, e a diferença importa: um ``engine_id``
+    #: em ``manual`` que não possa atender faz o job falhar; uma dica que não
+    #: possa atender simplesmente perde a vez e o roteamento por capacidade
+    #: segue. Ninguém escolheu — logo, não há escolha para desrespeitar.
+    preferred_engine_id: str | None = None
+
     @model_validator(mode="after")
     def _validate(self) -> "EngineSelector":
         if self.mode == "manual" and not self.engine_id:
             raise ValueError("engine.mode='manual' exige 'engine.engine_id'")
         return self
+
+    @property
+    def fallback_explicitly_set(self) -> bool:
+        """O chamador falou de fallback, ou aceitou o padrão do modelo?
+
+        A distinção existe por causa da regra 2 do plano de motores §25: em seleção
+        manual, o padrão passa a ser **não** trocar de motor. Sem saber se o
+        ``True`` do campo foi escrito ou herdado, o resolver não teria como
+        aplicar um padrão diferente por modo sem apagar uma escolha real.
+        """
+        return "allow_fallback" in self.model_fields_set
 
 
 class ReferenceImage(AssetFlowModel):

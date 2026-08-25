@@ -20,7 +20,8 @@ from typing import Any
 from ..jobs.manager import JobManager
 from ..storage import GenerationRecord, GenerationRecordRepository
 from .kernel.capabilities import CATALOG, CapabilityCatalog
-from .kernel.exceptions import InvalidGenerationRequest, ProfileNotFound
+from .kernel.catalog import EngineCatalog, EngineCatalogEntry
+from .kernel.exceptions import EngineNotFound, InvalidGenerationRequest, ProfileNotFound
 from .kernel.registry import EngineRegistry
 from .kernel.resolver import EngineResolver
 from .kernel.service import GenerationKernel
@@ -63,6 +64,7 @@ class GenerationService:
         constraints: ConstraintResolver | None = None,
         records: GenerationRecordRepository | None = None,
         catalog: CapabilityCatalog = CATALOG,
+        engine_catalog: EngineCatalog | None = None,
         default_max_attempts: int = 2,
     ) -> None:
         self._kernel = kernel
@@ -79,6 +81,10 @@ class GenerationService:
         self._constraints = constraints or ConstraintResolver()
         self._records = records
         self._catalog = catalog
+        # A vitrine de motores (plano de motores §6). Construída aqui quando o chamador
+        # não passa a sua, para que um serviço montado à mão em teste continue
+        # respondendo `engine_catalog()` sem precisar do bootstrap inteiro.
+        self._engine_catalog = engine_catalog or EngineCatalog(kernel.registry)
         self._default_max_attempts = default_max_attempts
 
     # ------------------------------------------------------------------
@@ -263,6 +269,38 @@ class GenerationService:
 
     async def list_engines(self, *, include_health: bool = True) -> list[EngineDescriptor]:
         return await self._kernel.registry.describe_all(include_health=include_health)
+
+    # ------------------------------------------------------------------
+    # Catálogo de motores (plano de motores §6) — o que a tela de seleção consome
+    # ------------------------------------------------------------------
+    async def engine_catalog(
+        self,
+        *,
+        capability: Capability | str | None = None,
+        include_hidden: bool = False,
+        check_health: bool = True,
+    ) -> list[EngineCatalogEntry]:
+        """Os motores oferecíveis, já descritos para quem escolhe.
+
+        A interface pede esta lista e desenha o seletor a partir dela. É por
+        isso que ela existe: sem um catálogo servido pelo backend, o frontend
+        precisaria manter os nomes dos motores em código — o "hardcode de
+        nomes de modelos em múltiplos lugares" que o plano de motores §24 proíbe.
+        """
+        return await self._engine_catalog.entries(
+            capability=capability,
+            include_hidden=include_hidden,
+            check_health=check_health,
+        )
+
+    async def engine_catalog_entry(self, engine_id: str) -> EngineCatalogEntry:
+        entry = await self._engine_catalog.find(engine_id)
+        if entry is None:
+            raise EngineNotFound(
+                f"o motor '{engine_id}' não existe nesta instalação",
+                engine_id=engine_id,
+            )
+        return entry
 
     async def get_engine(self, engine_id: str) -> EngineDescriptor:
         return await self._kernel.registry.describe(engine_id)

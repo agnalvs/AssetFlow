@@ -46,6 +46,21 @@
     "recommended_timeout_s": 60,
     "load_timeout_s": 30
   },
+  "catalog": {
+    "family": "procedural",
+    "quality_tier": "draft",
+    "speed_tier": "instant",
+    "license_type": "proprietary",
+    "summary": "Gaveta de referência sem IA, usada para validar a arquitetura.",
+    "highlights": [
+      "determinística por seed",
+      "não usa GPU nem rede"
+    ],
+    "badges": [
+      "referência"
+    ],
+    "hidden": true
+  },
   "status": "enabled",
   "requires": []
 }

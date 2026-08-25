@@ -36,18 +36,21 @@ from ..schemas import (
     AssetGenerationRequest,
     AssetMode,
     AssetType,
+    EngineAdvice,
     FinalResolvedSpec,
     LogicalResolution,
     RenderResolution,
     ResolvedAsset,
     ResolvedBackground,
     ResolvedComposition,
+    ResolvedEngine,
     ResolvedGeneration,
     ResolvedPalette,
     SpecSource,
 )
 from .classifier import AssetTypeClassifier, Classification
 from .constraints import ExplicitConstraintExtractor, ExplicitConstraints
+from .engine_advisor import EngineAdvisor
 
 __all__ = ["ConstraintResolver", "SpecResolution"]
 
@@ -104,13 +107,22 @@ class ConstraintResolver:
         self,
         classifier: AssetTypeClassifier | None = None,
         extractor: ExplicitConstraintExtractor | None = None,
+        advisor: EngineAdvisor | None = None,
     ) -> None:
         self._classifier = classifier or AssetTypeClassifier()
         self._extractor = extractor or ExplicitConstraintExtractor()
+        # Sem conselheiro o resolver continua inteiro: o modo `auto` apenas
+        # não sugere motor nenhum, e o roteamento por capacidade decide —
+        # que é como o sistema funcionava antes de existir política.
+        self._advisor = advisor
 
     @property
     def classifier(self) -> AssetTypeClassifier:
         return self._classifier
+
+    @property
+    def advisor(self) -> EngineAdvisor | None:
+        return self._advisor
 
     # ------------------------------------------------------------------
     def resolve(
@@ -273,10 +285,23 @@ class ConstraintResolver:
                 f"'{resolved_type.value}' — origem: {asset_type.source.value}"
             )
 
+        capability = request.capability or profile.capability
+        engine = self._resolve_engine(
+            request=request,
+            capability=capability,
+            asset_type=resolved_type,
+            mode=resolved_mode,
+            logical=logical,
+            palette=palette,
+            background=background.value or "transparent",
+            variations=variations.value or 1,
+            sources=sources,
+        )
+
         spec = FinalResolvedSpec(
             profile_id=profile.id,
             pipeline_id=pipeline_id or request.pipeline or profile.pipeline,
-            capability=request.capability or profile.capability,
+            capability=capability,
             asset=ResolvedAsset(
                 type=resolved_type,
                 subject=subject.value or "",
@@ -299,6 +324,7 @@ class ConstraintResolver:
                 seed=request.seed,
                 quality=request.quality,
             ),
+            engine=engine,
             sources=sources,
             notes=tuple(notes),
         ).with_identity()
@@ -306,6 +332,148 @@ class ConstraintResolver:
         return SpecResolution(
             spec=spec, classification=classification, constraints=constraints
         )
+
+    # ------------------------------------------------------------------
+    def _resolve_engine(
+        self,
+        *,
+        request: AssetGenerationRequest,
+        capability,
+        asset_type: AssetType,
+        mode: AssetMode,
+        logical: LogicalResolution | None,
+        palette: ResolvedPalette | None,
+        background: str,
+        variations: int,
+        sources: dict[str, SpecSource],
+    ) -> ResolvedEngine:
+        """Resolve **qual motor** por precedência, como qualquer outro campo.
+
+        A escolha de motor entra na mesma esteira dos demais campos de
+        propósito (plano de motores §24): tratá-la como um parâmetro à parte é o que
+        produz ``if engine == ...`` espalhado pelo sistema e o que permite que
+        uma camada troque em silêncio o motor que a pessoa pediu.
+
+        Duas regras de governança viram código aqui:
+
+        * **plano de motores §25, regra 1** — em ``manual``, o motor pedido é o motor usado. Se
+          ele não puder atender, o job falha dizendo isso; não vira outro.
+        * **plano de motores §25, regra 2** — por isso o fallback nasce **desligado** em
+          ``manual`` e ligado em ``auto``. Quem quiser o contrário escreve
+          ``allow_fallback``, e aí a troca passa a ser decisão de quem pediu.
+        """
+        selector = request.engine
+        manual = request.spec_overrides
+
+        # -- nível 3: o seletor da interface -----------------------------
+        source = SpecSource.GLOBAL_DEFAULT
+        selection_mode = "auto"
+        engine_id: str | None = None
+        allow_fallback: bool | None = None
+
+        if selector is not None and (
+            selector.mode == "manual" or "mode" in selector.model_fields_set
+        ):
+            selection_mode = selector.mode
+            engine_id = selector.engine_id if selector.mode == "manual" else None
+            source = SpecSource.UI_SELECTION
+        if selector is not None and selector.fallback_explicitly_set:
+            allow_fallback = selector.allow_fallback
+
+        # -- nível 1: correção manual do JSON ----------------------------
+        if manual is not None:
+            if manual.engine_mode is not None:
+                selection_mode = manual.engine_mode
+                if manual.engine_mode == "auto":
+                    engine_id = None
+                source = SpecSource.MANUAL_OVERRIDE
+            if manual.engine_id is not None:
+                engine_id = manual.engine_id
+                selection_mode = "manual"
+                source = SpecSource.MANUAL_OVERRIDE
+            if manual.allow_engine_fallback is not None:
+                allow_fallback = manual.allow_engine_fallback
+
+        if selection_mode == "manual" and not engine_id:
+            raise InvalidGenerationRequest(
+                "seleção manual de motor exige o id do motor",
+                detail=_field_error("engine", "faltou o id do motor"),
+            )
+
+        reason = ""
+        if selection_mode == "auto":
+            # `auto` só consulta a política quando ninguém escolheu, e o que
+            # volta é preferência — registrada como leitura do AssetFlow.
+            suggestion = self._suggest_engine(
+                capability=capability,
+                asset_type=asset_type,
+                mode=mode,
+                logical=logical,
+                palette=palette,
+                background=background,
+                quality=request.quality,
+                variations=variations,
+            )
+            if suggestion is not None:
+                engine_id = suggestion.engine_id
+                reason = suggestion.reason
+                # A origem descreve de onde veio o **valor** de `engine_id`, e
+                # em `auto` ele sempre vem da política — mesmo quando foi a
+                # pessoa que escolheu "Automático" no seletor. Marcar isso
+                # como escolha de interface faria a tela exibir "escolhido na
+                # tela" ao lado de um motor que ninguém escolheu.
+                source = SpecSource.INFERENCE
+            elif source is SpecSource.UI_SELECTION:
+                # "Automático" sem sugestão nenhuma: ninguém decidiu motor, e
+                # o roteamento por capacidade vai decidir sozinho.
+                source = SpecSource.GLOBAL_DEFAULT
+
+        if allow_fallback is None:
+            allow_fallback = selection_mode == "auto"
+
+        sources["engine"] = source
+        return ResolvedEngine(
+            selection_mode=selection_mode,
+            engine_id=engine_id,
+            allow_fallback=allow_fallback,
+            reason=reason,
+        )
+
+    def _suggest_engine(
+        self,
+        *,
+        capability,
+        asset_type: AssetType,
+        mode: AssetMode,
+        logical: LogicalResolution | None,
+        palette: ResolvedPalette | None,
+        background: str,
+        quality,
+        variations: int,
+    ):
+        """Pergunta ao conselheiro, tolerando que ele falhe.
+
+        Uma política quebrada não pode derrubar uma geração: sem sugestão, o
+        roteamento por capacidade responde, que é o caminho que já existia
+        antes de a política existir.
+        """
+        if self._advisor is None:
+            return None
+        advice = EngineAdvice(
+            capability=capability,
+            asset_type=asset_type.value,
+            mode=mode.value,
+            logical_width=logical.width if logical else None,
+            logical_height=logical.height if logical else None,
+            max_colors=palette.max_colors if palette else None,
+            transparent=background == "transparent",
+            quality=quality.value if hasattr(quality, "value") else str(quality),
+            variations=variations,
+        )
+        try:
+            return self._advisor.suggest(advice)
+        except Exception:  # pragma: no cover - política nunca derruba job
+            return None
 
     # ------------------------------------------------------------------
     def _resolve_logical(

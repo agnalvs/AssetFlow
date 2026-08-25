@@ -1,0 +1,66 @@
+{
+  "id": "pixel-forge-v1",
+  "name": "Pixel Forge",
+  "version": "1.0.0",
+  "engine_api_version": "1",
+  "type": "image_generation",
+  "provider": "local_process",
+  "description": "Ponte para o Pixel Forge, gerador de sprites em Rust com três modelos de difusão embutidos e resolução nativa 32×32 (plano de motores §2.3). Roda como processo local: o backend não é acoplado ao runtime Rust.",
+  "entrypoint": "assetflow.generation.engines.pixel_forge.engine:PixelForgeEngine",
+  "capabilities": [
+    "text_to_image.pixel",
+    "prop.pixel"
+  ],
+  "supports": {
+    "seed": true,
+    "negative_prompt": false,
+    "batch": false,
+    "transparency": true,
+    "progress_reporting": true,
+    "cancellation": true,
+    "lora": false,
+    "controlnet": false,
+    "image_reference": false,
+    "inpainting": false
+  },
+  "limits": {
+    "min_width": 8,
+    "min_height": 8,
+    "max_width": 1024,
+    "max_height": 1024,
+    "max_variations": 4,
+    "dimension_multiple_of": null
+  },
+  "resources": {
+    "gpu_required": false,
+    "recommended_vram_mb": 0,
+    "minimum_vram_mb": 0,
+    "supports_offloading": false,
+    "supports_quantization": false
+  },
+  "timeouts": {
+    "recommended_timeout_s": 300,
+    "load_timeout_s": 60
+  },
+  "catalog": {
+    "family": "native_sprite",
+    "quality_tier": "standard",
+    "speed_tier": "fast",
+    "license_type": "unlicense",
+    "supported_logical_sizes": [16, 32],
+    "summary": "Especialista em sprites pequenos: gera 32×32 nativamente, sem passar por uma imagem grande.",
+    "highlights": [
+      "focado em sprites 32×32",
+      "bom para props, itens e ícones",
+      "resolução nativa — não é redução de imagem grande",
+      "roda local, sem GPU obrigatória"
+    ],
+    "badges": ["especializado"],
+    "exact_resolution": true,
+    "palette_control": false,
+    "image_editing": false,
+    "hidden": false
+  },
+  "status": "disabled",
+  "requires": []
+}

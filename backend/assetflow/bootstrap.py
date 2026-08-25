@@ -14,6 +14,8 @@ import logging
 from dataclasses import dataclass, field
 
 from .generation.kernel import (
+    AutoEnginePolicy,
+    EngineCatalog,
     EngineRegistry,
     EngineResolver,
     GenerationKernel,
@@ -60,6 +62,8 @@ class AppContainer:
 
     settings: Settings
     registry: EngineRegistry
+    catalog: EngineCatalog
+    engine_policy: AutoEnginePolicy
     resolver: EngineResolver
     kernel: GenerationKernel
     profiles: ProfileRegistry
@@ -124,6 +128,12 @@ def build_container(settings: Settings | None = None) -> AppContainer:
             "nenhuma gaveta registrada — verifique discovery.paths e a allowlist"
         )
 
+    # -- Vitrine e política de seleção automática (plano de motores §6 e §16) ------
+    # O catálogo descreve as gavetas para quem escolhe; a política diz o que
+    # "Auto" prefere. Nenhum dos dois executa nada — quem executa é o kernel.
+    catalog = EngineCatalog(registry)
+    engine_policy = AutoEnginePolicy.from_config(registry, settings.engine_policy_config)
+
     # -- Roteamento por capacidade ---------------------------------------
     policy = RoutingPolicy.from_config(settings.capabilities_config)
     resolver = EngineResolver(registry, policy)
@@ -146,7 +156,12 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     # Resolved Spec (plano T→J §11 e §15). O vocabulário é configuração, como
     # profiles e contratos Pixel — nenhum termo mora em código.
     taxonomy = AssetTaxonomy.from_directory(settings.asset_taxonomy_dir)
-    constraints = ConstraintResolver(AssetTypeClassifier(taxonomy))
+    # A política entra como *conselheiro* do resolver: é assim que o modo
+    # "Auto" ganha um motor e um motivo já na pré-visualização, sem que a
+    # camada que resolve o contrato precise conhecer a estante (plano de motores §17).
+    constraints = ConstraintResolver(
+        AssetTypeClassifier(taxonomy), advisor=engine_policy
+    )
 
     # -- Storage ----------------------------------------------------------
     backend = LocalFilesystemBackend(settings.storage_root)
@@ -190,22 +205,26 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         prompt_builders=prompt_builders,
         constraints=constraints,
         records=records,
+        engine_catalog=catalog,
         default_max_attempts=settings.worker.max_attempts,
     )
 
     _LOG.info(
         "AssetFlow pronto: %s gaveta(s), %s profile(s), %s profile(s) Pixel, "
-        "%s pipeline(s), %s vocabulário(s) de asset",
+        "%s pipeline(s), %s vocabulário(s) de asset, %s regra(s) de motor",
         len(registry),
         len(profiles),
         len(pixel_profiles),
         len(pipelines.ids()),
         len(taxonomy),
+        len(engine_policy.rules),
     )
 
     return AppContainer(
         settings=settings,
         registry=registry,
+        catalog=catalog,
+        engine_policy=engine_policy,
         resolver=resolver,
         kernel=kernel,
         profiles=profiles,

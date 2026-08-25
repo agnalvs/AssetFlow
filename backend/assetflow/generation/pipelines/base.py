@@ -179,6 +179,13 @@ class ImageAssetPipeline(AssetPipeline):
         variations = resolved.generation.variations
         transparent = resolved.background.transparent
 
+        # O grid lógico viaja junto para os motores que sabem desenhar nele
+        # (plano de motores §9). Quem não souber ignora, e o pós-processamento reduz como
+        # sempre reduziu — o campo acrescenta uma possibilidade, não uma
+        # obrigação.
+        logical = resolved.logical_resolution
+        palette = resolved.palette
+
         engine_options = {**profile.engine_options}
         for engine_id, options in request.engine_options.items():
             engine_options[engine_id] = {**engine_options.get(engine_id, {}), **options}
@@ -192,11 +199,18 @@ class ImageAssetPipeline(AssetPipeline):
                 height=height,
                 variations=variations,
                 transparent=transparent,
+                logical_width=logical.width if logical else None,
+                logical_height=logical.height if logical else None,
+                max_colors=palette.max_colors if palette else None,
             ),
             generation=GenerationParams(
                 seed=resolved.generation.seed, quality=resolved.generation.quality
             ),
-            engine=request.engine or EngineSelector(),
+            # A decisão de motor sai do **spec**, não do pedido cru: ela já
+            # foi resolvida por precedência na submissão, e reabri-la aqui
+            # seria a mesma porta pela qual 32×32 virava 64×64 (§37). É esta
+            # linha que faz o motor escolhido na tela ser o motor usado.
+            engine=_engine_selector(resolved),
             reference_images=request.reference_images,
             structural_controls=request.structural_controls,
             engine_options=engine_options,
@@ -294,6 +308,15 @@ class ImageAssetPipeline(AssetPipeline):
                     # um asset saiu 64×64 exige reconstruir o pedido inteiro
                     # de memória.
                     "resolved_spec.json": _spec_document(context),
+                    # O dossiê obrigatório do plano de motores §18. `processing.json` e
+                    # `validation.json` já vêm do módulo Pixel; os quatro
+                    # abaixo faltavam, e são justamente os que respondem "com
+                    # qual motor, a partir de qual frase" — as perguntas do
+                    # benchmark e do debug de motor.
+                    "raw_prompt.txt": context.request.prompt.encode("utf-8"),
+                    "parsed_spec.json": _parsed_document(semantic, generation_request),
+                    "engine_selection.json": _selection_document(context, result),
+                    "engine_output.json": _engine_output_document(result),
                 },
             )
             variants.append(
@@ -374,6 +397,100 @@ class ImageAssetPipeline(AssetPipeline):
         )
 
 
+def _engine_selector(resolved: FinalResolvedSpec) -> EngineSelector:
+    """A decisão de motor do spec, no formato que o Kernel entende.
+
+    Em ``auto`` o id vira **dica** (``preferred_engine_id``) e em ``manual``
+    vira **exigência** (``engine_id``). A tradução acontece aqui, uma vez, e é
+    o que garante que a diferença entre sugerir e exigir sobreviva até o
+    resolver — em vez de virar um booleano perdido no caminho.
+    """
+    engine = resolved.engine
+    if engine.selection_mode == "manual" and engine.engine_id:
+        return EngineSelector(
+            mode="manual",
+            engine_id=engine.engine_id,
+            allow_fallback=engine.allow_fallback,
+        )
+    return EngineSelector(
+        mode="auto",
+        allow_fallback=engine.allow_fallback,
+        preferred_engine_id=engine.engine_id,
+    )
+
+
+def _parsed_document(
+    semantic: SemanticPrompt, generation_request: ImageGenerationRequest
+) -> bytes:
+    """``parsed_spec.json`` — a leitura da frase, antes do contrato (plano de motores §18).
+
+    Guarda a semântica **e** o texto que ela virou. Os dois, porque eles
+    respondem coisas diferentes quando um resultado sai errado: a semântica
+    diz o que o AssetFlow entendeu, o texto diz o que o motor recebeu, e o
+    defeito costuma estar na distância entre um e outro.
+    """
+    payload = {
+        "semantic": semantic.model_dump(mode="json"),
+        "positive": generation_request.prompt.positive,
+        "negative": generation_request.prompt.negative,
+        "capability": str(generation_request.capability),
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+
+
+def _selection_document(context: PipelineContext, result: GenerationResult) -> bytes:
+    """``engine_selection.json`` — pedido × usado, lado a lado (plano de motores §18 e §25.3).
+
+    Este arquivo existe para uma pergunta específica: *o motor que eu escolhi
+    foi o motor que gerou isto?* Sem ele, a resposta depende de correlacionar
+    log de servidor com horário de job — e é a pergunta mais frequente de
+    quem compara motores.
+    """
+    engine = context.resolved.engine
+    payload = {
+        "selection_mode": engine.selection_mode,
+        "requested_engine_id": engine.engine_id,
+        "reason": engine.reason,
+        "allow_fallback": engine.allow_fallback,
+        "source": context.resolved.source_of("engine").value,
+        "resolved_engine_id": result.engine.id,
+        "fallback_used": result.fallback_used,
+        "attempted_engines": list(result.attempted_engines),
+        "resolution_chain": list(result.metadata.get("resolution_chain") or ()),
+        "rejected_engines": dict(result.metadata.get("rejected_engines") or {}),
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+
+
+def _engine_output_document(result: GenerationResult) -> bytes:
+    """``engine_output.json`` — a identidade exata de quem gerou (plano de motores §18).
+
+    Motor, versão, versão do adapter, modelo, revisão e LoRA. O plano de motores pede os
+    cinco porque quatro não bastam: o mesmo modelo com outro adapter, ou com
+    outra LoRA, produz outro asset — e sem registrar isso a comparação entre
+    duas gerações vira adivinhação.
+    """
+    engine = result.engine
+    payload = {
+        "engine_id": engine.id,
+        "engine_version": engine.version,
+        "adapter_version": engine.adapter_version,
+        "model_id": engine.model_id,
+        "model_revision": engine.model_revision,
+        "lora_id": engine.lora_id,
+        "provider": engine.provider,
+        "timings_ms": result.timings.model_dump(mode="json"),
+        "warnings": list(result.warnings),
+        "engine_metadata": result.metadata.get("engine_metadata") or {},
+        "outputs": [
+            {"index": output.index, "width": output.width, "height": output.height,
+             "seed": output.seed}
+            for output in result.outputs
+        ],
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+
+
 def _spec_document(context: PipelineContext) -> bytes:
     """``resolved_spec.json`` — o contrato deste job, como arquivo.
 
@@ -419,6 +536,12 @@ def _build_record(
     # O spec inteiro entra no histórico, e não só o hash: comparar duas
     # gerações do mesmo asset é comparar dois specs (plano T→J §34 e §35).
     metadata["resolved_spec"] = context.resolved.model_dump(mode="json")
+    metadata["engine_selection"] = {
+        "selection_mode": context.resolved.engine.selection_mode,
+        "requested_engine_id": context.resolved.engine.engine_id,
+        "reason": context.resolved.engine.reason,
+        "allow_fallback": context.resolved.engine.allow_fallback,
+    }
     pixel_metrics = {
         str(variant.index): variant.metadata["pixel_metrics"]
         for variant in asset.variants
@@ -437,6 +560,11 @@ def _build_record(
         capability=generation_request.capability,
         fallback_used=result.fallback_used,
         attempted_engines=result.attempted_engines,
+        # O motor **pedido**, ao lado do usado (plano de motores §18 e §25.3). Guardar só
+        # quem gerou esconde exatamente o caso interessante: aquele em que os
+        # dois são diferentes.
+        requested_engine_id=context.resolved.engine.engine_id,
+        engine_selection_mode=context.resolved.engine.selection_mode,
         user_prompt=context.request.prompt,
         positive_prompt=effective.get("positive") or generation_request.prompt.positive,
         negative_prompt=effective.get("negative") or generation_request.prompt.negative,

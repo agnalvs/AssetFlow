@@ -26,17 +26,22 @@ dev = [
     "pytest>=8.0",
     "httpx>=0.27",
 ]
-# Dependências do engine `diffusers-sdxl-v1`.
+# Dependências dos engines de difusão: `diffusers-sdxl-v1` e `flux-pixel-v1`.
 #
 # IMPORTANTE (regra de ouro §74 do plano): estas bibliotecas só podem ser
-# importadas de dentro de `assetflow/generation/engines/diffusers_sdxl/`.
+# importadas de dentro de `assetflow/generation/engines/<gaveta>/`.
 # O teste `tests/test_architecture_boundaries.py` falha se isso for violado.
+#
+# `peft` é exigido apenas pela LoRA de Pixel Art do `flux-pixel-v1`. Sem ele o
+# modelo-base do FLUX ainda carrega: a gaveta fica `degraded` e avisa, em vez
+# de recusar a geração inteira por causa de um adaptador.
 diffusers = [
     "torch>=2.2",
     "diffusers>=0.29",
     "transformers>=4.41",
     "accelerate>=0.30",
     "safetensors>=0.4",
+    "peft>=0.11",
 ]
 
 [tool.setuptools.packages.find]

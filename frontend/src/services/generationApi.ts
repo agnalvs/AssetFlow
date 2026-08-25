@@ -12,6 +12,8 @@ import {
 } from "../components/AssetControls";
 import {
   type CreateJobPayload,
+  type EngineCatalogEntry,
+  type EngineSelection,
   type GenerationMode,
   type Job,
   type JobSubmission,
@@ -50,6 +52,7 @@ export function buildJobPayload(input: {
   selection?: AssetSelection | null;
   spec?: SpecOverrides | null;
   semantic?: SemanticPrompt | null;
+  engine?: EngineSelection | null;
 }): CreateJobPayload {
   const config = MODES[input.mode];
   const selection = input.selection ?? null;
@@ -66,7 +69,12 @@ export function buildJobPayload(input: {
     output: selection ? selectionToOutput(selection) : { variations: 1 },
     ...(input.spec ? { spec_overrides: input.spec } : {}),
     ...(input.semantic ? { semantic_prompt: input.semantic } : {}),
-    engine: { mode: "auto" },
+    // Auto vai só com o modo. Mandar um `engine_id` junto de `auto` seria
+    // dizer "escolha por mim, mas use este" — e o backend, corretamente,
+    // trataria isso como escolha manual.
+    engine: input.engine?.engineId
+      ? { mode: "manual", engine_id: input.engine.engineId }
+      : { mode: "auto" },
   };
 }
 
@@ -167,6 +175,28 @@ export function previewPrompt(
   });
 }
 
+/**
+ * O catálogo de motores oferecíveis (plano de motores §6).
+ *
+ * A tela desenha o seletor inteiro a partir desta resposta — nomes, resumos,
+ * selos e disponibilidade —, e é isso que permite acrescentar uma gaveta no
+ * backend sem tocar em nenhum componente.
+ *
+ * O filtro por capacidade importa: em Pixel Art e em 2D convencional os
+ * motores disponíveis não são os mesmos, e oferecer um motor que o backend
+ * vai recusar é pior do que não oferecer.
+ */
+export function listEngineCatalog(
+  capability?: string,
+  signal?: AbortSignal,
+): Promise<{ items: EngineCatalogEntry[]; capability: string | null }> {
+  const query = capability ? `?capability=${encodeURIComponent(capability)}` : "";
+  return request<{ items: EngineCatalogEntry[]; capability: string | null }>(
+    `${BASE_URL}/engines/catalog${query}`,
+    { signal },
+  );
+}
+
 /** Consulta o estado atual de um job. */
 export function getGenerationJob(jobId: string): Promise<Job> {
   return request<Job>(`${BASE_URL}/jobs/${encodeURIComponent(jobId)}`);
@@ -195,6 +225,14 @@ function messageForCode(code: string, reason?: string): string {
   if (code === "invalid_request" && reason) return reason;
 
   switch (code) {
+    // Quando a pessoa escolheu o motor, a mensagem genérica esconde a única
+    // coisa acionável: o motor escolhido é que não está de pé, e trocar de
+    // motor resolve. O backend não troca sozinho de propósito (§25, regra 1).
+    case "engine_not_found":
+    case "engine_disabled":
+      return reason
+        ? `${reason}. Escolha outro motor ou volte para Automático.`
+        : "O motor escolhido não está disponível. Escolha outro ou volte para Automático.";
     case "no_engine_available":
     case "engine_unavailable":
       return "O gerador está indisponível no momento. Tente novamente em instantes.";

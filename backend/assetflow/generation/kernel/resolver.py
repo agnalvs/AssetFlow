@@ -162,7 +162,9 @@ class EngineResolver:
         if selector.mode == "manual" and selector.engine_id:
             return await self._resolve_manual(capability, selector, request, excluded)
 
-        ordered = self._ordered_ids(capability, excluded)
+        ordered = self._ordered_ids(
+            capability, excluded, hint=selector.preferred_engine_id
+        )
         candidates = await self._build_candidates(ordered, capability, request, rejected)
 
         if not candidates:
@@ -195,16 +197,24 @@ class EngineResolver:
         engine_id = selector.engine_id or ""
         record = self._registry.find(engine_id)
         if record is None:
+            # Regra 1 do plano de motores §25: o motor pedido é respeitado ou o pedido
+            # falha dizendo por quê. Trocar por outro aqui seria "mudança
+            # silenciosa do engine escolhido", que o plano de motores §24 lista como proibida.
             raise EngineNotFound(
-                f"motor '{engine_id}' não está registrado", engine_id=engine_id
+                f"o motor '{engine_id}' não existe nesta instalação",
+                engine_id=engine_id,
+                detail={"registered": list(self._registry.ids())},
             )
         if not record.enabled:
             raise EngineDisabled(
-                f"motor '{engine_id}' está desabilitado", engine_id=engine_id
+                f"o motor '{engine_id}' está desabilitado; escolha outro ou "
+                "habilite-o na configuração",
+                engine_id=engine_id,
             )
         if not record.declares(capability):
             raise NoEngineAvailable(
-                f"motor '{engine_id}' não declara a capacidade '{capability}'",
+                f"o motor '{engine_id}' não atende '{capability}'; "
+                "escolha outro motor para este tipo de asset",
                 engine_id=engine_id,
             )
 
@@ -235,8 +245,21 @@ class EngineResolver:
     # ------------------------------------------------------------------
     # Ordenação e filtragem
     # ------------------------------------------------------------------
-    def _ordered_ids(self, capability: Capability, excluded: set[str]) -> list[str]:
-        """Ordem de preferência: política primeiro, depois o resto."""
+    def _ordered_ids(
+        self,
+        capability: Capability,
+        excluded: set[str],
+        *,
+        hint: str | None = None,
+    ) -> list[str]:
+        """Ordem de preferência: dica, depois política, depois o resto.
+
+        A ``hint`` vem da :class:`~.auto_policy.AutoEnginePolicy` e vale só no
+        modo ``auto``. Ela entra **na frente** da lista, e não no lugar dela:
+        uma preferência que não puder atender perde a vez em silêncio e o
+        roteamento por capacidade segue — que é a diferença entre sugerir e
+        exigir (plano de motores §16 e §25).
+        """
         preferred = [
             engine_id
             for engine_id in self._policy.preferred_for(capability)
@@ -249,7 +272,14 @@ class EngineResolver:
             if record.id not in excluded
         ]
 
-        ordered = [engine_id for engine_id in preferred if engine_id in set(declaring)]
+        ordered: list[str] = []
+        if hint and hint not in excluded and hint in set(declaring):
+            ordered.append(hint)
+        ordered.extend(
+            engine_id
+            for engine_id in preferred
+            if engine_id in set(declaring) and engine_id not in ordered
+        )
         if self._policy.allow_unlisted_engines:
             ordered.extend(engine_id for engine_id in declaring if engine_id not in ordered)
         return ordered

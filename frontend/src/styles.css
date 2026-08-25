@@ -363,6 +363,112 @@ input {
 }
 
 /* --------------------------------------------------------------------------
+   Seletor de motor (plano de motores §4.1 e §4.2)
+   --------------------------------------------------------------------------
+   Fica abaixo dos controles do asset, e não entre eles, por uma razão de
+   leitura: os controles descrevem **o que** produzir e o motor descreve **com
+   o quê**. Misturá-los na mesma linha sugeriria que "Motor" é mais um
+   atributo do sprite.
+
+   O cartão de resumo só aparece com um motor escolhido. Em "Automático" — o
+   padrão — o bloco inteiro se resume a uma linha, para que quem não quer
+   escolher motor não precise ler sobre motores.
+   -------------------------------------------------------------------------- */
+.engine {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.engine__control {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.engine__label {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.engine__auto {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.engine__auto--resolved {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text);
+}
+
+.engine__auto--resolved p {
+  margin: 0;
+}
+
+.engine__reason {
+  margin-top: 3px;
+  color: var(--text-faint);
+  font-size: 0.78rem;
+}
+
+.engine__card {
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+}
+
+.engine__summary {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.engine__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 9px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.engine__tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-faint);
+  font-size: 0.72rem;
+}
+
+.engine__tag--badge {
+  background: rgba(242, 180, 112, 0.16);
+  color: #f2b470;
+}
+
+.engine__highlights {
+  margin: 9px 0 0;
+  padding-left: 18px;
+  color: var(--text-faint);
+  font-size: 0.79rem;
+  line-height: 1.6;
+}
+
+.engine__error {
+  margin: 6px 0 0;
+  color: #f2707f;
+  font-size: 0.79rem;
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------------------------
    Painel da leitura do prompt
    --------------------------------------------------------------------------
    Nasce fechado e discreto: é ferramenta de quando algo deu errado, não um
@@ -681,6 +787,44 @@ input {
   background: rgba(255, 255, 255, 0.06);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.76rem;
+}
+
+/* Crédito do motor (plano de motores §25, regra 3) ------------------------
+   Discreto quando o motor pedido foi o usado, e alarmante quando não foi: a
+   diferença entre os dois casos é a informação inteira deste bloco. */
+.result__engine {
+  max-width: 46ch;
+  margin: 0 auto;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.result__engine p {
+  margin: 0;
+}
+
+.result__engine strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.result__engine--fallback {
+  padding: 10px 14px;
+  border: 1px solid rgba(242, 112, 127, 0.35);
+  border-radius: var(--radius-sm);
+  background: rgba(242, 112, 127, 0.1);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.result__engine-model {
+  margin-top: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  opacity: 0.75;
+  word-break: break-all;
 }
 
 .result__fallback {
@@ -1042,6 +1186,29 @@ input {
 
 .history__thumb--pixelated {
   image-rendering: pixelated;
+}
+
+/* O nome do motor sobre a miniatura (plano de motores §15).
+   Sobreposto, e não abaixo: as miniaturas formam uma grade, e uma legenda
+   fora do quadrado quebraria o alinhamento a cada nome de comprimento
+   diferente. */
+.history__item {
+  position: relative;
+}
+
+.history__engine {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 2px 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.66);
+  color: #fff;
+  font-size: 0.6rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------------------------

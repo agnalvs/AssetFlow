@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (~890 passed, 10 skipped)
+pytest -q                                # suíte completa (~1024 passed, 34 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -22,7 +22,7 @@ ruff check .                             # lint (sem config própria: defaults d
     --reload --reload-dir assetflow --reload-dir config
 ```
 
-`ruff check .` tem **136 achados pré-existentes** (nenhuma config própria, então
+`ruff check .` tem **195 achados pré-existentes** (nenhuma config própria, então
 valem os defaults, bem mais rígidos que o estilo do projeto). Compare com esse
 baseline antes de concluir que uma alteração sua introduziu lint novo — e, se
 mexer nele, atualize o número aqui: o baseline só serve enquanto estiver certo.
@@ -48,6 +48,18 @@ python scripts/preview_engine.py --engine mock-image-v1 --profile studio_charact
 Sempre nomeie a gaveta. `--engine all` e `--engine config` (o padrão) alcançam
 `diffusers-sdxl-v1`, que está `enabled: true` — e a primeira execução baixa
 ~7GB do HuggingFace. Use-os só quando essa for a intenção.
+
+Para **comparar** motores na mesma suíte de pedidos (plano de motores §19):
+
+```bash
+python scripts/benchmark_engines.py --list          # casos e motores disponíveis
+python scripts/benchmark_engines.py --engines texel-style-v1
+python scripts/benchmark_engines.py --cases tree_32 --json data/benchmark/r.json
+```
+
+Vale o mesmo cuidado, e mais um: sem `--engines`, o benchmark roda em **todos**
+os motores disponíveis. Com `sdpixl-v1` habilitado e configurado, o próprio
+projeto declara execuções de horas por imagem.
 
 Frontend (a partir de `frontend/`):
 
@@ -85,6 +97,7 @@ Um pipeline **nunca** importa uma gaveta. Ele pede uma **capacidade**
 ```
 API (/api/generation/jobs)
   -> GenerationService.submit       resolve o FinalResolvedSpec  <- uma única vez
+       AutoEnginePolicy             em modo "auto", escolhe o motor + o motivo
   -> JobManager + JobQueue          jobs/
   -> GenerationWorker               jobs/worker.py     <- teto job_timeout_s
   -> Pipeline (pixel.character)     generation/pipelines/
@@ -106,6 +119,10 @@ Peças-chave:
   `import` escrito à mão. É o que permite somar/remover motores sem tocar em
   código.
 - **`generation/kernel/resolver.py`** — capability → `[preferido, fallback, …]`.
+- **`generation/kernel/catalog.py`** — a vitrine: manifesto + estado viram a
+  lista que o seletor de motor da interface consome.
+- **`generation/kernel/auto_policy.py`** — o que o modo "Automático" prefere,
+  a partir de regras em `config/engine_policy.yaml`.
 - **`settings.py`** — precedência **env (`ASSETFLOW_*`) > YAML > padrão**.
   Nada de motor/modelo/device/precisão fica hardcoded.
 
@@ -155,6 +172,39 @@ Os testes permanentes dos dois bugs estão em `tests/test_resolved_spec.py`.
 Detalhes em [backend/docs/RESOLVED_SPEC.md](backend/docs/RESOLVED_SPEC.md) — é
 o documento que as docstrings citam como `plano T→J §N`.
 
+### Múltiplos motores e seleção de modelo
+
+A pessoa escolhe o motor na tela — **Automático**, FLUX Pixel, SD-πXL, Pixel
+Forge ou Texel-style Agent — e a escolha é respeitada. Quatro regras
+organizam isso:
+
+1. **motor escolhido é motor usado.** Não podendo atender, o job falha dizendo
+   por quê; nunca vira outro em silêncio;
+2. **fallback só em `auto`**, ou quando alguém pediu explicitamente — em
+   seleção manual, `allow_fallback` nasce `False`;
+3. **a resposta mostra os três**: motor pedido, motor usado, versão e modelo;
+4. a decisão vira o campo **`engine` do `FinalResolvedSpec`**, resolvido por
+   precedência como qualquer outro campo — e nenhuma camada posterior a
+   reabre.
+
+Em `auto`, quem responde é a `AutoEnginePolicy` (`config/engine_policy.yaml`):
+regras por tipo de asset, tamanho lógico, paleta e qualidade, cada uma com um
+**motivo em português** que a tela exibe antes de gerar. Ela sugere, nunca
+obriga: um motor preferido que caia é substituído pelo fallback, porque em
+`auto` ninguém tinha escolhido.
+
+Das quatro gavetas novas, só `texel-style-v1` nasce habilitada — é a única que
+não depende de GPU, de download ou de um projeto externo instalado. Ela desenha
+pixel a pixel com ferramentas, direto na resolução lógica.
+
+**O frontend continua sem conhecer motor nenhum**, e a regra só mudou de
+forma: a lista inteira vem de `GET /api/generation/engines/catalog`,
+com nome, resumo, selos e disponibilidade. Nenhum id de motor está escrito no
+React — é o que faz uma gaveta nova aparecer no seletor sozinha.
+
+Detalhes, incluindo como acrescentar a próxima gaveta e como rodar o
+benchmark: [backend/docs/ENGINES.md](backend/docs/ENGINES.md).
+
 ### Pixel Exact (`backend/assetflow/pixel/`)
 
 No modo Pixel Art, "parecer Pixel Art" não basta: o asset só é entregue como
@@ -177,7 +227,13 @@ peça que conhece as duas pontas. Detalhes em
   `profiles.yaml` aponta para um bloco daqui. Defaults conservadores ainda
   existem nos modelos para compatibilidade com profiles antigos sem essa
   referência.
-- `capabilities.yaml` — catálogo descritivo, não restritivo.
+- `capabilities.yaml` — catálogo descritivo, não restritivo. Com o modo
+  "Automático", ele é o **último recurso**: quem responde primeiro é
+  `engine_policy.yaml`.
+- `engine_policy.yaml` — as regras do modo "Automático" (plano de motores
+  §16): tipo de asset + tamanho + paleta → motor preferido + motivo. Ausente,
+  `auto` volta a ser só o roteamento por capacidade.
+- `benchmark_suite.yaml` — os casos fixos da comparação entre motores.
 - `asset_taxonomy/*.yaml` — vocabulário semântico por tipo de asset, em
   português e inglês. Um arquivo por tipo; o nome do arquivo não importa, o
   campo `type:` sim. Diretório ausente não quebra o boot: o classificador
@@ -204,7 +260,13 @@ falhadas.
 ### Frontend
 
 React 18 + Vite + TS. A interface conhece **Pixel Art** e **2D Normal** e mais
-nada — esses rótulos viram capacidades em `src/types.ts`. Além deles ela mostra
+nada — esses rótulos viram capacidades em `src/types.ts`.
+
+Sobre motores, a regra mudou de forma e não de espírito: a tela **oferece** a
+escolha (seletor + resumo de cada motor + "Motor resolvido: X, motivo Y" no
+automático), mas continua sem **conhecer** motor nenhum. Tudo vem de
+`GET /api/generation/engines/catalog`, e nenhum id de motor está escrito no
+frontend — se estivesse, cada gaveta nova exigiria uma alteração aqui. Além deles ela mostra
 o `FinalResolvedSpec` que o backend devolve: o painel "O que o AssetFlow
 entendeu" tem a aba **Interpretação** (o contrato em português, com a origem de
 cada valor) e a aba **JSON final** (o mesmo objeto, editável). Editar ali vira
@@ -231,6 +293,13 @@ os imports são bare specifiers que só o Vite resolve.
   e o cache do modelo (vários GB) moram lá. Nunca faça `rmtree` na pasta toda.
 - **Diferenças de hardware vão em env var, não no YAML.** `engines.yaml` é
   versionado e compartilhado; editar direto gera conflito de merge a cada pull.
+- **A suíte roda com as gavetas de referência, não com as entregues.** O
+  `container` de teste desabilita tudo fora de `REFERENCE_ENGINES`
+  (`tests/conftest.py`). A maior parte dos testes exercita *mecanismo* —
+  roteamento, troca de motor, fallback — e mecanismo se testa com motores
+  previsíveis; amarrá-los ao conjunto que o projeto por acaso entrega
+  habilitado os quebraria a cada gaveta nova. Um teste que precise de uma
+  gaveta de produto a habilita pelo nome (`container.registry.enable(...)`).
 - **O que o `FinalResolvedSpec` já resolveu não se resolve de novo.** Ler
   `profile.output.logical_width` dentro do pipeline, do pós-processamento ou da
   validação é reintroduzir o bug do 32×32: o profile é só uma das seis camadas,

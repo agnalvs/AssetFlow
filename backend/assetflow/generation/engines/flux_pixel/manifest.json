@@ -1,0 +1,74 @@
+{
+  "id": "flux-pixel-v1",
+  "name": "FLUX Pixel",
+  "version": "1.0.0",
+  "engine_api_version": "1",
+  "type": "image_generation",
+  "provider": "local_gpu",
+  "description": "FLUX.2-klein-4B com LoRA de Pixel Art. Gera a base visual rapidamente; a exatidão técnica continua sendo do Pixel Exact (plano de motores §8.1).",
+  "entrypoint": "assetflow.generation.engines.flux_pixel.engine:FluxPixelEngine",
+  "capabilities": [
+    "text_to_image.pixel",
+    "text_to_image.general",
+    "character.pixel",
+    "prop.pixel"
+  ],
+  "supports": {
+    "seed": true,
+    "negative_prompt": false,
+    "batch": true,
+    "transparency": false,
+    "progress_reporting": true,
+    "cancellation": true,
+    "lora": true,
+    "controlnet": false,
+    "image_reference": false,
+    "inpainting": false
+  },
+  "limits": {
+    "min_width": 256,
+    "min_height": 256,
+    "max_width": 2048,
+    "max_height": 2048,
+    "max_variations": 4,
+    "dimension_multiple_of": 16
+  },
+  "resources": {
+    "gpu_required": true,
+    "recommended_vram_mb": 12000,
+    "minimum_vram_mb": 6000,
+    "supports_offloading": true,
+    "supports_quantization": false
+  },
+  "timeouts": {
+    "recommended_timeout_s": 600,
+    "load_timeout_s": 3600
+  },
+  "catalog": {
+    "family": "diffusion",
+    "quality_tier": "high",
+    "speed_tier": "fast",
+    "license_type": "apache-2.0",
+    "supported_logical_sizes": [16, 32, 48, 64, 96, 128],
+    "summary": "Melhor equilíbrio geral: rápido o bastante para iterar, com boa leitura do pedido.",
+    "highlights": [
+      "melhor equilíbrio entre qualidade e tempo",
+      "bom para iterar sobre uma ideia",
+      "difusão com LoRA de Pixel Art",
+      "a exatidão do grid vem do pós-processamento, não dele"
+    ],
+    "badges": [],
+    "exact_resolution": false,
+    "palette_control": false,
+    "image_editing": true,
+    "hidden": false
+  },
+  "status": "disabled",
+  "requires": [
+    "torch",
+    "diffusers",
+    "transformers",
+    "accelerate",
+    "peft"
+  ]
+}

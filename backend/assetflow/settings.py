@@ -90,6 +90,11 @@ class Settings(AssetFlowModel):
     #: `pixel_profiles.yaml` — o contrato Pixel Exact de cada profile
     #: (resolução lógica, paleta, alpha, canvas, preview). Plano Pixel §64.
     pixel_profiles_config: dict[str, Any] = Field(default_factory=dict)
+    #: `engine_policy.yaml` — o que o modo "Auto" prefere (plano de motores §16). Ausente,
+    #: `auto` volta a ser só o roteamento por capacidade, como antes dele.
+    engine_policy_config: dict[str, Any] = Field(default_factory=dict)
+    #: `benchmark_suite.yaml` — a suíte comparativa entre motores (plano de motores §19).
+    benchmark_config: dict[str, Any] = Field(default_factory=dict)
 
     # ------------------------------------------------------------------
     @property
@@ -180,6 +185,8 @@ def load_settings(
     capabilities_config = _read_yaml(configs / "capabilities.yaml")
     profiles_config = _read_yaml(configs / "profiles.yaml")
     pixel_profiles_config = _read_yaml(configs / "pixel_profiles.yaml")
+    engine_policy_config = _read_yaml(configs / "engine_policy.yaml")
+    benchmark_config = _read_yaml(configs / "benchmark_suite.yaml")
 
     storage = StorageSettings(
         root=_env("STORAGE_ROOT") or str(data / "assets"),
@@ -212,6 +219,8 @@ def load_settings(
         capabilities_config=capabilities_config,
         profiles_config=profiles_config,
         pixel_profiles_config=pixel_profiles_config,
+        engine_policy_config=engine_policy_config,
+        benchmark_config=benchmark_config,
     )
 
 

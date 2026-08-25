@@ -11,7 +11,7 @@ from fastapi import APIRouter, Query
 
 from ...generation.schemas import ENGINE_API_VERSION, EngineDescriptor
 from ..deps import ServiceDep
-from ..schemas import EngineListResponse, EngineSummary
+from ..schemas import EngineCatalogResponse, EngineListResponse, EngineSummary
 
 router = APIRouter(prefix="/api/generation/engines", tags=["engines"])
 
@@ -48,6 +48,34 @@ async def list_engines(
         items=tuple(_to_summary(descriptor) for descriptor in descriptors),
         engine_api_version=ENGINE_API_VERSION,
     )
+
+
+@router.get(
+    "/catalog",
+    response_model=EngineCatalogResponse,
+    summary="Catálogo de motores oferecíveis (o que a tela de seleção usa)",
+)
+async def engine_catalog(
+    service: ServiceDep,
+    capability: str | None = Query(
+        default=None,
+        description="Filtra pelos motores que atendem esta capacidade.",
+    ),
+    include_hidden: bool = Query(
+        default=False,
+        description="Inclui gavetas de teste, normalmente fora da vitrine.",
+    ),
+) -> EngineCatalogResponse:
+    """A lista que o seletor de motor da interface consome (plano de motores §6).
+
+    Declarada **antes** de ``/{engine_id}``: o FastAPI resolve as rotas na
+    ordem em que são declaradas, e invertê-las faria "catalog" ser lido como
+    o id de um motor.
+    """
+    entries = await service.engine_catalog(
+        capability=capability, include_hidden=include_hidden
+    )
+    return EngineCatalogResponse(items=tuple(entries), capability=capability)
 
 
 @router.get("/{engine_id}", response_model=EngineSummary, summary="Detalha uma gaveta")

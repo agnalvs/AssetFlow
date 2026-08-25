@@ -43,6 +43,7 @@ __all__ = [
     "ResolvedAsset",
     "ResolvedBackground",
     "ResolvedComposition",
+    "ResolvedEngine",
     "ResolvedGeneration",
     "ResolvedPalette",
     "SpecOverrides",
@@ -170,6 +171,39 @@ class ResolvedComposition(FrozenModel):
     margin_ratio: float | None = Field(default=None, ge=0.0, le=0.4)
 
 
+class ResolvedEngine(FrozenModel):
+    """Qual motor vai atender este job, e por quê (plano de motores §5 e §17).
+
+    Este campo é o que separa "o AssetFlow escolheu" de "eu escolhi": sem ele,
+    a seleção do usuário era um parâmetro solto no pedido, que cada camada
+    podia reinterpretar — e a interface não tinha como afirmar qual motor
+    seria usado antes de gerar.
+
+    ``engine_id`` está preenchido nos dois modos, e significa coisas
+    diferentes em cada um:
+
+    ``manual``
+        o motor **exigido**. Se ele não puder atender, o job falha com a razão
+        — trocar por outro em silêncio é o que o plano de motores §24 proíbe.
+    ``auto``
+        o motor **preferido** pela :class:`AutoEnginePolicy`, com o motivo em
+        ``reason``. É preferência, não exigência: se ele cair, o fallback
+        entra, porque em ``auto`` a escolha nunca foi da pessoa (plano de motores §25, regra 2).
+
+    ``None`` significa que ninguém opinou e nenhuma política respondeu — o
+    roteamento por capacidade decide sozinho, como sempre decidiu.
+    """
+
+    selection_mode: Literal["auto", "manual"] = "auto"
+    engine_id: str | None = None
+    #: Trocar de motor quando o escolhido falhar. Em ``manual`` o padrão é
+    #: ``False``: respeitar a escolha é a regra 1 do plano de motores §25.
+    allow_fallback: bool = True
+    #: Por que este motor, em português. Vazio em seleção manual: o motivo é
+    #: "foi pedido", e escrever isso seria ruído.
+    reason: str = ""
+
+
 class ResolvedGeneration(FrozenModel):
     """Parâmetros da execução em si."""
 
@@ -207,6 +241,10 @@ class FinalResolvedSpec(FrozenModel):
     background: ResolvedBackground = Field(default_factory=ResolvedBackground)
     composition: ResolvedComposition = Field(default_factory=ResolvedComposition)
     generation: ResolvedGeneration = Field(default_factory=ResolvedGeneration)
+    #: A decisão de motor deste job (plano de motores §5). Ela entra no spec, e não fica
+    #: só no pedido, porque é uma decisão resolvida por precedência como
+    #: qualquer outra — e porque o pipeline não pode reabri-la (§37).
+    engine: ResolvedEngine = Field(default_factory=ResolvedEngine)
 
     #: Origem de cada campo resolvido (plano T→J §16). Chaves usam caminho
     #: pontuado: ``"logical_resolution"``, ``"asset.type"``, ``"palette"``.
@@ -237,7 +275,18 @@ class FinalResolvedSpec(FrozenModel):
         da mão do usuário — e por isso precisam ter o mesmo hash.
         """
         return self.model_dump(
-            mode="json", exclude={"spec_id", "spec_hash", "sources", "notes"}
+            mode="json",
+            exclude={
+                "spec_id": True,
+                "spec_hash": True,
+                "sources": True,
+                "notes": True,
+                # O motor entra no hash — dois specs iguais em tudo menos no
+                # motor produzem assets diferentes, e precisam ser
+                # distinguíveis. O *motivo* da escolha, não: ele descreve
+                # como se chegou ao motor, igual a `sources`.
+                "engine": {"reason"},
+            },
         )
 
     def with_identity(self) -> "FinalResolvedSpec":
@@ -279,6 +328,12 @@ class SpecOverrides(AssetFlowModel):
 
     view: str | None = None
     variations: int | None = Field(default=None, ge=1, le=32)
+
+    #: Motor corrigido à mão. É o nível mais alto da precedência também aqui:
+    #: um id escrito no JSON final ganha do seletor da tela.
+    engine_id: str | None = None
+    engine_mode: Literal["auto", "manual"] | None = None
+    allow_engine_fallback: bool | None = None
 
     @property
     def is_empty(self) -> bool:

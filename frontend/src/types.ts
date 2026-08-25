@@ -1,9 +1,20 @@
 /**
  * Tipos da interface.
  *
- * Regra arquitetural (plano da tela §32 e §46): esta camada conhece apenas
- * **Pixel Art** e **2D Normal**, traduzidos para *capacidades*. Em nenhum
- * lugar do frontend existe — nem pode existir — o nome de um motor ou modelo.
+ * Regra arquitetural (plano da tela §32 e §46, atualizada pelo plano de
+ * motores §4 e §24): esta camada conhece **Pixel Art** e **2D Normal**,
+ * traduzidos para *capacidades*.
+ *
+ * Sobre motores, a regra mudou de forma e não de espírito. A tela agora
+ * **oferece** a escolha do motor — o plano de motores §4.1 pede isso — mas
+ * continua sem **conhecer** motor nenhum: a lista vem inteira de
+ * `GET /api/generation/engines/catalog`, com id, nome, resumo, selos e
+ * disponibilidade. Nenhum id de motor está escrito neste código.
+ *
+ * A diferença importa. Se amanhã entrar uma gaveta nova, ela aparece no
+ * seletor sozinha; se `flux-pixel-v1` estivesse escrito aqui, cada motor novo
+ * exigiria uma alteração no frontend — o "hardcode de nomes de modelos em
+ * múltiplos lugares" que o §24 lista entre as coisas a não fazer.
  */
 
 /** Os dois modos de criação oferecidos ao usuário. */
@@ -100,6 +111,80 @@ export interface SemanticPrompt {
 }
 
 // ---------------------------------------------------------------------------
+// Catálogo de motores (plano de motores §6) — o que o seletor desenha
+// ---------------------------------------------------------------------------
+
+/** A tecnologia por trás da gaveta. A tela usa só para agrupar e rotular. */
+export type EngineFamily =
+  | "diffusion"
+  | "native_sprite"
+  | "optimization"
+  | "agentic"
+  | "procedural";
+
+export type EngineQualityTier = "draft" | "standard" | "high" | "reference";
+
+export type EngineSpeedTier = "instant" | "fast" | "moderate" | "slow" | "very_slow";
+
+/**
+ * Um motor como o backend o apresenta.
+ *
+ * Espelha `EngineCatalogEntry`. Todo texto exibido no seletor sai daqui —
+ * inclusive o resumo e os selos —, e é por isso que a tela pode oferecer um
+ * motor que ela não conhece.
+ */
+export interface EngineCatalogEntry {
+  engine_id: string;
+  display_name: string;
+  engine_family: EngineFamily;
+  version: string;
+  description: string;
+  summary: string;
+  highlights: string[];
+  badges: string[];
+
+  supports_pixel_art: boolean;
+  supports_image_editing: boolean;
+  supports_reference_image: boolean;
+  supports_palette_control: boolean;
+  supports_exact_resolution: boolean;
+  supports_background_transparency: boolean;
+  supports_seed: boolean;
+  supported_logical_sizes: number[];
+
+  quality_tier: EngineQualityTier;
+  speed_tier: EngineSpeedTier;
+  license_type: string;
+
+  /** `active` | `disabled` | `unavailable` | `incompatible`. */
+  status: string;
+  /** Dá para escolher este motor agora? */
+  available: boolean;
+  /** Por que não dá, em português. `null` quando dá. */
+  unavailable_reason: string | null;
+
+  capabilities: string[];
+  model_id: string | null;
+  provider: string;
+  gpu_required: boolean;
+  recommended_vram_mb: number;
+  recommended_timeout_s: number;
+}
+
+/**
+ * A escolha de motor feita na tela.
+ *
+ * `null` em `engineId` é **Auto**, e Auto não é um motor: é a ausência de
+ * escolha, que o backend resolve com a política dele. Mandar um id de
+ * "motor automático" apagaria essa diferença.
+ */
+export interface EngineSelection {
+  engineId: string | null;
+}
+
+export const AUTO_ENGINE: EngineSelection = { engineId: null };
+
+// ---------------------------------------------------------------------------
 // Final Resolved Spec — o contrato que a geração executa (plano T→J §15)
 // ---------------------------------------------------------------------------
 
@@ -149,6 +234,21 @@ export interface ResolvedPalette {
 }
 
 /**
+ * A decisão de motor deste pedido (plano de motores §5 e §17).
+ *
+ * Em `auto`, `engine_id` é o motor que a política **prefere** e `reason` diz
+ * por quê — é o que a tela mostra em "Motor: X — Motivo: Y" antes de gerar.
+ * Em `manual`, é o motor exigido, e `reason` fica vazio porque o motivo é
+ * "foi pedido".
+ */
+export interface ResolvedEngine {
+  selection_mode: "auto" | "manual";
+  engine_id: string | null;
+  allow_fallback: boolean;
+  reason: string;
+}
+
+/**
  * Espelha o `FinalResolvedSpec` do backend.
  *
  * É o objeto que a aba "Interpretação" lê e o que a aba "JSON final" mostra —
@@ -169,6 +269,7 @@ export interface FinalResolvedSpec {
   background: { mode: "transparent" | "solid" };
   composition: { view: string | null; centered: boolean; margin_ratio: number | null };
   generation: { variations: number; seed: number | null; quality: string };
+  engine: ResolvedEngine;
   sources: Record<string, SpecSource>;
   notes: string[];
 }
@@ -192,6 +293,9 @@ export interface SpecOverrides {
   background?: "transparent" | "solid" | null;
   view?: string | null;
   variations?: number | null;
+  engine_id?: string | null;
+  engine_mode?: "auto" | "manual" | null;
+  allow_engine_fallback?: boolean | null;
 }
 
 /** Resposta de `POST /api/generation/prompt/preview`, e o campo `prompt` do job. */
@@ -233,6 +337,10 @@ export interface CreateJobPayload {
   spec_overrides?: SpecOverrides;
   /** Semântica corrigida à mão. Presente, ela substitui o PromptBuilder. */
   semantic_prompt?: SemanticPrompt;
+  /**
+   * O motor escolhido. Em `auto` o campo vai só com o modo: um `engine_id`
+   * junto com `auto` seria dizer duas coisas ao mesmo tempo.
+   */
   engine?: { mode: "auto" | "manual"; engine_id?: string };
 }
 
@@ -279,12 +387,32 @@ export interface Asset {
   variants: AssetVariant[];
 }
 
+/**
+ * Motor pedido × motor usado (plano de motores §25, regra 3).
+ *
+ * A regra exige que a tela mostre os dois, mais o modelo carregado. Um
+ * fallback silencioso — em que a pessoa escolhe um motor e recebe o resultado
+ * de outro sem saber — é exatamente o que ela existe para impedir.
+ */
+export interface EngineSelectionView {
+  mode: "auto" | "manual";
+  requested_engine_id: string | null;
+  reason: string;
+  allow_fallback: boolean;
+  resolved_engine_id: string | null;
+  resolved_model_id: string | null;
+  resolved_engine_version: string | null;
+  fallback_used: boolean;
+  attempted_engines: string[];
+}
+
 export interface Job {
   job_id: string;
   status: string;
   progress: number;
   stage: string;
   asset: Asset | null;
+  engine_selection: EngineSelectionView;
   /**
    * O asset não veio do gerador preferido para este modo (plano §44).
    *
@@ -309,6 +437,8 @@ export interface HistoryEntry {
   preview: PromptPreview | null;
   /** Reabrir uma geração antiga precisa reabrir o aviso junto com ela. */
   fallbackUsed: boolean;
+  /** Qual motor gerou esta entrada — é o que torna o histórico comparável. */
+  engine: EngineSelectionView | null;
   createdAt: number;
 }
 

@@ -13,6 +13,7 @@ from typing import Any, Callable
 from pydantic import Field
 
 from ..generation.prompting import render_semantic_prompt
+from ..generation.kernel.catalog import EngineCatalogEntry
 from ..generation.schemas import (
     AssetFlowModel,
     AssetMode,
@@ -35,12 +36,14 @@ UrlResolver = Callable[[str], "str | None"]
 __all__ = [
     "AssetVariantView",
     "AssetView",
+    "EngineSelectionView",
     "JobSubmissionResponse",
     "JobResponse",
     "PromptPreview",
     "JobListResponse",
     "EngineSummary",
     "EngineListResponse",
+    "EngineCatalogResponse",
     "CapabilityResponse",
     "ProfileSummary",
     "ErrorResponse",
@@ -150,6 +153,54 @@ class AssetView(AssetFlowModel):
         )
 
 
+class EngineSelectionView(AssetFlowModel):
+    """Motor pedido × motor usado (plano de motores §25, regra 3).
+
+    A regra 3 exige que a interface mostre as três coisas: o que foi pedido, o
+    que rodou e qual modelo foi carregado. Antes disto, a resposta do job
+    trazia só o motor que rodou — e um fallback ficava indistinguível de uma
+    escolha atendida, que é justamente a informação que importa quando alguém
+    está comparando motores.
+    """
+
+    #: ``auto`` ou ``manual``, como a pessoa pediu.
+    mode: str = "auto"
+    #: Em ``manual``, o motor exigido; em ``auto``, o preferido pela política.
+    requested_engine_id: str | None = None
+    #: Por que a política preferiu este motor (vazio em seleção manual).
+    reason: str = ""
+    allow_fallback: bool = True
+    #: O motor que realmente gerou. ``None`` enquanto o job não terminou.
+    resolved_engine_id: str | None = None
+    resolved_model_id: str | None = None
+    resolved_engine_version: str | None = None
+    fallback_used: bool = False
+    attempted_engines: tuple[str, ...] = ()
+
+    @property
+    def honored(self) -> bool:
+        """O motor pedido foi o motor usado?"""
+        if self.requested_engine_id is None or self.resolved_engine_id is None:
+            return True
+        return self.requested_engine_id == self.resolved_engine_id
+
+    @classmethod
+    def from_job(cls, job: Job) -> "EngineSelectionView":
+        resolved = job.resolved_spec
+        engine = resolved.engine if resolved is not None else None
+        return cls(
+            mode=engine.selection_mode if engine else "auto",
+            requested_engine_id=engine.engine_id if engine else None,
+            reason=engine.reason if engine else "",
+            allow_fallback=engine.allow_fallback if engine else True,
+            resolved_engine_id=job.engine.id if job.engine else None,
+            resolved_model_id=job.engine.model_id if job.engine else None,
+            resolved_engine_version=job.engine.version if job.engine else None,
+            fallback_used=job.fallback_used,
+            attempted_engines=tuple(job.metadata.get("attempted_engines") or ()),
+        )
+
+
 class JobSubmissionResponse(AssetFlowModel):
     """Resposta imediata do POST de job (plano §53)."""
 
@@ -190,6 +241,10 @@ class JobResponse(AssetFlowModel):
 
     engine: EngineRef | None = None
     fallback_used: bool = False
+    #: Motor pedido × motor usado (plano de motores §25, regra 3).
+    engine_selection: EngineSelectionView = Field(
+        default_factory=EngineSelectionView
+    )
 
     asset: AssetView | None = None
     #: A leitura que o AssetFlow fez do pedido — o mesmo objeto devolvido por
@@ -225,6 +280,7 @@ class JobResponse(AssetFlowModel):
             pipeline=job.pipeline_id,
             engine=job.engine,
             fallback_used=job.fallback_used,
+            engine_selection=EngineSelectionView.from_job(job),
             asset=AssetView.from_asset(job.asset, url_for) if job.asset else None,
             prompt=_prompt_view(job),
             error=job.error,
@@ -299,6 +355,20 @@ class EngineSummary(AssetFlowModel):
 class EngineListResponse(AssetFlowModel):
     items: tuple[EngineSummary, ...] = ()
     engine_api_version: str
+
+
+class EngineCatalogResponse(AssetFlowModel):
+    """O catálogo de motores servido à interface (plano de motores §6).
+
+    A tela desenha o seletor a partir desta lista, e não de nomes escritos no
+    frontend. É o que permite acrescentar uma gaveta sem tocar em uma linha de
+    React — e o que impede o "hardcode de nomes de modelos em múltiplos
+    lugares" que o plano de motores §24 proíbe.
+    """
+
+    items: tuple[EngineCatalogEntry, ...] = ()
+    #: Capacidade usada como filtro, quando houve uma.
+    capability: str | None = None
 
 
 class CapabilityResponse(AssetFlowModel):

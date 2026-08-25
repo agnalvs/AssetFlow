@@ -52,6 +52,20 @@ RUN_REAL_ENGINES = os.environ.get("ASSETFLOW_TEST_REAL_ENGINES", "").lower() in 
     "yes",
 }
 
+#: As gavetas com que a suíte trabalha por padrão.
+#:
+#: A maior parte dos testes exercita **mecanismo** — roteamento por
+#: capacidade, troca de motor, fallback, retry —, e mecanismo se testa com
+#: motores previsíveis. Amarrar esses testes ao conjunto de gavetas que o
+#: projeto por acaso entrega habilitadas os quebraria a cada motor novo, sem
+#: que nada de errado tivesse acontecido: foi exatamente o que ocorreu quando
+#: `texel-style-v1` entrou e passou a ser o preferido em Pixel Art.
+#:
+#: As gavetas de produto têm testes próprios, que as habilitam explicitamente
+#: (`container.registry.enable(...)`) — e é lá que o comportamento delas é
+#: cobrado, com o motor dito pelo nome.
+REFERENCE_ENGINES = frozenset({"mock-image-v1", "mock-pixel-alt-v1"})
+
 
 @pytest.fixture
 def container(settings: Settings) -> AppContainer:
@@ -65,14 +79,16 @@ def container(settings: Settings) -> AppContainer:
     settings.worker.retry_base_delay_s = 0.0
     built = build_container(settings)
 
-    if not RUN_REAL_ENGINES:
-        # Trava de segurança. Não basta a gaveta pesada não ser a preferida:
-        # ela também não pode estar na **cadeia de fallback**, senão um teste
-        # que derruba o motor primário (e existem vários) acaba carregando um
-        # modelo de verdade no meio da suíte.
-        for record in built.registry.list():
-            if record.manifest.resources.gpu_required:
-                built.registry.disable(record.id)
+    for record in built.registry.list():
+        if record.id in REFERENCE_ENGINES:
+            continue
+        # Trava de segurança para as pesadas: não basta a gaveta não ser a
+        # preferida, ela também não pode estar na **cadeia de fallback**,
+        # senão um teste que derruba o motor primário (e existem vários)
+        # acaba carregando um modelo de verdade no meio da suíte.
+        if record.manifest.resources.gpu_required and RUN_REAL_ENGINES:
+            continue
+        built.registry.disable(record.id)
 
     return built
 

@@ -94,6 +94,23 @@ export function diffSpec(
     overrides.variations = variations;
   }
 
+  // O motor também se corrige por aqui (plano de motores §5). Editar o id no
+  // JSON é seleção manual — o nível mais alto da precedência —, e por isso o
+  // modo vai junto: sem ele, o backend receberia um id em modo `auto` e leria
+  // como preferência, que é outra coisa.
+  const engine = spec.engine;
+  if (engine && engine.engine_id !== original.engine.engine_id) {
+    overrides.engine_id = engine.engine_id;
+    overrides.engine_mode = engine.engine_id ? "manual" : "auto";
+  } else if (
+    engine &&
+    engine.selection_mode &&
+    engine.selection_mode !== original.engine.selection_mode
+  ) {
+    overrides.engine_mode = engine.selection_mode;
+    if (engine.selection_mode === "manual") overrides.engine_id = engine.engine_id;
+  }
+
   return Object.keys(overrides).length > 0 ? overrides : null;
 }
 
@@ -129,6 +146,11 @@ export function userChoicesOf(resolved: FinalResolvedSpec): SpecOverrides | null
   // `asset.subject` fica de fora de propósito: ele é sempre `explicit_prompt`
   // (é a frase da pessoa) e reenviá-lo travaria o sujeito, fazendo com que
   // editar a descrição na volta não tivesse efeito nenhum.
+
+  // O motor também fica de fora, por outro motivo: quem o restaura é o
+  // seletor da tela, que já reabre no motor da geração antiga. Devolvê-lo
+  // aqui *também* mandaria a mesma decisão por dois caminhos — e o de cima,
+  // sendo correção manual, sobreviveria a trocar o seletor para Automático.
 
   return Object.keys(overrides).length > 0 ? overrides : null;
 }

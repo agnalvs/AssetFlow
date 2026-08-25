@@ -15,6 +15,7 @@ Checklist do plano:
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import io
 import os
@@ -34,6 +35,7 @@ from assetflow.generation.schemas import (
     SUPPORTED_ENGINE_API_VERSIONS,
     Capability,
     EngineHealth,
+    EngineHealthStatus,
     EngineManifest,
     EngineRuntimeConfig,
     ImageGenerationRequest,
@@ -59,6 +61,32 @@ def _missing_requirements(manifest: EngineManifest) -> list[str]:
     return [name for name in manifest.requires if importlib.util.find_spec(name) is None]
 
 
+def _unconfigured_reason(manifest: EngineManifest) -> str | None:
+    """A gaveta se declara indisponível nesta máquina?
+
+    Vale para as pontes (SD-πXL, Pixel Forge): a dependência delas não é um
+    pacote Python, é um projeto externo instalado e apontado no
+    ``engines.yaml``. Sem ele, ``health_check()`` responde ``unavailable`` — e
+    pular é o tratamento certo, o mesmo que já se dá a uma dependência que não
+    está instalada. Falhar aqui cobraria da máquina de quem roda a suíte um
+    clone de cada projeto de terceiro que o AssetFlow sabe operar.
+
+    A pergunta é feita **antes** de ``initialize()``, de propósito: uma gaveta
+    precisa saber responder sobre a própria saúde sem ter sido carregada
+    (plano §43).
+    """
+    try:
+        engine = _make_engine(manifest)
+        health = asyncio.run(engine.health_check())
+    except Exception:  # pragma: no cover - defensivo
+        # Um erro aqui é problema de verdade e precisa aparecer como falha do
+        # caso, não como um skip silencioso.
+        return None
+    if health.status is EngineHealthStatus.UNAVAILABLE:
+        return f"gaveta indisponível neste ambiente: {health.detail or 'sem detalhe'}"
+    return None
+
+
 def _skip_reason(manifest: EngineManifest) -> str | None:
     missing = _missing_requirements(manifest)
     if missing:
@@ -68,7 +96,12 @@ def _skip_reason(manifest: EngineManifest) -> str | None:
             "gaveta pesada (GPU + download de modelo); defina "
             "ASSETFLOW_TEST_REAL_ENGINES=1 para exercitá-la"
         )
-    return None
+    return _unconfigured_reason(manifest)
+
+
+#: Grid lógico pedido nos casos de contrato. Múltiplo de 8 e pequeno: cabe em
+#: qualquer gaveta e mantém os casos rápidos.
+_LOGICAL_SIZE = 32
 
 
 def _make_engine(manifest: EngineManifest) -> ImageGenerationEngine:
@@ -88,9 +121,39 @@ def _request(manifest: EngineManifest, *, seed: int | None = 1234) -> ImageGener
     return ImageGenerationRequest(
         capability=manifest.capabilities[0],
         prompt=PromptSpec(positive="contract test subject"),
-        output=OutputSpec(width=width, height=height, variations=1),
+        output=OutputSpec(
+            width=width,
+            height=height,
+            variations=1,
+            # O grid lógico entra no pedido porque faz parte do contrato
+            # universal (plano de motores §5 e §9): gavetas que sabem desenhar
+            # direto na grade o usam; as demais ignoram, e nada muda para elas.
+            logical_width=_LOGICAL_SIZE,
+            logical_height=_LOGICAL_SIZE,
+            max_colors=16,
+        ),
         generation={"seed": seed} if seed is not None else {},
     )
+
+
+def _expected_size(manifest: EngineManifest) -> tuple[int, int]:
+    """O tamanho que a saída desta gaveta deve ter.
+
+    Duas respostas legítimas, e a diferença é o manifesto quem declara:
+
+    ``exact_resolution: false``
+        a gaveta pinta no tamanho de render e o Pixel Exact reduz depois. É o
+        caso de todo motor de difusão.
+    ``exact_resolution: true``
+        a gaveta entrega o grid lógico pronto — um agente que desenha pixel a
+        pixel, ou um modelo nativo de baixa resolução. Exigir dela o tamanho
+        de render seria exigir que ela ampliasse o próprio desenho só para o
+        pós-processamento encolher de volta.
+    """
+    request = _request(manifest)
+    if manifest.catalog.exact_resolution and request.output.logical_size:
+        return request.output.logical_size
+    return (request.output.width, request.output.height)
 
 
 def _context(job_id: str = "job_contract") -> EngineExecutionContext:
@@ -176,12 +239,15 @@ class TestEngineContract:
         assert result.engine.version == manifest.version
         assert len(result.artifacts) == request.output.variations
 
+        expected = _expected_size(manifest)
         for artifact in result.artifacts:
             assert artifact.data, "a gaveta devolveu um artefato vazio"
-            assert artifact.width == request.output.width
-            assert artifact.height == request.output.height
+            assert (artifact.width, artifact.height) == expected
             image = Image.open(io.BytesIO(artifact.data))
-            assert image.size == (request.output.width, request.output.height)
+            # O que a gaveta **declara** ter produzido tem de bater com o que
+            # ela produziu. Um artefato que mente sobre o próprio tamanho
+            # atravessa o pós-processamento inteiro antes de o erro aparecer.
+            assert image.size == expected
 
     def test_seed_is_registered_and_respected(self, manifest: EngineManifest, run):
         if not manifest.supports.seed:

@@ -154,3 +154,59 @@ export function capitalize(text: string): string {
   if (!text) return text;
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+// ---------------------------------------------------------------------------
+// Motores (plano de motores §4.2)
+//
+// Só rótulos: família, faixa de velocidade, faixa de qualidade e selos. Os
+// **nomes** dos motores nunca aparecem aqui — eles vêm do catálogo servido
+// pelo backend, e é isso que permite acrescentar uma gaveta sem tocar no
+// frontend (§24).
+// ---------------------------------------------------------------------------
+
+const ENGINE_FAMILIES: Record<string, string> = {
+  diffusion: "difusão",
+  native_sprite: "sprites nativos",
+  optimization: "otimização",
+  agentic: "agente de desenho",
+  procedural: "procedural",
+};
+
+const SPEED_TIERS: Record<string, string> = {
+  instant: "instantâneo",
+  fast: "rápido",
+  moderate: "tempo médio",
+  slow: "lento",
+  very_slow: "muito lento",
+};
+
+const QUALITY_TIERS: Record<string, string> = {
+  draft: "qualidade de rascunho",
+  standard: "qualidade padrão",
+  high: "alta qualidade",
+  reference: "qualidade de referência",
+};
+
+const ENGINE_BADGES: Record<string, string> = {
+  experimental: "experimental",
+  lento: "lento",
+  mvp: "primeira versão",
+  especializado: "especializado",
+  referência: "referência",
+};
+
+export function familyLabel(value: string): string {
+  return ENGINE_FAMILIES[value] ?? value;
+}
+
+export function speedLabel(value: string): string {
+  return SPEED_TIERS[value] ?? value;
+}
+
+export function qualityLabel(value: string): string {
+  return QUALITY_TIERS[value] ?? value;
+}
+
+export function engineBadgeLabel(value: string): string {
+  return ENGINE_BADGES[value] ?? value;
+}

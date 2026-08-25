@@ -279,6 +279,11 @@ function Reading({ preview }: { preview: PromptPreview }) {
           value={String(resolved.generation.variations)}
           source={resolved.sources["generation.variations"]}
         />
+        <Row
+          label="Motor"
+          value={engineValue(resolved)}
+          source={resolved.sources["engine"]}
+        />
       </dl>
 
       {resolved.notes.length > 0 ? (
@@ -292,6 +297,24 @@ function Reading({ preview }: { preview: PromptPreview }) {
       <NeutralReading preview={preview} />
     </div>
   );
+}
+
+/**
+ * O motor, em uma linha (plano de motores §5 e §17).
+ *
+ * O id cru é o que aparece, e é o certo aqui: esta aba mostra o **contrato**,
+ * campo por campo, com a origem de cada valor. Trocar o id pelo nome de
+ * exibição faria a aba deixar de casar com o JSON da aba ao lado — que é
+ * literalmente o mesmo objeto, e onde o id é o que se edita.
+ *
+ * O nome bonito fica no seletor e no crédito do resultado, que é onde ele
+ * serve para escolher e para reconhecer.
+ */
+function engineValue(resolved: FinalResolvedSpec): string {
+  const engine = resolved.engine;
+  if (!engine.engine_id) return "Automático";
+  if (engine.selection_mode === "manual") return `${engine.engine_id} (escolhido)`;
+  return `${engine.engine_id} (automático)`;
 }
 
 function Row({

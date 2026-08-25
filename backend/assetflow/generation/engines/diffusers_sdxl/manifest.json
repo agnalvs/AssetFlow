@@ -42,6 +42,31 @@
     "recommended_timeout_s": 300,
     "load_timeout_s": 1800
   },
+  "catalog": {
+    "family": "diffusion",
+    "quality_tier": "high",
+    "speed_tier": "slow",
+    "license_type": "creativeml-openrail-m",
+    "supported_logical_sizes": [
+      32,
+      48,
+      64,
+      96,
+      128
+    ],
+    "summary": "Modelo de difusão de propósito geral: forte em arte 2D e utilizável em Pixel Art com o pós-processamento por cima.",
+    "highlights": [
+      "bom para arte 2D convencional",
+      "implementação de referência da arquitetura de gavetas",
+      "em Pixel Art depende do Pixel Exact para o grid",
+      "exige GPU e download do modelo"
+    ],
+    "badges": [],
+    "exact_resolution": false,
+    "palette_control": false,
+    "image_editing": false,
+    "hidden": false
+  },
   "status": "disabled",
   "requires": [
     "torch",

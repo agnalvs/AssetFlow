@@ -21,6 +21,10 @@ discovery:
     - "mock-image-v1"
     - "mock-pixel-alt-v1"
     - "diffusers-sdxl-v1"
+    - "flux-pixel-v1"
+    - "sdpixl-v1"
+    - "pixel-forge-v1"
+    - "texel-style-v1"
 
 defaults:
   # Tempo máximo padrão de uma geração, quando o manifesto não declara o seu.
@@ -140,3 +144,139 @@ engines:
     # Trocando de perfil, o `guidance_scale` anda junto com o modelo: o Turbo
     # exige 0, e o base lavado em 0 é o sintoma de ter esquecido este campo.
     # -----------------------------------------------------------------------
+
+  # =========================================================================
+  # MÚLTIPLOS MOTORES DE PIXEL ART (plano de seleção de modelos, §2 e §12-§15)
+  #
+  # As quatro gavetas abaixo entram DESABILITADAS. Não é excesso de cautela:
+  # três delas exigem alguma coisa que esta máquina pode não ter — GPU, um
+  # clone do SD-πXL, um binário Rust compilado — e uma gaveta habilitada que
+  # não roda entra na cadeia de fallback e transforma cada falha do motor
+  # principal em uma segunda falha, mais lenta.
+  #
+  # A exceção é `texel-style-v1`, que só depende de Python e por isso nasce
+  # habilitada logo abaixo.
+  # =========================================================================
+
+  # -------------------------------------------------------------------------
+  # FLUX Pixel — FLUX.2-klein-4B + LoRA de Pixel Art (plano §2.1 e §8.1).
+  #
+  # ANTES DE HABILITAR, confira os dois ids no HuggingFace. Um repositório
+  # pode mudar de nome ou de organização, e um id errado só aparece como
+  # falha de download no primeiro job — a mensagem de erro do loader diz
+  # exatamente qual id ele tentou.
+  #
+  # Requer `pip install -e .[diffusers]` com o torch de CUDA (veja SETUP.md),
+  # mais `peft` para a LoRA.
+  # -------------------------------------------------------------------------
+  flux-pixel-v1:
+    enabled: false
+    model:
+      id: "black-forest-labs/FLUX.2-klein-4B"
+      revision: null
+      variant: null
+    device:
+      type: "auto"
+    precision:
+      type: "bf16"        # o padrão do FLUX; fp16 também funciona
+    runtime:
+      enable_attention_slicing: true
+      enable_vae_slicing: true
+      # Em GPU pequena, ligue um dos dois (nunca os dois juntos).
+      enable_model_cpu_offload: false
+      enable_sequential_cpu_offload: false
+    timeouts:
+      timeout_s: 900
+      load_timeout_s: 3600
+    options:
+      # FLUX-klein é destilado: poucos passos bastam.
+      quality_steps:
+        draft: 4
+        standard: 8
+        high: 16
+      guidance_scale: 3.5
+      lora:
+        id: "Limbicnation/pixel-art-lora"
+        # `weight_name` só é necessário quando o repositório tem mais de um
+        # arquivo de pesos; `null` deixa o Diffusers escolher.
+        weight_name: null
+        scale: 1.0
+        # Palavra de ativação da LoRA. O adapter a põe na frente do prompt.
+        trigger: "pixel art"
+
+  # -------------------------------------------------------------------------
+  # SD-πXL (plano §2.2 e §8.2) — qualidade de referência, tempo em horas.
+  #
+  # Integração por processo externo: aponte `command` para a CLI do clone do
+  # projeto. Os placeholders disponíveis são {prompt}, {negative}, {width},
+  # {height}, {logical_width}, {logical_height}, {max_colors}, {seed},
+  # {steps}, {output}, {output_dir} e {workspace}.
+  #
+  # ATENÇÃO ao teto do worker: `ASSETFLOW_JOB_TIMEOUT_S` (padrão 900s) envolve
+  # o pipeline inteiro. Sem alargá-lo, o job morre muito antes do
+  # `process_timeout_s` abaixo.
+  # -------------------------------------------------------------------------
+  sdpixl-v1:
+    enabled: false
+    model:
+      id: "sd-pixl"
+    timeouts:
+      timeout_s: 7200
+      load_timeout_s: 60
+    options:
+      command: []
+      # command:
+      #   - "python"
+      #   - "main.py"
+      #   - "--prompt"
+      #   - "{prompt}"
+      #   - "--size"
+      #   - "{logical_width}"
+      #   - "--colors"
+      #   - "{max_colors}"
+      #   - "--seed"
+      #   - "{seed}"
+      #   - "--output"
+      #   - "{output}"
+      # working_dir: "D:/ferramentas/sd-pixl"
+      output_glob: "*.png"
+      process_timeout_s: 7200
+      quality_steps:
+        draft: 200
+        standard: 500
+        high: 1000
+
+  # -------------------------------------------------------------------------
+  # Pixel Forge (plano §2.3 e §8.3) — sprites 32×32 nativos, em Rust.
+  #
+  # `binary` é o executável compilado do projeto. O backend não é acoplado ao
+  # runtime Rust: ele só executa um processo e lê os PNGs que saírem.
+  # Placeholders: {prompt}, {seed}, {size}, {width}, {height}, {max_colors},
+  # {model}, {output}, {output_dir}, {workspace}.
+  # -------------------------------------------------------------------------
+  pixel-forge-v1:
+    enabled: false
+    model:
+      id: "pixel-forge"
+    options:
+      binary: ""
+      # binary: "D:/ferramentas/pixel-forge/target/release/pixel-forge.exe"
+      args: []
+      # args: ["--prompt", "{prompt}", "--seed", "{seed}", "--out", "{output}"]
+      output_glob: "*.png"
+      process_timeout_s: 300
+
+  # -------------------------------------------------------------------------
+  # Texel-style Agent (plano §9 e §15) — desenha pixel a pixel, sem modelo.
+  #
+  # HABILITADA por padrão, e é a única das quatro que pode ser: ela não baixa
+  # nada, não usa GPU e não depende de nenhum projeto externo. Roda em
+  # milissegundos e é determinística por seed, o que a torna também a gaveta
+  # mais confiável da estante para servir de fallback.
+  # -------------------------------------------------------------------------
+  texel-style-v1:
+    enabled: true
+    options:
+      # Passadas do Review Loop (plano §9.4). Duas resolvem o caso real;
+      # mais do que isso corre o risco de apagar sprites finos pixel a pixel.
+      review_passes: 2

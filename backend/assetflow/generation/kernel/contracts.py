@@ -182,6 +182,26 @@ class ImageGenerationEngine(ABC):
         """
 
     # -- Opcional --------------------------------------------------------
+    #
+    # Sobre ``edit()`` (plano de motores §7)
+    # -------------------------------------
+    # O plano de motores desenha o contrato com três métodos: ``generate``,
+    # ``edit`` e ``healthcheck``, e diz que "o contrato deve prever evolução".
+    # Dois existem; ``edit`` **não foi criado**, e é uma decisão, não um
+    # esquecimento.
+    #
+    # Um método abstrato novo quebraria toda gaveta existente de uma vez. Um
+    # método opcional que levanta "não suportado" precisaria de um
+    # ``AssetEditSpec`` que ninguém produz, de um caminho no Kernel que
+    # ninguém chama e de um endpoint que não existe — código especulativo em
+    # cima de um contrato que é a peça mais estável do sistema.
+    #
+    # O que o plano pede de fato é que acrescentá-lo depois **não** seja uma
+    # mudança destrutiva, e isso já é verdade: um hook opcional com padrão,
+    # exatamente como ``prompt_adapter()`` abaixo, entra a qualquer momento
+    # sem tocar em nenhuma gaveta. A intenção, enquanto isso, já viaja no
+    # manifesto — ``supports.inpainting`` e ``catalog.image_editing`` —, que é
+    # o que permite ao catálogo anunciar o recurso antes de ele existir.
     def prompt_adapter(self) -> "SemanticPromptAdapter | None":
         """Adapter de prompt específico da gaveta (plano §27).
 

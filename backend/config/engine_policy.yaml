@@ -1,0 +1,137 @@
+# ---------------------------------------------------------------------------
+# AssetFlow — O que o modo "Auto" prefere (plano de seleção de modelos, §16)
+# ---------------------------------------------------------------------------
+# Este arquivo responde a uma pergunta que `capabilities.yaml` não sabe
+# responder: entre os motores que CONSEGUEM atender, qual é o melhor para
+# ESTE pedido?
+#
+#   capabilities.yaml  ->  quem consegue, em que ordem   (sempre)
+#   engine_policy.yaml ->  quem é melhor, para este caso (só no modo Auto)
+#
+# A diferença que justifica os dois arquivos: um sprite de 16×16 e um cenário
+# de 128×128 têm exatamente as mesmas capacidades e motores muito diferentes.
+# Uma lista fixa não consegue expressar isso; uma lista de regras, sim.
+#
+# TRÊS COISAS QUE ESTE ARQUIVO NÃO FAZ:
+#
+# 1. Não manda. A resposta é preferência. Se o motor preferido estiver fora do
+#    ar na hora de gerar, o fallback entra normalmente — em "Auto" ninguém
+#    escolheu, então não há escolha para desrespeitar (§25, regra 2).
+# 2. Não vale em seleção manual. Motor escolhido na tela é motor usado, e este
+#    arquivo nem é consultado.
+# 3. Não inventa motor. Uma regra que preferir um motor desabilitado ou
+#    inexistente simplesmente perde a vez, e a próxima regra é avaliada.
+#
+# O campo `reason` é obrigatório na prática: é ele que a interface mostra em
+# "Engine resolvido: X — Motivo: Y" (§17). Uma regra sem motivo transforma o
+# "Auto" na caixa preta que o §17 existe para acabar.
+# ---------------------------------------------------------------------------
+
+enabled: true
+
+# As regras são avaliadas NA ORDEM. A primeira que casar e tiver um motor de
+# pé responde. Portanto: da mais específica para a mais geral.
+rules:
+  # -------------------------------------------------------------------------
+  # Qualidade máxima pedida explicitamente: vale esperar pelo SD-πXL.
+  #
+  # Primeira da lista de propósito. Ela é a única que pode escolher um motor
+  # que leva horas, e só entra quando alguém pediu `quality: high` — ou seja,
+  # quando a espera foi aceita.
+  # -------------------------------------------------------------------------
+  - id: qualidade_maxima
+    when:
+      quality: ["high"]
+      mode: ["pixel"]
+    prefer:
+      - sdpixl-v1
+    reason: >-
+      qualidade máxima pedida em Pixel Art: o SD-πXL gera direto no grid
+      lógico e com a paleta pedida, ao custo de uma geração bem mais longa
+
+  # -------------------------------------------------------------------------
+  # Sprite pequeno e com poucas cores: terreno dos especialistas.
+  #
+  # Até 32×32 com 16 cores, um agente que desenha pixel a pixel e um modelo
+  # nativo de sprites tendem a ganhar de um modelo de difusão que pinta em
+  # 1024 px e depois encolhe — a redução é justamente onde a silhueta de um
+  # sprite pequeno se perde.
+  # -------------------------------------------------------------------------
+  - id: prop_pequeno
+    when:
+      asset_type: ["prop", "icon", "tile", "ui"]
+      max_logical: 32
+      max_colors_at_most: 16
+    prefer:
+      - texel-style-v1
+      - pixel-forge-v1
+      - flux-pixel-v1
+    reason: >-
+      prop pequeno com paleta curta: motores especializados em sprites
+      desenham direto na grade, sem perder a silhueta na redução
+
+  # -------------------------------------------------------------------------
+  # Tile e tileset: encaixe importa mais do que riqueza visual.
+  # -------------------------------------------------------------------------
+  - id: tile_encaixavel
+    when:
+      asset_type: ["tile", "tileset"]
+      max_logical: 64
+    prefer:
+      - texel-style-v1
+      - flux-pixel-v1
+    reason: >-
+      tiles precisam encostar sem falha nas bordas, e o desenho por
+      ferramentas controla a borda pixel a pixel
+
+  # -------------------------------------------------------------------------
+  # Personagem em Pixel Art a partir de 48×48: aqui a difusão ganha.
+  #
+  # É o inverso da regra do prop pequeno, e pelo mesmo motivo: com espaço para
+  # rosto, pose e roupa, a leitura do pedido pesa mais do que o controle do
+  # pixel — e é nisso que o modelo de difusão é melhor.
+  # -------------------------------------------------------------------------
+  - id: personagem_pixel
+    when:
+      asset_type: ["character"]
+      mode: ["pixel"]
+      min_logical: 48
+    prefer:
+      - flux-pixel-v1
+      - diffusers-sdxl-v1
+    reason: >-
+      personagem com espaço para detalhe: a difusão lê melhor o pedido, e o
+      Pixel Exact garante o grid depois
+
+  # -------------------------------------------------------------------------
+  # Qualquer outra coisa em Pixel Art.
+  # -------------------------------------------------------------------------
+  - id: pixel_geral
+    when:
+      mode: ["pixel"]
+    prefer:
+      - flux-pixel-v1
+      - texel-style-v1
+      - diffusers-sdxl-v1
+    reason: >-
+      melhor equilíbrio entre qualidade e tempo para Pixel Art em geral
+
+  # -------------------------------------------------------------------------
+  # Arte 2D convencional.
+  # -------------------------------------------------------------------------
+  - id: arte_2d
+    when:
+      mode: ["studio"]
+    prefer:
+      - diffusers-sdxl-v1
+      - flux-pixel-v1
+    reason: >-
+      arte 2D convencional: modelo de difusão de propósito geral
+
+# Quando nenhuma regra casa, a política se cala e o roteamento por capacidade
+# de `capabilities.yaml` decide — que é exatamente o comportamento que existia
+# antes deste arquivo. Preencher `prefer` aqui só faz sentido para forçar um
+# motor global, e nesse caso a lista de roteamento seria o lugar certo.
+default:
+  prefer: []
+  reason: ""

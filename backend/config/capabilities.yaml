@@ -11,17 +11,22 @@
 routing:
   text_to_image.pixel:
     engines:
+      - flux-pixel-v1
       - diffusers-sdxl-v1
+      - texel-style-v1
       - mock-pixel-alt-v1
       - mock-image-v1
 
   text_to_image.general:
     engines:
+      - flux-pixel-v1
       - diffusers-sdxl-v1
       - mock-image-v1
 
   character.pixel:
     engines:
+      - flux-pixel-v1
+      - texel-style-v1
       - mock-pixel-alt-v1
       - mock-image-v1
 
@@ -32,6 +37,9 @@ routing:
 
   prop.pixel:
     engines:
+      - texel-style-v1
+      - pixel-forge-v1
+      - flux-pixel-v1
       - mock-pixel-alt-v1
       - mock-image-v1
 
@@ -53,3 +61,12 @@ fallback:
 # completa a lista com qualquer engine que declare a capacidade no manifesto,
 # ordenado alfabeticamente, depois dos motores explicitamente priorizados.
 allow_unlisted_engines: true
+
+# ---------------------------------------------------------------------------
+# Esta lista é o ÚLTIMO recurso, não a primeira palavra.
+#
+# Com o modo "Auto" da tela, quem responde primeiro é `engine_policy.yaml`,
+# que olha o tipo de asset, o tamanho e a paleta antes de preferir um motor. A
+# ordem acima só decide quando nenhuma regra de lá se aplica — e quando a
+# pessoa escolheu um motor à mão, nenhuma das duas decide nada.
+# ---------------------------------------------------------------------------

@@ -1,0 +1,86 @@
+# ---------------------------------------------------------------------------
+# AssetFlow — Suíte de benchmark entre motores (plano de motores §19)
+# ---------------------------------------------------------------------------
+# Os mesmos pedidos, rodados em todos os motores. Rodar prompts diferentes em
+# motores diferentes não compara nada; escolher os prompts depois de ver os
+# resultados compara menos ainda. Por isso a lista é fixa e versionada.
+#
+# Como rodar:
+#
+#   python scripts/benchmark_engines.py --engines texel-style-v1
+#   python scripts/benchmark_engines.py --engines texel-style-v1,flux-pixel-v1
+#   python scripts/benchmark_engines.py --cases tree_32,red_potion_16
+#
+# ATENÇÃO: sem `--engines`, o script roda em TODOS os motores disponíveis. Se o
+# SD-πXL estiver habilitado e configurado, isso são horas por caso (§2.2).
+#
+# `seed` é fixa por caso de propósito: sem ela, duas execuções do mesmo caso no
+# mesmo motor já divergem, e a comparação entre motores perde a base.
+# ---------------------------------------------------------------------------
+
+project_id: "benchmark"
+
+# Motores a comparar. Vazio = todos os disponíveis no momento da execução.
+engines: []
+
+cases:
+  - id: tree_32
+    prompt: "tree"
+    asset_type: prop
+    logical_size: 32
+    max_colors: 16
+
+  - id: tree_64
+    prompt: "tree"
+    asset_type: prop
+    logical_size: 64
+    max_colors: 16
+
+  - id: red_potion_16
+    prompt: "red potion"
+    asset_type: prop
+    logical_size: 16
+    max_colors: 8
+
+  - id: wooden_chest_32
+    prompt: "wooden chest"
+    asset_type: prop
+    logical_size: 32
+    max_colors: 16
+
+  - id: stone_sword_32
+    prompt: "stone sword"
+    asset_type: prop
+    logical_size: 32
+    max_colors: 16
+
+  - id: knight_side_64
+    prompt: "knight side view"
+    asset_type: character
+    logical_size: 64
+    max_colors: 16
+
+  - id: mage_front_64
+    prompt: "mage front view"
+    asset_type: character
+    logical_size: 64
+    max_colors: 16
+
+  - id: slime_32
+    prompt: "slime"
+    asset_type: character
+    logical_size: 32
+    max_colors: 8
+
+  - id: house_64
+    prompt: "small medieval house"
+    asset_type: prop
+    logical_size: 64
+    max_colors: 16
+
+metadata:
+  plano: "seleção de modelos §19"
+  # O eixo visual do §20 — fidelidade, silhueta, clusters, contorno,
+  # legibilidade — NÃO é medido por este arquivo nem por nenhum código. Ele é
+  # preenchido à mão no relatório, depois de olhar os assets. Ver §21.
+  eixo_visual: "avaliação humana, preenchida no relatório"

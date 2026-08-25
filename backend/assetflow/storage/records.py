@@ -71,8 +71,19 @@ class GenerationRecord(AssetFlowModel):
     model_id: str | None = None
     model_revision: str | None = None
     engine_provider: str | None = None
+    #: Versão do adapter e LoRA aplicada (plano de motores §18). Sem estes dois, duas
+    #: gerações do mesmo modelo podem ser diferentes sem que o histórico
+    #: consiga dizer por quê.
+    adapter_version: str | None = None
+    lora_id: str | None = None
     fallback_used: bool = False
     attempted_engines: tuple[str, ...] = ()
+
+    #: O motor **pedido**, e como ele foi pedido (plano de motores §25, regra 3). Quando
+    #: difere de ``engine_id``, houve fallback — e é essa diferença que o
+    #: benchmark procura.
+    requested_engine_id: str | None = None
+    engine_selection_mode: str = "auto"
 
     # -- Entrada --------------------------------------------------------
     user_prompt: str = ""
@@ -98,4 +109,6 @@ class GenerationRecord(AssetFlowModel):
             "model_id": engine.model_id,
             "model_revision": engine.model_revision,
             "engine_provider": engine.provider,
+            "adapter_version": engine.adapter_version,
+            "lora_id": engine.lora_id,
         }

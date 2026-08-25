@@ -19,17 +19,23 @@ __all__ = [
     "ENGINE_API_VERSION",
     "SUPPORTED_ENGINE_API_VERSIONS",
     "EngineType",
+    "EngineFamily",
     "EngineState",
     "EngineHealthStatus",
+    "EngineQualityTier",
+    "EngineSpeedTier",
     "EngineSupports",
     "EngineLimits",
     "EngineResources",
     "EngineTimeouts",
+    "EngineCatalogInfo",
     "EngineManifest",
     "EngineHealth",
     "EngineDescriptor",
     "EngineRuntimeConfig",
     "EngineRef",
+    "EngineAdvice",
+    "EngineSuggestion",
 ]
 
 #: Versão do contrato implementada por este backend (plano §10).
@@ -47,6 +53,46 @@ class EngineType(str, Enum):
     IMAGE_EDITING = "image_editing"
     ANIMATION = "animation"
     UPSCALING = "upscaling"
+
+
+class EngineFamily(str, Enum):
+    """A tecnologia por trás da gaveta, para a vitrine (plano de motores §6).
+
+    Não é um detalhe de implementação vazando: é a informação que impede a
+    pessoa de esperar de um agente que desenha pixel a pixel o mesmo tempo de
+    resposta de um modelo de difusão. O sistema nunca decide nada por este
+    campo — quem decide é capacidade, manifesto e política.
+    """
+
+    DIFFUSION = "diffusion"
+    #: Modelo nativo de sprites em resolução baixa (Pixel Forge).
+    NATIVE_SPRITE = "native_sprite"
+    #: Otimização iterativa por imagem (SD-πXL): lento e caro por natureza.
+    OPTIMIZATION = "optimization"
+    #: Agente que desenha com ferramentas, pixel a pixel (estilo Texel).
+    AGENTIC = "agentic"
+    #: Gerador determinístico sem IA — as gavetas de referência.
+    PROCEDURAL = "procedural"
+
+
+class EngineQualityTier(str, Enum):
+    """Faixa de qualidade esperada. Comparativa, nunca uma promessa."""
+
+    DRAFT = "draft"
+    STANDARD = "standard"
+    HIGH = "high"
+    #: Referência de qualidade máxima, tipicamente às custas de tempo.
+    REFERENCE = "reference"
+
+
+class EngineSpeedTier(str, Enum):
+    """Faixa de tempo de resposta, na ordem em que a pessoa a sente."""
+
+    INSTANT = "instant"
+    FAST = "fast"
+    MODERATE = "moderate"
+    SLOW = "slow"
+    VERY_SLOW = "very_slow"
 
 
 class EngineState(str, Enum):
@@ -128,6 +174,48 @@ class EngineTimeouts(AssetFlowModel):
     load_timeout_s: int = Field(default=900, ge=1)
 
 
+class EngineCatalogInfo(AssetFlowModel):
+    """A parte do manifesto escrita para ser **lida por gente** (plano de motores §6).
+
+    O resto do manifesto responde "este motor consegue?" — e é o que o
+    resolver consulta. Este bloco responde "por que eu escolheria este?", que
+    é outra pergunta e tem outro dono: a tela.
+
+    Ele mora no manifesto, junto da gaveta, pelo mesmo motivo que
+    ``capabilities`` mora: acrescentar um motor não pode exigir editar uma
+    lista em outro lugar do sistema. O ``EngineCatalog`` só lê daqui.
+    """
+
+    family: EngineFamily = EngineFamily.PROCEDURAL
+    quality_tier: EngineQualityTier = EngineQualityTier.STANDARD
+    speed_tier: EngineSpeedTier = EngineSpeedTier.MODERATE
+    #: Licença do modelo/projeto operado — ``apache-2.0``, ``mit``, ``unlicense``.
+    license_type: str = "unknown"
+
+    #: Resoluções lógicas em que este motor rende bem. Vazio = sem preferência
+    #: declarada; **não** é um limite (limite é ``EngineLimits``).
+    supported_logical_sizes: tuple[int, ...] = ()
+
+    #: Uma frase. É o que aparece embaixo do seletor quando o motor é escolhido.
+    summary: str = ""
+    #: Os pontos fortes em tópicos curtos (plano de motores §4.2).
+    highlights: tuple[str, ...] = ()
+    #: Avisos que precisam viajar com o motor: ``experimental``, ``lento``.
+    badges: tuple[str, ...] = ()
+
+    #: O motor entrega a resolução lógica exata sozinho (SD-πXL, Texel-style).
+    #: Falso não é defeito: o Pixel Exact é quem garante isso no fim (§8.1).
+    exact_resolution: bool = False
+    #: O motor aceita um limite de cores como entrada, e não só no pós.
+    palette_control: bool = False
+    #: O motor também sabe editar uma imagem existente (previsto, não usado).
+    image_editing: bool = False
+
+    #: Gavetas de teste não aparecem na vitrine — continuam resolvíveis por
+    #: capacidade e continuam sendo escolhíveis por quem souber o id.
+    hidden: bool = False
+
+
 class EngineManifest(AssetFlowModel):
     """Manifesto da gaveta — o "rótulo" que o AssetFlow lê.
 
@@ -154,6 +242,9 @@ class EngineManifest(AssetFlowModel):
     limits: EngineLimits = Field(default_factory=EngineLimits)
     resources: EngineResources = Field(default_factory=EngineResources)
     timeouts: EngineTimeouts = Field(default_factory=EngineTimeouts)
+    #: A vitrine desta gaveta (plano de motores §6). Ausente, o catálogo mostra os
+    #: padrões conservadores — nunca deixa de listar o motor por isso.
+    catalog: EngineCatalogInfo = Field(default_factory=EngineCatalogInfo)
 
     #: `enabled`/`disabled` no manifesto é apenas o padrão de fábrica; a
     #: configuração de ambiente (engines.yaml) tem a palavra final.
@@ -205,6 +296,13 @@ class EngineRef(AssetFlowModel):
     model_id: str | None = None
     model_revision: str | None = None
     provider: str | None = None
+    #: Versão do adapter da gaveta — o código que traduz AssetFlow → modelo.
+    #: Separado de ``version`` de propósito (plano §18): o mesmo modelo com
+    #: outro adapter produz outro resultado, e sem este campo a diferença
+    #: some do histórico.
+    adapter_version: str | None = None
+    #: LoRA aplicada por cima do modelo-base, quando houver (plano de motores §18).
+    lora_id: str | None = None
 
 
 class EngineDescriptor(AssetFlowModel):
@@ -262,3 +360,45 @@ class EngineRuntimeConfig(AssetFlowModel):
     #: (uma GPU modesta com offload pode precisar de bem mais tempo).
     timeout_s: float | None = Field(default=None, gt=0)
     load_timeout_s: float | None = Field(default=None, gt=0)
+
+
+class EngineAdvice(AssetFlowModel):
+    """O que a política de seleção automática precisa saber (plano de motores §16).
+
+    Deliberadamente pequeno e sem nada de motor dentro: é o *pedido* descrito
+    em termos de asset. Quem responde é uma política, e a política pode ser
+    trocada sem que o resolver de spec saiba disso.
+
+    Ele existe em ``schemas/`` porque as duas pontas falam por ele — o
+    ``ConstraintResolver``, que pergunta, e a ``AutoEnginePolicy``, que
+    responde — e nenhuma das duas pode passar a depender da outra.
+    """
+
+    capability: Capability
+    asset_type: str
+    mode: str
+    logical_width: int | None = None
+    logical_height: int | None = None
+    max_colors: int | None = None
+    transparent: bool = True
+    quality: str = "standard"
+    variations: int = 1
+
+    @property
+    def logical_size(self) -> int | None:
+        """O maior lado do grid lógico — a medida usada pelas regras."""
+        sides = [side for side in (self.logical_width, self.logical_height) if side]
+        return max(sides) if sides else None
+
+
+class EngineSuggestion(AssetFlowModel):
+    """A resposta da política: um motor e o porquê, em português (plano de motores §17).
+
+    O motivo não é enfeite. Sem ele, "Auto" é uma caixa preta e a pessoa só
+    descobre o que ele significava depois de gerar — que é exatamente a
+    experiência que o §17 existe para acabar.
+    """
+
+    engine_id: str
+    reason: str = ""
+    rule_id: str | None = None

@@ -1,0 +1,67 @@
+{
+  "id": "sdpixl-v1",
+  "name": "SD-πXL",
+  "version": "1.0.0",
+  "engine_api_version": "1",
+  "type": "image_generation",
+  "provider": "local_process",
+  "description": "Ponte para o SD-πXL, que gera nativamente em baixa resolução e paleta limitada. Qualidade técnica de referência ao custo de tempo: o projeto declara execuções de horas e recomenda 24GB de VRAM (plano de motores §2.2).",
+  "entrypoint": "assetflow.generation.engines.sdpixl.engine:SDPiXLEngine",
+  "capabilities": [
+    "text_to_image.pixel",
+    "prop.pixel",
+    "character.pixel"
+  ],
+  "supports": {
+    "seed": true,
+    "negative_prompt": false,
+    "batch": false,
+    "transparency": false,
+    "progress_reporting": true,
+    "cancellation": true,
+    "lora": false,
+    "controlnet": false,
+    "image_reference": true,
+    "inpainting": false
+  },
+  "limits": {
+    "min_width": 8,
+    "min_height": 8,
+    "max_width": 2048,
+    "max_height": 2048,
+    "max_variations": 1,
+    "dimension_multiple_of": null
+  },
+  "resources": {
+    "gpu_required": true,
+    "recommended_vram_mb": 24000,
+    "minimum_vram_mb": 12000,
+    "supports_offloading": false,
+    "supports_quantization": false
+  },
+  "timeouts": {
+    "recommended_timeout_s": 7200,
+    "load_timeout_s": 60
+  },
+  "catalog": {
+    "family": "optimization",
+    "quality_tier": "reference",
+    "speed_tier": "very_slow",
+    "license_type": "mit",
+    "supported_logical_sizes": [16, 32, 48, 64, 96, 128],
+    "summary": "Pixel art tecnicamente exata, gerada na própria resolução lógica — ao custo de execuções muito longas.",
+    "highlights": [
+      "melhor para pixel art extremamente exata",
+      "gera direto no grid lógico e com paleta limitada",
+      "ideal para benchmark e referência de qualidade",
+      "lento: o projeto fala em horas por imagem"
+    ],
+    "badges": ["experimental", "lento"],
+    "exact_resolution": true,
+    "palette_control": true,
+    "image_editing": false,
+    "hidden": false
+  },
+  "status": "disabled",
+  "requires": []
+}

@@ -13,7 +13,7 @@ Vale entender isso antes, porque explica os passos seguintes:
 |---|---|---|
 | Código do backend e do frontend | ✅ | `git clone` |
 | **Gaveta** SDXL (o adaptador em `backend/assetflow/generation/engines/diffusers_sdxl/`) | ✅ | `git clone` |
-| Dependências Python (`torch`, `diffusers`, …) | ❌ | `pip install` (passo 3) |
+| Dependências Python (`torch`, `diffusers`, `peft`, …) | ❌ | `pip install` (passo 3) |
 | Dependências do front (`node_modules/`) | ❌ | `npm ci` (passo 4) |
 | **Pesos do modelo SDXL** (~7GB de `.safetensors`) | ❌ | Baixados do HuggingFace na 1ª geração (passo 6) |
 
@@ -242,6 +242,40 @@ Esse script existe justamente para isso: ele controla o próprio
 
 Depois que o modelo está em cache, a interface responde normal — as gerações
 seguintes só pagam a inferência, bem dentro dos 900s.
+
+### 6.3 Os outros motores de Pixel Art
+
+O AssetFlow traz mais quatro gavetas (veja
+[backend/docs/ENGINES.md](backend/docs/ENGINES.md)). Só uma delas está
+habilitada por padrão, e é a única que não precisa de nada:
+
+| motor | para habilitar |
+|---|---|
+| **Texel-style Agent** | já habilitado — não baixa nada, não usa GPU |
+| **FLUX Pixel** | `pip install -e ".[diffusers]"` + GPU + `enabled: true` em `engines.yaml` |
+| **SD-πXL** | clone do projeto + `options.command` apontando para a CLI dele |
+| **Pixel Forge** | binário Rust compilado + `options.binary` |
+
+Comece pelo Texel-style: ele responde em milissegundos e serve para conferir o
+fluxo inteiro — seletor de motor, seleção automática com motivo, Pixel Exact,
+selo técnico — antes de qualquer download.
+
+```bash
+cd backend
+python scripts/preview_engine.py --engine texel-style-v1 -n 2
+python scripts/benchmark_engines.py --engines texel-style-v1 --cases tree_32
+```
+
+Ao habilitar o **FLUX Pixel**, confira os dois ids no HuggingFace antes
+(`model.id` e `options.lora.id` em `engines.yaml`): um repositório pode mudar
+de nome, e o id errado só aparece como falha de download no primeiro job. Vale
+o mesmo aquecimento do SDXL — baixe pelo `preview_engine.py --timeout 3600`,
+nunca pela interface.
+
+O **SD-πXL** merece um aviso à parte: o projeto declara execuções de **horas**
+por imagem e recomenda 24GB de VRAM. Habilitá-lo sem alargar
+`ASSETFLOW_JOB_TIMEOUT_S` garante que todo job dele morra no teto do worker
+antes de terminar.
 
 Se ainda assim precisar de mais folga na API:
 

@@ -6,6 +6,7 @@ import {
   EMPTY_SELECTION,
 } from "./components/AssetControls";
 import { EmptyResult } from "./components/EmptyResult";
+import { EngineSelector } from "./components/EngineSelector";
 import { GenerateButton } from "./components/GenerateButton";
 import { GenerationError } from "./components/GenerationError";
 import { GenerationModeSelector } from "./components/GenerationModeSelector";
@@ -16,10 +17,17 @@ import { Header } from "./components/Header";
 import { PromptInput } from "./components/PromptInput";
 import { PromptInspector } from "./components/PromptInspector";
 import { SessionHistory } from "./components/SessionHistory";
+import { useEngineCatalog } from "./hooks/useEngineCatalog";
 import { useGenerationJob } from "./hooks/useGenerationJob";
 import { userChoicesOf } from "./specOverrides";
 import { type PromptEdit, usePromptPreview } from "./hooks/usePromptPreview";
-import { type GenerationMode, type HistoryEntry, MODES } from "./types";
+import {
+  AUTO_ENGINE,
+  type EngineSelection,
+  type GenerationMode,
+  type HistoryEntry,
+  MODES,
+} from "./types";
 
 const MAX_HISTORY = 12;
 
@@ -40,12 +48,30 @@ export function App() {
   // A correção da leitura mora aqui, e não dentro do painel: ela precisa
   // sobreviver ao painel fechado e acompanhar o pedido até a geração.
   const [edit, setEdit] = useState<PromptEdit | null>(null);
+  // O motor escolhido. Começa em Automático — quem só quer um sprite não deve
+  // precisar saber que existem motores (plano de motores §4.1).
+  const [engine, setEngine] = useState<EngineSelection>(AUTO_ENGINE);
 
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const { state, error, result, isBusy, generate, reset, showResult } = useGenerationJob();
-  const inspector = usePromptPreview(mode, prompt, selection, edit, setEdit);
+  const catalog = useEngineCatalog(MODES[mode].capability);
+  const inspector = usePromptPreview(mode, prompt, selection, edit, setEdit, engine);
 
   const canGenerate = prompt.trim().length > 0 && !isBusy;
+
+  // Pixel Art e 2D convencional não são atendidos pelos mesmos motores.
+  // Ao trocar de modo, um motor que não atende o novo modo deixa de existir
+  // no catálogo — e manter a escolha apontando para ele faria a tela oferecer
+  // algo que a geração recusaria. Voltar para Automático é o comportamento
+  // honesto: a pessoa escolhe de novo, agora entre os que servem.
+  if (
+    engine.engineId !== null &&
+    !catalog.loading &&
+    catalog.engines.length > 0 &&
+    !catalog.engines.some((item) => item.engine_id === engine.engineId)
+  ) {
+    setEngine(AUTO_ENGINE);
+  }
 
   const runGeneration = useCallback(
     async (targetMode: GenerationMode, targetPrompt: string) => {
@@ -58,9 +84,10 @@ export function App() {
         selection,
         spec: edit?.spec ?? null,
         semantic: edit?.semantic ?? null,
+        engine,
       });
     },
-    [edit, generate, isBusy, selection],
+    [edit, engine, generate, isBusy, selection],
   );
 
   // O histórico é alimentado quando uma geração conclui.
@@ -76,6 +103,7 @@ export function App() {
         variant: result.variant,
         preview: result.preview,
         fallbackUsed: result.fallbackUsed,
+        engine: result.engine,
         createdAt: Date.now(),
       };
       return [entry, ...current].slice(0, MAX_HISTORY);
@@ -86,6 +114,7 @@ export function App() {
     setPrompt("");
     setSelection(EMPTY_SELECTION);
     setEdit(null);
+    setEngine(AUTO_ENGINE);
     reset();
     lastRecorded.current = null;
     promptRef.current?.focus();
@@ -116,6 +145,18 @@ export function App() {
             pixel={mode === "pixel"}
             disabled={isBusy}
             onChange={setSelection}
+          />
+
+          <EngineSelector
+            selection={engine}
+            engines={catalog.engines}
+            loading={catalog.loading}
+            empty={catalog.empty}
+            error={catalog.error}
+            resolved={inspector.preview?.resolved.engine ?? null}
+            nameOf={catalog.nameOf}
+            disabled={isBusy}
+            onChange={setEngine}
           />
 
           <PromptInspector
@@ -151,6 +192,7 @@ export function App() {
             <GenerationResult
               outcome={result}
               busy={isBusy}
+              nameOf={catalog.nameOf}
               onRegenerate={() => void runGeneration(result.mode, result.prompt)}
               onNewPrompt={handleNewPrompt}
             />
@@ -162,6 +204,7 @@ export function App() {
         <SessionHistory
           entries={history}
           activeJobId={result?.jobId ?? null}
+          nameOf={catalog.nameOf}
           onSelect={(entry) => {
             setPrompt(entry.prompt);
             setMode(entry.mode);
@@ -181,6 +224,14 @@ export function App() {
                   }
                 : null,
             );
+            // O motor volta só quando foi **escolhido**: uma geração feita em
+            // Automático reabre em Automático, para que a política continue
+            // podendo responder se o cenário tiver mudado.
+            setEngine(
+              entry.preview?.resolved.engine.selection_mode === "manual"
+                ? { engineId: entry.preview.resolved.engine.engine_id }
+                : AUTO_ENGINE,
+            );
             showResult(entry);
             lastRecorded.current = entry.jobId;
           }}
@@ -189,8 +240,9 @@ export function App() {
 
       <footer className="page__footer">
         <p>
-          O AssetFlow escolhe automaticamente o motor de geração mais adequado para o
-          estilo selecionado.
+          Em <strong>Automático</strong>, o AssetFlow escolhe o motor mais adequado ao
+          tipo de asset e mostra o motivo antes de gerar. Você também pode escolher o
+          motor à mão — e nesse caso ele é respeitado.
         </p>
       </footer>
     </div>

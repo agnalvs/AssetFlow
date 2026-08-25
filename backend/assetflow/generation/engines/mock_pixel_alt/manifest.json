@@ -43,6 +43,21 @@
     "recommended_timeout_s": 60,
     "load_timeout_s": 30
   },
+  "catalog": {
+    "family": "procedural",
+    "quality_tier": "draft",
+    "speed_tier": "instant",
+    "license_type": "proprietary",
+    "summary": "Segunda gaveta de referência, para provar a troca de motores.",
+    "highlights": [
+      "implementação independente da primeira",
+      "sprites simétricos"
+    ],
+    "badges": [
+      "referência"
+    ],
+    "hidden": true
+  },
   "status": "disabled",
   "requires": []
 }
