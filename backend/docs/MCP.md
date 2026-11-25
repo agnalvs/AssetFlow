@@ -156,7 +156,7 @@ Para "cavaleiro 32x32, 8 cores, sem fundo":
 ```text
 conhecimento:
 humanóide 32×32: cabeça y3–12 (10 px) · tronco y13–20 (8 px) · pernas y21–30 (10 px) · chão y=30 (pixel opaco mais baixo) · folga y1–2 acima da cabeça, para crista, penacho ou cabelo · larguras com contorno: cabeça 12, tronco 12, braço 5, perna 5 · olho 2×2 com brilho de 1 px · 3 tons por material
-quadro: corpo centrado entre x=15 e x=16, com braços em x4–27 (vão de 1 px entre braço e tronco); livre x1–3 e x28–30 dos lados, para arma, escudo, crista e animação
+quadro: corpo centrado entre x=15 e x=16, com braços em x4–27 (colunas contando o braço separado do tronco por 1 px, o que só vale com o membro à mostra); livre x1–3 e x28–30 dos lados, para arma, escudo, crista e animação
 luz: de cima e da esquerda (padrão da base; o pedido não definiu) · luz do lado de onde ela vem e sombra no oposto, nunca só acompanhando o contorno · sombra principal com o vizinho imediato da rampa; o tom mais escuro só em pontos pequenos, nunca em faixa
 cores: até 8, contorno incluído · paleta-mestra endesga-32, rampas do escuro ao claro; cada material usa tons vizinhos de uma rampa:
   contorno #181425
@@ -197,7 +197,7 @@ em 48×48. Para o pedido não depender de o texto dizer "48x48", o profile
 
 ```text
 humanóide, corpo 32×32 num quadro 48×48: cabeça y19–28 (10 px) · tronco y29–36 (8 px) · pernas y37–46 (10 px) · chão y=46 (pixel opaco mais baixo) · folga y17–18 acima da cabeça, ...
-quadro: corpo centrado entre x=23 e x=24, com braços em x12–35 (vão de 1 px entre braço e tronco); livre x1–11 e x36–46 dos lados e y1–16 acima, para arma, escudo, crista e animação
+quadro: corpo centrado entre x=23 e x=24, com braços em x12–35 (colunas contando o braço separado do tronco por 1 px, o que só vale com o membro à mostra); livre x1–11 e x36–46 dos lados e y1–16 acima, para arma, escudo, crista e animação
 ```
 
 Com `molde=true`, a receita do molde vem **deslocada** para o quadro (+8 em x,

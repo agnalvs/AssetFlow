@@ -446,8 +446,9 @@ def test_recorte_do_cavaleiro_traz_medidas_e_nao_a_receita(base: BaseDeConhecime
         " · olho 2×2 com brilho de 1 px · 3 tons por material"
     )
     assert linhas[1] == (
-        "quadro: corpo centrado entre x=15 e x=16, com braços em x4–27 (vão de 1 px entre"
-        " braço e tronco); livre x1–3 e x28–30 dos lados, para arma, escudo, crista e animação"
+        "quadro: corpo centrado entre x=15 e x=16, com braços em x4–27 (colunas contando o"
+        " braço separado do tronco por 1 px, o que só vale com o membro à mostra); livre x1–3"
+        " e x28–30 dos lados, para arma, escudo, crista e animação"
     )
     assert linhas[2].startswith("luz: de cima e da esquerda (padrão da base; o pedido não definiu)")
     assert linhas[3].startswith("cores: até 8, contorno incluído · paleta-mestra endesga-32")
@@ -606,9 +607,9 @@ def test_quadro_de_48_traz_o_corpo_de_32_centrado_e_no_chao_do_quadro(base: Base
         " · olho 2×2 com brilho de 1 px · 3 tons por material"
     )
     assert linhas[1] == (
-        "quadro: corpo centrado entre x=23 e x=24, com braços em x12–35 (vão de 1 px entre"
-        " braço e tronco); livre x1–11 e x36–46 dos lados e y1–16 acima, para arma, escudo,"
-        " crista e animação"
+        "quadro: corpo centrado entre x=23 e x=24, com braços em x12–35 (colunas contando o"
+        " braço separado do tronco por 1 px, o que só vale com o membro à mostra); livre"
+        " x1–11 e x36–46 dos lados e y1–16 acima, para arma, escudo, crista e animação"
     )
     assert linhas[-1].startswith("camadas: pernas, tronco, braco_dir, braco_esq, cabeca")
 

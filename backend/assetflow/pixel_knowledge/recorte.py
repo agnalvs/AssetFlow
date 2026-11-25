@@ -238,7 +238,10 @@ def _linha_do_quadro(valor: Mapping[str, Any], largura: int, acima_de: int | Non
         sobra.append(f"y1–{acima_de - 1} acima")
     texto = (
         f"quadro: corpo centrado {centro}, com braços em x{inicio}–{fim} "
-        f"(vão de {valor['vao_braco_px']} px entre braço e tronco)"
+        # O vão entra na conta da largura, mas não é exigência: só vale com o
+        # membro à mostra (a regra de silhueta em proporcoes.yaml).
+        f"(colunas contando o braço separado do tronco por {valor['vao_braco_px']} px, "
+        "o que só vale com o membro à mostra)"
     )
     if sobra:
         texto += f"; livre {' e '.join(sobra)}, para arma, escudo, crista e animação"
