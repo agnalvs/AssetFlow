@@ -1,0 +1,92 @@
+# Molde-base: humanóide 32×32 de frente (PIXEL_KNOWLEDGE.md §3 e §9).
+#
+# Uma receita da desenhista-v1 (docs/DESENHISTA.md) que é guia de medidas e de
+# camadas, não desenho a copiar: segue proporcoes.yaml (cabeça 8, tronco 9,
+# pernas 11, chão y=30) e separa as partes em camadas com nome, para remendar
+# uma parte sem reenviar o resto — e, na Fase 6, animar parte por parte.
+#
+# Direita e esquerda são as do personagem: de frente, o braço direito fica à
+# esquerda da imagem. A paleta tem 8 chaves, porque a desenhista conta cores
+# por chave e o pedido comum é de 8 cores; por isso o olho é 2×2 sem brilho.
+# As cores são da paleta-mestra (paletas.yaml).
+
+forma: humanoid
+grade: [32, 32]
+descricao: manequim de frente, braço direito afastado para a arma (direita e esquerda do personagem); olho sem brilho, que seria a 9ª chave
+chaves:
+  k: contorno
+  p: pele
+  q: pele sombra
+  R: roupa luz
+  r: roupa
+  s: roupa sombra
+  c: calça
+  d: calça e bota sombra
+
+receita:
+  grade: [32, 32]
+  paleta: {k: "#181425", p: "#e4a672", q: "#b86f50", R: "#8b9bb4", r: "#5a6988", s: "#3a4466",
+           c: "#733e39", d: "#3e2731"}
+  camadas:
+    - nome: pernas
+      ops:
+        - em: [10, 20]
+          px: ["..kccccddk..",
+               "..kcdkkcdk..",
+               ".kcdk..kcdk.",
+               ".kcdk..kcdk.",
+               ".kcdk..kcdk.",
+               ".kcdk..kcdk.",
+               ".kcdk..kcdk.",
+               ".kddk..kddk.",
+               ".kddk..kddk.",
+               "kdddk..kdddk",
+               "kkkkk..kkkkk"]
+    - nome: tronco
+      ops:
+        - em: [12, 11]
+          px: ["kRsssssk",
+               "kRRrrssk",
+               "kRrrrssk",
+               "kRrrrssk",
+               "kRrrrssk",
+               "kRrrrssk",
+               "kRrrrssk",
+               "krrrrssk",
+               "kssssssk"]
+    - nome: braco_dir
+      ops:
+        - em: [5, 11]
+          px: ["....kkk.",
+               "...kRrr.",
+               "...kRrk.",
+               "..kRrk..",
+               "..kRrk..",
+               ".kRrk...",
+               "kppqk...",
+               "kppqk...",
+               ".kkk...."]
+    - nome: braco_esq
+      ops:
+        - em: [19, 11]
+          px: [".kkk..",
+               ".rrsk.",
+               ".krsk.",
+               "..krsk",
+               "..krsk",
+               "..krsk",
+               "..krsk",
+               "..kpqk",
+               "..kpqk",
+               "...kk."]
+    - nome: cabeca
+      ops:
+        - em: [11, 3]
+          px: ["..kkkkkk..",
+               ".kpppppqk.",
+               "kppppppqqk",
+               "kpkkppkkqk",
+               "kpkkppkkqk",
+               "kppppppqqk",
+               "kppppqqqqk",
+               ".kkkkkkkk."]

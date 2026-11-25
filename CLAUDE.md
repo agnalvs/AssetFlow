@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1254 passed, 1 skipped)
+pytest -q                                # suíte completa (1323 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -117,6 +117,21 @@ Feito:
     o pacote importável e testável sem o extra `mcp`. E `servidor.py` não usa
     `from __future__ import annotations`: o SDK avalia as anotações das
     ferramentas, e a descrição de `perfil` é variável local.
+- **Fase 3** (base de conhecimento mínima) — `config/pixel_knowledge/`
+  (`paletas.yaml`, `luz.yaml`, `proporcoes.yaml`, `silhuetas/`), lida no boot
+  por `assetflow/pixel_knowledge/` e entregue no fim de `consultar_pedido`
+  como um **recorte** de poucas linhas. Formato e regras:
+  [backend/docs/MCP.md](backend/docs/MCP.md) §4 e os cabeçalhos dos YAML.
+  Quatro regras ao mexer ali:
+  - **o seletor só lê o spec** (`recorte.py` lista os cinco campos); um teste
+    lhe entrega um objeto com só esses campos;
+  - **paleta-mestra e luz padrão vêm da configuração**, por um ponto único,
+    `BaseDeConhecimento.estilo()` — a porta para uma fase futura de estilos.
+    Nenhuma paleta ou direção de luz fica escrita no código;
+  - **cor de paleta pública vem do Lospec** (`<id>.json`), nunca de memória;
+    número sem fonte leva `a_calibrar: true`, e a carga recusa o que faltar;
+  - **molde com no máximo 8 chaves de paleta**: a desenhista conta cor por
+    chave, não por hexadecimal. O recorte tem teto (`TETO_CARACTERES`).
 
 ## Arquitetura
 
@@ -371,6 +386,10 @@ peça que conhece as duas pontas. Detalhes em
   português e inglês. Um arquivo por tipo; o nome do arquivo não importa, o
   campo `type:` sim. Diretório ausente não quebra o boot: o classificador
   emudece e o tipo do profile volta a prevalecer.
+- `pixel_knowledge/` — a base de conhecimento do desenhista (plano
+  desenhista, Fase 3): paletas e rampas, direção de luz, proporções por forma
+  e tamanho, moldes-base em `silhuetas/`. Só YAML; só a porta MCP a lê.
+  Diretório ausente não quebra o boot: o recorte sai vazio.
 
 ### Fronteiras verificadas por teste
 

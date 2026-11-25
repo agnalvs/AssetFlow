@@ -30,6 +30,7 @@ from ..generation.schemas import (
     AssetOutputOverrides,
     EngineSelector,
 )
+from ..pixel_knowledge import montar_recorte
 from ..storage.records import GenerationRecord
 from .laudo import formatar_consulta, formatar_laudo
 from .remendo import RemendoInvalido, aplicar_remendo
@@ -81,7 +82,10 @@ class ServicoDesenhista:
         perfil = self._perfil(perfil)
         texto = self._texto(pedido)
         spec = self._resolver(texto, perfil)
-        return formatar_consulta(texto, perfil, spec)
+        # O recorte lê o spec já resolvido e só acrescenta orientação: o que
+        # o pedido virou (tamanho, paleta, tipo) não muda por causa da base.
+        recorte = montar_recorte(spec, self._container.conhecimento)
+        return formatar_consulta(texto, perfil, spec, conhecimento=recorte)
 
     # ------------------------------------------------------------------
     async def desenhar(

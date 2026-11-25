@@ -161,6 +161,8 @@ Estágios novos na ilha Pixel, antes do Optimizer, ligados por campos do spec:
 
 Novos analisadores em `pixel/validation/`, com limiares em `pixel_knowledge/validacao.yaml`: doubles, jaggies, banding, pillow shading, rampa reta, cores quase iguais, buracos internos. Classe `style`: geram aviso e nota, não reprovação.
 
+**Calibração pendente, anotada na Fase 3 (não mexer antes desta fase).** O validador hoje tira nota por blocos de cor pequenos ("N de M blocos de cor têm 3 pixels ou menos") e por cor usada em 1 pixel ("cores pintam 1 pixel(s) ou menos"), mesmo quando esses pixels são brilho especular ou detalhe essencial — exceções válidas pelo `PIXEL_KNOWLEDGE.md` §8 (brilho especular forte; olho, botão ou estrela em sprite pequeno; pixel de transição encostado num cluster). Casos reais que motivaram a nota: o cavaleiro 32×32 desenhado sem base de conhecimento saiu legível e aprovado com 79/100, com 44% de blocos pequenos vindos da fenda do visor, da fivela e da cruz do escudo; a poção 16×16 perdeu nota pelo brilho de 1 px da rolha; o molde de prop, pelo brilho de 1 px da fechadura. Calibrar aqui, com os limiares em `validacao.yaml` e os exemplos reais da trilha.
+
 ### Fase 6: animação
 
 - Modelo de animação: lista de frames com `duracao_ms` e `modo_loop`.
@@ -184,8 +186,8 @@ A base de conhecimento não termina na fase 3. Ela cresce a cada fase e é o que
 
 | Fase | Arquivo em `config/pixel_knowledge/` | Seção do documento |
 | --- | --- | --- |
-| 3 | `paletas.yaml`, `proporcoes.yaml`, `silhuetas/` | 2, 3, 5, 9 |
-| 4 | `contorno.yaml`, `luz.yaml`, `props.yaml` | 4, 6, 10 |
+| 3 | `paletas.yaml`, `luz.yaml` (só a direção padrão), `proporcoes.yaml`, `silhuetas/` | 2, 3, 5, 6, 9 |
+| 4 | `contorno.yaml`, `luz.yaml` (cresce: tons por tamanho, materiais), `props.yaml` | 4, 6, 10 |
 | 5 | `validacao.yaml` | 17 |
 | 6 | `animacoes.yaml` | 13, 14, 16 |
 | 7 | `tiles.yaml`, `projecoes.yaml`, `efeitos.yaml` | 11, 12, 15 |

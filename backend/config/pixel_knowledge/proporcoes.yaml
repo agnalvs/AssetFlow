@@ -1,0 +1,70 @@
+# Proporções por forma e tamanho de grade (PIXEL_KNOWLEDGE.md §2, §3, §9, §10).
+#
+# O seletor acha o bloco por dois campos do FinalResolvedSpec, que ele só lê:
+# a forma (`character.body_type` num personagem; `asset.type` nos demais, como
+# `prop`) e a grade lógica ("32x32"). Nada aqui muda tamanho, paleta ou tipo.
+#
+# Toda regra e toda medida declaram a classe (hard | semantic | style) e a
+# seção de origem. Número leva `fonte` (externa) ou `a_calibrar: true` — e
+# "convenção comum", no documento, é sem fonte única: leva a_calibrar.
+#
+# Coordenadas como na receita: origem no canto superior esquerdo, y para baixo.
+# `chao_y` é a linha do pixel opaco mais baixo; o topo é chao_y - altura_px + 1.
+
+formas:
+  humanoid:
+    nome: humanóide
+    regras:
+      # §3 só diz que a arma faz parte do contorno (Pixnote); o vão de 1 px é nosso.
+      - {texto: "arma e escudo fora do corpo, com vão de 1 px, mudando o contorno",
+         classe: semantic, secao: "§3", a_calibrar: true}
+      - {texto: "uma assimetria intencional: pose, arma, cabelo ou capa",
+         classe: style, secao: "§3"}
+      - {texto: "vão entre braço e tronco e entre as pernas",
+         classe: semantic, secao: "§3"}
+      - {texto: "partes vizinhas com valores diferentes, antes de matizes diferentes",
+         classe: style, secao: "§3"}
+    tamanhos:
+      "16x16":
+        altura_px:         {valor: 14,     classe: semantic, secao: "§9", a_calibrar: true}
+        cabeca_px:         {valor: 6,      classe: style,    secao: "§9", a_calibrar: true}
+        tronco_px:         {valor: 4,      classe: style,    secao: "§9", a_calibrar: true}
+        pernas_px:         {valor: 4,      classe: style,    secao: "§9", a_calibrar: true}
+        cabecas:           {valor: [2, 3], classe: style,    secao: "§9", fonte: Pixnote}
+        olho_px:           {valor: [1, 1], classe: style,    secao: "§9", fonte: "Pixnote (1×1, 1×2 ou 2×1)"}
+        braco_px:          {valor: 1,      classe: style,    secao: "§3", fonte: Pixnote}
+        tons_por_material: {valor: 2,      classe: style,    secao: "§6", a_calibrar: true}
+        chao_y:            {valor: 14,     classe: semantic, secao: "§9", a_calibrar: true}
+      "32x32":
+        altura_px:         {valor: 28,     classe: semantic, secao: "§9", a_calibrar: true}
+        cabeca_px:         {valor: 8,      classe: style,    secao: "§9", a_calibrar: true}
+        tronco_px:         {valor: 9,      classe: style,    secao: "§9", a_calibrar: true}
+        pernas_px:         {valor: 11,     classe: style,    secao: "§9", a_calibrar: true}
+        cabecas:           {valor: [3, 4], classe: style,    secao: "§9", fonte: Pixnote}
+        olho_px:           {valor: [2, 2], classe: style,    secao: "§9", fonte: Pixnote,
+                            nota: com brilho de 1 px}
+        # §9: as larguras de braço acima de 16×16 são extrapolação.
+        braco_px:          {valor: 2,      classe: style,    secao: "§9", a_calibrar: true}
+        tons_por_material: {valor: 3,      classe: style,    secao: "§6", a_calibrar: true}
+        chao_y:            {valor: 30,     classe: semantic, secao: "§9", a_calibrar: true}
+
+  prop:
+    nome: objeto
+    regras:
+      - {texto: "um objeto, uma ideia; nada de cena dentro do ícone",
+         classe: style, secao: "§10"}
+      - {texto: "arma longa na diagonal de 45°",
+         classe: style, secao: "§4 e §10", fonte: "Pixel Joint (45° não serrilha)"}
+      - {texto: "um valor por face: topo mais claro, frente média, sombra embaixo",
+         classe: style, secao: "§6"}
+    tamanhos:
+      "16x16":
+        margem_px:         {valor: 1,   classe: semantic, secao: "§10", a_calibrar: true}
+        ocupacao_min:      {valor: 0.5, classe: semantic, secao: "§2",  a_calibrar: true}
+        tons_por_material: {valor: 2,   classe: style,    secao: "§6",  a_calibrar: true}
+        chao_y:            {valor: 14,  classe: semantic, secao: "§10", a_calibrar: true}
+      "32x32":
+        margem_px:         {valor: 1,   classe: semantic, secao: "§10", a_calibrar: true}
+        ocupacao_min:      {valor: 0.5, classe: semantic, secao: "§2",  a_calibrar: true}
+        tons_por_material: {valor: 3,   classe: style,    secao: "§6",  a_calibrar: true}
+        chao_y:            {valor: 30,  classe: semantic, secao: "§10", a_calibrar: true}

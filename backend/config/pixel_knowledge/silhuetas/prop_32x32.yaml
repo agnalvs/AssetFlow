@@ -1,0 +1,41 @@
+# Molde-base: objeto 32×32 em vista 3/4, topo e frente (PIXEL_KNOWLEDGE.md §6 e §10).
+#
+# Uma caixa: a base de baú, caixote e móvel. Mostra a luz por face (topo mais
+# claro, frente média, sombra junto ao chão), a margem de 1 px e o chão em
+# y=30 de proporcoes.yaml. É guia de medidas e de camadas, não desenho a
+# copiar. As cores são da paleta-mestra (paletas.yaml).
+
+forma: prop
+grade: [32, 32]
+descricao: caixa em vista 3/4 (topo e frente), base para baú, caixote e móvel
+chaves:
+  k: contorno
+  T: topo
+  F: aresta iluminada
+  f: frente
+  g: sombra e costura
+  m: metal
+  M: brilho do metal
+
+receita:
+  grade: [32, 32]
+  paleta: {k: "#181425", T: "#e4a672", F: "#d77643", f: "#b86f50", g: "#733e39", m: "#5a6988",
+           M: "#c0cbdc"}
+  camadas:
+    - nome: topo
+      ops:
+        - {ret: [5, 8, 22, 1], cor: k}
+        - {ret: [4, 9, 24, 5], cor: k}
+        - {ret: [5, 9, 22, 5], cor: T}
+    - nome: frente
+      ops:
+        - {ret: [4, 14, 24, 16], cor: k}
+        - {ret: [5, 14, 22, 1], cor: F}
+        - {ret: [5, 15, 22, 14], cor: f}
+        - {ret: [5, 29, 22, 1], cor: g}
+        - {ret: [5, 30, 22, 1], cor: k}
+    - nome: detalhe
+      ops:
+        - {linha: [5, 18, 26, 18], cor: g}
+        - {ret: [14, 17, 4, 4], cor: k}
+        - {px: ["Mm", "mm"], em: [15, 18]}

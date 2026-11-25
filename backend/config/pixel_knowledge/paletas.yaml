@@ -1,0 +1,68 @@
+# Paletas nomeadas e rampas por material (PIXEL_KNOWLEDGE.md §5).
+#
+# Os hexadecimais foram copiados de https://lospec.com/palette-list/<id>.json
+# em 2026-11-25, na ordem em que o Lospec os publica (em minúsculas). Não
+# digite cor de memória: para conferir ou acrescentar uma paleta, baixe o JSON
+# de novo. `autor` só aparece quando o próprio Lospec o informa.
+#
+# `contorno` é a cor mais escura da paleta. `rampas` vão do escuro ao claro
+# (a carga confere pela luminância) e só usam cores da própria paleta; quais
+# cores formam cada rampa é curadoria desta base, não do autor da paleta.
+# Paleta sem `rampas` fica para a troca de paleta (Fase 4), não para o recorte.
+
+# A paleta que o recorte oferece quando o pedido não trava a paleta. O código
+# não tem paleta padrão: sem esta chave, o recorte sai sem rampas.
+mestra: endesga-32
+
+paletas:
+  endesga-32:
+    nome: Endesga 32
+    autor: ENDESGA
+    fonte: https://lospec.com/palette-list/endesga-32
+    conferida_em: "2026-11-25"
+    contorno: "#181425"
+    cores: ["#be4a2f", "#d77643", "#ead4aa", "#e4a672", "#b86f50", "#733e39", "#3e2731", "#a22633",
+            "#e43b44", "#f77622", "#feae34", "#fee761", "#63c74d", "#3e8948", "#265c42", "#193c3e",
+            "#124e89", "#0099db", "#2ce8f5", "#ffffff", "#c0cbdc", "#8b9bb4", "#5a6988", "#3a4466",
+            "#262b44", "#181425", "#ff0044", "#68386c", "#b55088", "#f6757a", "#e8b796", "#c28569"]
+    rampas:
+      metal:           ["#262b44", "#3a4466", "#5a6988", "#8b9bb4", "#c0cbdc", "#ffffff"]
+      pedra:           ["#262b44", "#3a4466", "#5a6988", "#8b9bb4"]
+      pele:            ["#733e39", "#b86f50", "#e4a672", "#ead4aa"]
+      pele_rosada:     ["#733e39", "#c28569", "#e8b796"]
+      madeira:         ["#3e2731", "#733e39", "#b86f50", "#d77643", "#e4a672"]
+      ouro:            ["#be4a2f", "#f77622", "#feae34", "#fee761"]
+      tecido_vermelho: ["#68386c", "#a22633", "#e43b44", "#f77622"]
+      tecido_azul:     ["#262b44", "#124e89", "#0099db", "#2ce8f5"]
+      tecido_roxo:     ["#3e2731", "#68386c", "#b55088", "#f6757a"]
+      folha:           ["#193c3e", "#265c42", "#3e8948", "#63c74d"]
+
+  sweetie-16:
+    nome: Sweetie 16
+    fonte: https://lospec.com/palette-list/sweetie-16
+    conferida_em: "2026-11-25"
+    contorno: "#1a1c2c"
+    cores: ["#1a1c2c", "#5d275d", "#b13e53", "#ef7d57", "#ffcd75", "#a7f070", "#38b764", "#257179",
+            "#29366f", "#3b5dc9", "#41a6f6", "#73eff7", "#f4f4f4", "#94b0c2", "#566c86", "#333c57"]
+    rampas:
+      metal:           ["#333c57", "#566c86", "#94b0c2", "#f4f4f4"]
+      pele:            ["#b13e53", "#ef7d57", "#ffcd75"]
+      tecido_vermelho: ["#5d275d", "#b13e53", "#ef7d57"]
+      tecido_azul:     ["#29366f", "#3b5dc9", "#41a6f6", "#73eff7"]
+      folha:           ["#257179", "#38b764", "#a7f070"]
+
+  pico-8:
+    nome: PICO-8
+    fonte: https://lospec.com/palette-list/pico-8
+    conferida_em: "2026-11-25"
+    contorno: "#000000"
+    cores: ["#000000", "#1d2b53", "#7e2553", "#008751", "#ab5236", "#5f574f", "#c2c3c7", "#fff1e8",
+            "#ff004d", "#ffa300", "#ffec27", "#00e436", "#29adff", "#83769c", "#ff77a8", "#ffccaa"]
+
+  dawnbringer-16:
+    nome: DawnBringer 16
+    fonte: https://lospec.com/palette-list/dawnbringer-16
+    conferida_em: "2026-11-25"
+    contorno: "#140c1c"
+    cores: ["#140c1c", "#442434", "#30346d", "#4e4a4e", "#854c30", "#346524", "#d04648", "#757161",
+            "#597dce", "#d27d2c", "#8595a1", "#6daa2c", "#d2aa99", "#6dc2ca", "#dad45e", "#deeed6"]

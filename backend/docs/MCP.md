@@ -38,8 +38,8 @@ nelas.
   profiles Pixel do `profiles.yaml`, no boot.
 - **O formato da receita vem na resposta de `consultar_pedido`**, e não na
   descrição de `desenhar`: assim ele só ocupa contexto quando há desenho.
-- **O recorte de conhecimento vem vazio** até a Fase 3, que cria
-  `config/pixel_knowledge/`.
+- **O recorte de conhecimento** fecha a resposta de `consultar_pedido`: as
+  linhas de `config/pixel_knowledge/` que valem para aquele spec (§4).
 - Cada desenho é uma variação, no projeto `mcp`: os arquivos ficam em
   `backend/data/assets/projects/mcp/`.
 
@@ -136,13 +136,63 @@ novo, mas as coordenadas da receita não escalam. Se a receita da base declara
 `grade`, a gaveta recusa o tamanho diferente; para desenhar em outro tamanho,
 mande uma receita nova.
 
-## 4. Rodar e testar
+## 4. O recorte de conhecimento
+
+`consultar_pedido` termina com as linhas da base de conhecimento que valem
+para o pedido — nunca a base inteira. Quem monta é
+`assetflow/pixel_knowledge/recorte.py`, a partir de `config/pixel_knowledge/`:
+
+| Arquivo | O que entra no recorte |
+|---|---|
+| `proporcoes.yaml` | medidas da forma e do tamanho (altura, cabeça, tronco, pernas, chão) e as regras de silhueta |
+| `luz.yaml` | a direção padrão, quando o pedido não define uma |
+| `paletas.yaml` | o limite de cores do spec e as rampas da paleta-mestra |
+| `silhuetas/*.yaml` | o molde-base daquela forma e tamanho, como receita |
+
+Para "cavaleiro 32x32, 8 cores, sem fundo":
+
+```text
+conhecimento:
+humanóide 32×32: altura 28 = cabeça 8 + tronco 9 + pernas 11 · topo y=3, chão y=30 (pixel opaco mais baixo) · olho 2×2 com brilho de 1 px · braço 2 px · 3 tons por material
+luz: de cima e da esquerda (padrão da base; o pedido não definiu) · luz do lado de onde ela vem e sombra no oposto, nunca só acompanhando o contorno
+cores: até 8, contorno incluído · paleta-mestra endesga-32, rampas do escuro ao claro; cada material usa tons vizinhos de uma rampa:
+  contorno #181425
+  metal #262b44 #3a4466 #5a6988 #8b9bb4 #c0cbdc #ffffff · pedra #262b44 #3a4466 #5a6988 #8b9bb4
+  ...
+silhueta: arma e escudo fora do corpo, com vão de 1 px, mudando o contorno · uma assimetria intencional: ...
+molde humanoid_32x32: manequim de frente, ...; camadas pernas, tronco, braco_dir, braco_esq, cabeca; chaves k contorno · p pele · ...
+{"grade":[32,32],"paleta":{...},"camadas":[...]}
+o molde é guia de medidas e de camadas, não desenho a copiar: mantenha as proporções, a linha de chão e os nomes das camadas; redesenhe pose, silhueta e detalhes para o pedido
+```
+
+Quatro regras:
+
+- **O seletor só lê o spec**: `logical_resolution`, `asset.type`,
+  `character.body_type`, `palette` e `style.shading.light_direction`. Paleta
+  travada tira as rampas; luz do pedido ganha do padrão; corpo `unknown` fica
+  sem proporções e sem molde, em vez de virar humanoide. A linha `estilo:` da
+  consulta continua dizendo o que o spec resolveu.
+- **Paleta-mestra e luz vêm da configuração**, por um ponto só:
+  `BaseDeConhecimento.estilo()`. O código não tem paleta nem direção próprias;
+  sem `mestra` ou sem `luz.yaml`, a linha some. Uma fase futura de estilos
+  troca paleta, luz, contorno e proporções juntos mudando só esse método.
+- **Teto de 4.000 caracteres** (`TETO_CARACTERES`, cerca de 1.300 tokens). As
+  seções entram na ordem proporções, luz, cores, silhueta, molde; a que não
+  cabe sai inteira, e a última linha diz qual saiu. O cavaleiro usa ~2.600.
+- **Diretório ausente não quebra o boot**: o recorte sai vazio, e a consulta
+  diz `conhecimento: (nada da base para este pedido)`. Arquivo fora do formato
+  é ignorado com aviso no log e em `BaseDeConhecimento.problemas`.
+
+A desenhista conta cor por **chave** da paleta, então os moldes têm no máximo
+8 chaves — cabem direto num pedido de 8 cores.
+
+## 5. Rodar e testar
 
 ```bash
 cd backend
 pip install -e ".[mcp]"                      # SDK `mcp` 2.x, opcional
 python -m assetflow.mcp                      # sobe por stdio (Ctrl+C para sair)
-pytest tests/test_mcp.py tests/test_mcp_servidor.py -q
+pytest tests/test_mcp.py tests/test_mcp_servidor.py tests/test_pixel_knowledge.py -q
 ```
 
 `python -m assetflow.mcp` fica esperando mensagens no stdin — é o esperado:

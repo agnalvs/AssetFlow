@@ -425,3 +425,63 @@ def test_kernel_schemas_prompting_and_engines_ignore_the_pixel_module(path: Path
         if _imports_any(module, ("assetflow.pixel",))
     ]
     assert not violations, "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# Base de conhecimento do desenhista (plano desenhista, Fase 3)
+# ---------------------------------------------------------------------------
+# ``assetflow/pixel_knowledge/`` lê ``config/pixel_knowledge/`` e monta o
+# recorte que ``consultar_pedido`` devolve. Ela mora na **estante**: lê o
+# ``FinalResolvedSpec`` (camada neutra de contratos) e mais nada do produto. Se
+# passasse a depender de gaveta, kernel, job ou da porta MCP, o conhecimento
+# deixaria de ser configuração que qualquer porta lê — e se uma gaveta a
+# importasse, a desenhista passaria a decidir sozinha o que só o recorte decide.
+
+KNOWLEDGE_ROOT = PACKAGE_ROOT / "pixel_knowledge"
+KNOWLEDGE_FILES = _python_files(KNOWLEDGE_ROOT)
+ENGINE_FILES = [path for path in _python_files(ENGINES_ROOT) if _is_engine_module(path)]
+
+#: O que a base de conhecimento não pode enxergar.
+LAYERS_FORBIDDEN_TO_KNOWLEDGE = (
+    "assetflow.generation.engines",
+    "assetflow.generation.kernel",
+    "assetflow.generation.pipelines",
+    "assetflow.jobs",
+    "assetflow.api",
+    "assetflow.storage",
+    "assetflow.mcp",
+    "assetflow.pixel",
+)
+
+
+def test_there_are_knowledge_files_to_inspect():
+    """Guarda da própria seção: parametrização vazia passa sem provar nada."""
+    assert len(KNOWLEDGE_FILES) >= 3
+    assert len(ENGINE_FILES) > 5
+
+
+@pytest.mark.parametrize(
+    "path", KNOWLEDGE_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT))
+)
+def test_knowledge_base_reads_only_the_spec(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, LAYERS_FORBIDDEN_TO_KNOWLEDGE)
+    ]
+    assert not violations, (
+        "assetflow/pixel_knowledge/ só lê o spec:\n" + "\n".join(violations)
+    )
+
+
+@pytest.mark.parametrize(
+    "path", ENGINE_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT))
+)
+def test_engines_ignore_the_knowledge_base(path: Path):
+    """A gaveta recebe a receita pronta e não sabe que a base existe."""
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, ("assetflow.pixel_knowledge",))
+    ]
+    assert not violations, "\n".join(violations)

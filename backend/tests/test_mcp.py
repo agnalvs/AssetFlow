@@ -19,6 +19,7 @@ from assetflow.bootstrap import AppContainer
 from assetflow.mcp.laudo import FORMATO_RECEITA, MAX_POSICOES, _onde, formatar_laudo
 from assetflow.mcp.remendo import RemendoInvalido, aplicar_remendo
 from assetflow.mcp.servico import MOTOR, ErroDoPedido, ServicoDesenhista
+from assetflow.pixel_knowledge import USO_DO_MOLDE, BaseDeConhecimento
 from tests.conftest import BACKEND_ROOT, run
 
 POCAO = BACKEND_ROOT / "assetflow" / "generation" / "engines" / "desenhista" / "exemplos" / "pocao_16x16.json"
@@ -236,7 +237,25 @@ def test_consultar_le_o_spec_e_traz_o_formato(servico: ServicoDesenhista):
     assert "fundo: transparente (do texto)" in texto
     assert f"motor: {MOTOR}" in texto
     assert FORMATO_RECEITA in texto
-    assert texto.endswith("conhecimento: (vazio até a Fase 3)")
+
+
+def test_consultar_traz_o_recorte_da_base(servico: ServicoDesenhista):
+    """Fase 3: depois do spec, as linhas da base que valem para o pedido."""
+    texto = servico.consultar("cavaleiro 32x32, 8 cores, sem fundo")
+    recorte = texto.split("\nconhecimento:\n", 1)[1]
+
+    assert recorte.startswith("humanóide 32×32: altura 28 = cabeça 8 + tronco 9 + pernas 11")
+    assert "cores: até 8, contorno incluído · paleta-mestra endesga-32" in recorte
+    assert "molde humanoid_32x32: " in recorte
+    assert recorte.endswith(USO_DO_MOLDE)
+    # O recorte orienta e não muda o que o pedido virou.
+    assert "estilo: contorno auto · sombreamento auto · luz não definida" in texto
+
+
+def test_consultar_sem_nada_da_base_diz_isso(container: AppContainer):
+    container.conhecimento = BaseDeConhecimento.vazia()
+    texto = ServicoDesenhista(container).consultar("cavaleiro 32x32")
+    assert texto.endswith("conhecimento: (nada da base para este pedido)")
 
 
 def test_consultar_sem_tamanho_usa_o_perfil(servico: ServicoDesenhista):

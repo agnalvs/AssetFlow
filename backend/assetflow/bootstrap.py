@@ -44,6 +44,7 @@ from .jobs import (
 from .llm import ChatClient, ChatConfig, LLMPixelReviewer
 from .pixel import PixelProfileRegistry
 from .pixel.optimizer import AssetFlowPixelOptimizer, PixelReviewer, ReviewLoop
+from .pixel_knowledge import BaseDeConhecimento
 from .settings import Settings, engine_runtime_configs, load_settings
 from .storage import (
     AssetStorageService,
@@ -78,6 +79,10 @@ class AppContainer:
     prompt_builders: PromptBuilderRegistry
     taxonomy: AssetTaxonomy
     constraints: ConstraintResolver
+    #: A base de conhecimento do desenhista (plano desenhista, Fase 3). Só a
+    #: porta MCP a lê, para montar o recorte de ``consultar_pedido``; nenhum
+    #: pipeline, gaveta ou validador depende dela.
+    conhecimento: BaseDeConhecimento
     storage: AssetStorageService
     records: GenerationRecordRepository
     job_store: JobStore
@@ -189,6 +194,11 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         advisor=engine_policy,
     )
 
+    # Base de conhecimento do desenhista: paletas, luz, proporções e moldes,
+    # lidos como a taxonomia — YAML, sem código, e diretório ausente não
+    # derruba o boot. Arquivo torto é ignorado com aviso, e o aviso fica aqui.
+    conhecimento = BaseDeConhecimento.do_diretorio(settings.pixel_knowledge_dir)
+
     # -- Storage ----------------------------------------------------------
     backend = LocalFilesystemBackend(settings.storage_root)
     records = JsonLinesGenerationRecordRepository(settings.history_path)
@@ -237,14 +247,15 @@ def build_container(settings: Settings | None = None) -> AppContainer:
 
     _LOG.info(
         "AssetFlow pronto [%s]: %s gaveta(s), %s profile(s), "
-        "%s profile(s) Pixel, %s pipeline(s), %s vocabulário(s) de asset "
-        "| otimização %s",
+        "%s profile(s) Pixel, %s pipeline(s), %s vocabulário(s) de asset, "
+        "%s molde(s) de desenho | otimização %s",
         settings.app_env.value,
         len(registry),
         len(profiles),
         len(pixel_profiles),
         len(pipelines.ids()),
         len(taxonomy),
+        len(conhecimento.moldes),
         "ligada" if optimizer.enabled else "DESLIGADA",
     )
 
@@ -262,6 +273,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         prompt_builders=prompt_builders,
         taxonomy=taxonomy,
         constraints=constraints,
+        conhecimento=conhecimento,
         storage=storage,
         records=records,
         job_store=job_store,

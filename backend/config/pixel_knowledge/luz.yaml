@@ -1,0 +1,16 @@
+# Direção de luz (PIXEL_KNOWLEDGE.md §6).
+#
+# Uma direção para o projeto inteiro: é o que faz vários assets parecerem do
+# mesmo jogo. `padrao` vale só quando o pedido não define
+# `style.shading.light_direction` — o seletor lê o spec primeiro e nunca o
+# altera. O código não tem direção padrão: sem este arquivo, o recorte sai sem
+# a linha de luz.
+#
+# Na Fase 4 este arquivo cresce: tons por tamanho e regras por material.
+
+# §6: convenção comum — "de cima e da esquerda, ou de cima e da direita".
+padrao: de cima e da esquerda
+
+regras:
+  - {texto: "luz do lado de onde ela vem e sombra no oposto, nunca só acompanhando o contorno",
+     classe: style, secao: "§6"}

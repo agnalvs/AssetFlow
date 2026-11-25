@@ -333,9 +333,11 @@ Nenhum desses itens exigirá mudar o Engine Contract.
 
 ## 8. Próximos passos naturais
 
-1. **Base de conhecimento** — `config/pixel_knowledge/`, o recorte que o
-   servidor MCP entrega ao Claude junto com o pedido
-   ([PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md), Fase 3).
+1. **Acabamento automático** — espelho, contorno e sombreamento por volume
+   antes do Optimizer, e a base de conhecimento crescendo com eles
+   ([PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md), Fase 4). A base
+   mínima (`config/pixel_knowledge/`, Fase 3) já chega ao Claude no recorte
+   de `consultar_pedido` ([MCP.md](MCP.md) §4).
 2. **Broker distribuído** — implementar `JobQueue` sobre Redis/Celery e um
    `JobStore` compartilhado (roteiro em `jobs/celery_adapter.py`).
 3. **Persistência real** — trocar os repositórios em memória por banco,

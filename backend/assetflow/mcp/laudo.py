@@ -62,7 +62,7 @@ _TIPOS_DE_PROBLEMA = {
 # consultar_pedido
 # ---------------------------------------------------------------------------
 def formatar_consulta(pedido: str, perfil: str, spec: Any, *, conhecimento: str = "") -> str:
-    """O que o AssetFlow entendeu do pedido, mais o formato da receita."""
+    """O que o AssetFlow entendeu do pedido, o formato da receita e o recorte."""
     asset = spec.asset
     partes_tipo = [_valor(asset.type)]
     if asset.subject:
@@ -98,8 +98,13 @@ def formatar_consulta(pedido: str, perfil: str, spec: Any, *, conhecimento: str 
         "",
         FORMATO_RECEITA,
         "",
-        f"conhecimento: {conhecimento or '(vazio até a Fase 3)'}",
     ]
+    # O recorte da base (assetflow.pixel_knowledge) vem pronto; aqui só entra
+    # no lugar. Sem nada para este pedido, a linha diz isso em vez de sumir.
+    if conhecimento:
+        linhas.extend(["conhecimento:", conhecimento])
+    else:
+        linhas.append("conhecimento: (nada da base para este pedido)")
     return "\n".join(linhas)
 
 

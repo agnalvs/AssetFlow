@@ -151,6 +151,16 @@ class Settings(AssetFlowModel):
         return self._resolve(self.config_dir / "asset_taxonomy")
 
     @property
+    def pixel_knowledge_dir(self) -> Path:
+        """``config/pixel_knowledge/`` — a base de conhecimento do desenhista.
+
+        Paletas, luz, proporções e moldes (plano desenhista, Fase 3). Ausente,
+        a base vem vazia e o recorte de ``consultar_pedido`` sai vazio: o
+        AssetFlow perde orientação de desenho, não a capacidade de desenhar.
+        """
+        return self._resolve(self.config_dir / "pixel_knowledge")
+
+    @property
     def engine_discovery_paths(self) -> tuple[Path, ...]:
         discovery = self.engines_config.get("discovery") or {}
         paths = discovery.get("paths") or ["assetflow/generation/engines"]

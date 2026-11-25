@@ -80,10 +80,11 @@ transparente:
 Um objeto de **chave de um caractere** para cor `"#rrggbb"`. A chave tem um
 caractere para caber nas linhas de `px`. `.`, `-` e espaço são reservados.
 
-Paleta pública pelo nome (`"pico8"`, `"endesga32"`) **não** entra na gaveta: o
-nome é expandido em cores antes, pelo servidor MCP ou pela base de
-conhecimento (`config/pixel_knowledge/paletas.yaml`, Fase 3). Conhecimento
-mora na estante, não na gaveta.
+Paleta pública pelo nome (`"pico-8"`, `"endesga-32"`) **não** entra na gaveta:
+quem conhece as cores é a base de conhecimento
+(`config/pixel_knowledge/paletas.yaml`), que as mostra no recorte de
+`consultar_pedido` ([MCP.md](MCP.md) §4), e a receita chega com os
+hexadecimais. Conhecimento mora na estante, não na gaveta.
 
 ### Camadas
 
