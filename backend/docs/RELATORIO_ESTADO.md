@@ -1,6 +1,6 @@
 # Relatório de estado — branch `desenhista-mcp`
 
-Data: 2026-11-25 (atualizado depois da calibração da nota e do peso das referências). Base: `main` em `be3e9aa`. Escrito para quem revisa pelo
+Data: 2026-11-25 (atualizado depois da segunda leva de referências). Base: `main` em `be3e9aa`. Escrito para quem revisa pelo
 GitHub, sem acesso à máquina onde o trabalho foi feito. Onde um número veio de
 dado que só existe nessa máquina (assets gerados, pacotes de referência), o
 texto diz isso.
@@ -32,7 +32,8 @@ falhas e com o ruff no mesmo baseline de 154 achados.
 | `0e67bc8` | Adiantado antes da Fase 4 | Biblioteca de referências: `assetflow/referencias/` (importar, medir, somar, calibrar), `config/pixel_knowledge/referencias.yaml`, linha `referências:` no recorte, ferramenta `ver_referencia`. | 1410 / 1 |
 | `d77cb6a` | Estado | Lista de ativos com os cinco pacotes importados, `PIXEL_STYLES.md`, `REFERENCIAS_FONTES.md` e este relatório. Nenhum código. | 1410 / 1 |
 | `40e4bae` | Correções da revisão | Pendências 1, 2 e 12: Retraissance reimportada com quadro 64×128; importador ganha `--excluir` (com teste) e o Ninja Adventure é reimportado sem `Faceset.png` e `SpriteInHand.png`; `calibrar` refeito; `.env` e `.env.*` no `.gitignore`, `.env.example` continua versionado. | 1411 / 1 |
-| (este) | Calibração | Pendências 1 e 4. **Nota:** limiares de blocos pequenos (84%) e cores raras (a partir da 4ª) em `config/quality.yaml`, `a_calibrar`, pela regra "p90 do pacote mais alto"; um validador só, do `bootstrap`, no pipeline, no Optimizer e na rota de dev; `quality.calibration` no relatório; validador 1.2.0. **Referências:** `minimo_por_pacote` (30) e `minimo_de_pacotes` (2) por parte, na linha, no `ver_referencia` (cai para o estilo) e no `calibrar` (que marca a parte insuficiente e propõe os limiares do validador). | 1440 / 1 |
+| `9795710` | Calibração | Pendências 1 e 4. **Nota:** limiares de blocos pequenos (84%) e cores raras (a partir da 4ª) em `config/quality.yaml`, `a_calibrar`, pela regra "p90 do pacote mais alto"; um validador só, do `bootstrap`, no pipeline, no Optimizer e na rota de dev; `quality.calibration` no relatório; validador 1.2.0. **Referências:** `minimo_por_pacote` (30) e `minimo_de_pacotes` (2) por parte, na linha, no `ver_referencia` (cai para o estilo) e no `calibrar` (que marca a parte insuficiente e propõe os limiares do validador). | 1440 / 1 |
+| (este) | Segunda leva de referências | Cinco pacotes CC0 importados e ativos (`pixel-adventure`, `sunny-land`, `hylsy-64-character`, `ninja-animated`, `super-sprite-boy`), com o quadro conferido nos arquivos; Character Prototype (não é pixel art) e Pixel Boy (pintura com centenas de cores) baixados e não importados. Só lista de ativos e documentação: nenhum limiar nem valor da base mudou. | 1440 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -220,8 +221,8 @@ O cavaleiro em quadro 48×48 (`asset_15607e958c4f`, aprovado com 84):
 ### Exemplo real de resposta
 
 `consultar_pedido("cavaleiro 32x32, 8 cores, sem fundo")`, com o código deste
-branch e os cinco pacotes de referência ativos (2.944 caracteres; o recorte, a
-partir de `conhecimento:`, tem 2.129):
+branch e os dez pacotes de referência ativos (3.089 caracteres; o recorte, a
+partir de `conhecimento:`, tem 2.274):
 
 ```text
 pedido: cavaleiro 32x32, 8 cores, sem fundo (perfil pixel_character_32)
@@ -249,15 +250,17 @@ cores: até 8, contorno incluído · paleta-mestra endesga-32, rampas do escuro 
   tecido_roxo #3e2731 #68386c #b55088 #f6757a · folha #193c3e #265c42 #3e8948 #63c74d
 silhueta: arma e escudo fora do corpo, com vão de 1 px, mudando o contorno · o equipamento muda o contorno do corpo (ombreiras, elmo com crista, capa), não só a cor por dentro · uma assimetria intencional: pose, arma, cabelo ou capa · vão entre braço e tronco e entre as pernas quando a roupa deixa o membro à mostra; com manto, capa, vestido ou roupa larga, vale a silhueta da roupa · partes vizinhas com valores diferentes, antes de matizes diferentes
 camadas: pernas, tronco, braco_dir, braco_esq, cabeca (direita e esquerda do personagem) · a receita do molde-base vem com molde=true
-referências: estilo de 2751 quadros (5 pacotes, peso igual): contorno escuro único em 75% (cor mais comum #222222) · 3 tons por grupo de matiz (mediana)
+referências: estilo de 2985 quadros (9 pacotes, peso igual): contorno escuro único em 58% (cor mais comum #222222) · 3 tons por grupo de matiz (mediana); porte de 23–33 px de altura, 515 quadros (3 pacotes, peso igual): 7–24 cores (mediana 11) · largura 0,81× a altura · preenchimento 76% da caixa
 ```
 
-A linha `referências:` só tem a parte de estilo. A de porte saiu: dos 429
-quadros de porte, 400 eram do Customizable e os outros 29 de três pacotes com
-menos de 30 quadros cada (o `minimo_por_pacote`); sobrou um pacote só, abaixo
-do `minimo_de_pacotes` 2. Antes, com peso igual, 1 quadro da Retraissance
-pesava como os 400 (seção 12, item 1). O mesmo vale para o
-`pixel_character_48` ("cavaleiro, 8 cores, sem fundo"): a linha é a mesma.
+A linha `referências:` tem as duas partes. O porte do humanóide 32 tem 515
+quadros de 3 pacotes: Customizable (400), Pixel Adventure (85) e Super Sprite
+Boy (30). Ficam fora dele, por terem menos de 30 quadros na faixa: Kings and
+Pigs (26), SunnyLand (12), DungeonTileset (2), Ninja [Animated] (2) e
+Retraissance (1). Com os cinco pacotes da primeira leva, o porte tinha ficado
+com um pacote só e saía da linha; antes dos mínimos, 1 quadro da Retraissance
+pesava como os 400 do Customizable (seção 12, item 1). O `pixel_character_48`
+("cavaleiro, 8 cores, sem fundo") dá a mesma linha: o corpo é o mesmo, de 32.
 
 ---
 
@@ -332,21 +335,47 @@ arquivos originais são de terceiros e não estão no repositório.
 | `dungeontileset-ii` | 0x72 | 0x72.itch.io/dungeontileset-ii | 339 | character/humanoid 90, character 172, prop 35, tile 42 | 10 |
 | `kings-and-pigs` | Pixel Frog | pixelfrog-assets.itch.io/kings-and-pigs | 282 | character/humanoid 40, character 111, prop 17, tile 114 | 25 |
 | `ninja-adventure` | pixel-boy | pixel-boy.itch.io/ninja-adventure-asset-pack | 5.311 | character/humanoid 2.156, character 392, prop 121, tile 2.642 | 974 |
+| `pixel-adventure` | Pixel Frog | pixelfrog-assets.itch.io/pixel-adventure-1 | 316 | character/humanoid 92, prop 82, tile 142 | 212 |
+| `sunny-land` | ansimuz | ansimuz.itch.io/sunny-land-pixel-game-art | 210 | character/humanoid 34, character/quadruped 11, character/avian 4, prop 40, tile 121 | 15 |
+| `hylsy-64-character` | Hylsy | hylsy.itch.io/64x64-pixel-art-character1 | 12 | character/humanoid 12 | 0 |
+| `ninja-animated` | Morgan McGuire (morgan3d) e DezrasDragons | opengameart.org/content/ninja-animated-0 | 78 | character/humanoid 78 | 1 |
+| `super-sprite-boy` | Chris_M_The_Game_Dude. | opengameart.org/content/super-sprite-boy-sprite-sheet-30-frames-32x32-64x64 | 30 | character/humanoid 30 | 0 |
 
 O Ninja Adventure foi importado com `--excluir "**/Faceset.png" --excluir
 "**/SpriteInHand.png"`: 86 PNG ficaram de fora (66 retratos de monstros e 20
 sprites de arma "na mão"). A Retraissance foi importada com `--quadro 64x128`;
 a altura mediana do conteúdo é 60 px.
 
+**Segunda leva (2026-11-25).** Antes de importar, cada zip e cada imagem foi
+aberto e o tamanho do quadro saiu dos arquivos, não do nome do pacote (o erro
+da Retraissance): escala, níveis de alfa, cores, grade candidata testada contra
+desenho cortado e a folha vista ampliada com a grade por cima. A tabela
+completa, com o que entrou e o que ficou de fora de cada pacote, está em
+[REFERENCIAS_FONTES.md](REFERENCIAS_FONTES.md) §6. Em resumo:
+
+| Pacote | Quadro | Corpo (mediana de altura) | Entrou | Ficou de fora |
+|---|---|---|---|---|
+| `pixel-adventure` | 32×32 personagens e frutas, 64×64 checkpoints, 16×16 terreno | 25 px | 4 personagens (humanoides), frutas, caixas, checkpoints, terreno | efeitos, fundos, menu, armadilhas, imagens de divulgação |
+| `sunny-land` | 33×32 Foxy, 36×28 gambá, 40×41 águia, 35×32 sapo, tileset 16×16 | Foxy 22 px; gambá e sapo 21; águia 28,5 | Foxy (humanoide), gambá e sapo (quadrúpedes), águia (ave), itens, props, tileset | atlas e folhas repetidas, casas e árvores, fundos, efeitos |
+| `hylsy-64-character` | 64×64 | 63 px | `Character.png` (12 quadros) | `Hurt1–3` (mesmas poses com sangue), `HurtDead`, `.piskel` |
+| `ninja-animated` | 32×32 | 15 px | a folha inteira (78 quadros) | — |
+| `super-sprite-boy` | 32×32 | 31 px | `32x32 Improved hair.png` (30 quadros) | as folhas 64×64 (a 32×32 ampliada 2×) e a 32×32 normal (~5 px de diferença por quadro) |
+
+Baixados e **não importados**: Character Prototype Animated (não é pixel art:
+boneco vetorial de 150 a 254 px numa tela de 512×512, com alfa suavizado) e
+Pixel Boy 32x64 (pintura com textura, 240 a 483 cores por quadro). Yakuza Enemy
+e Enemy Biker: indisponíveis na página.
+
 Lista de ativos em `config/pixel_knowledge/referencias.yaml`:
 `customizable-character-pack`, `pixel-character-base-64`, `dungeontileset-ii`,
-`kings-and-pigs`, `ninja-adventure`.
+`kings-and-pigs`, `ninja-adventure`, `pixel-adventure`, `sunny-land`,
+`hylsy-64-character`, `ninja-animated`, `super-sprite-boy`.
 
 ### Relatório de calibração, na íntegra
 
 Saída de `python -m assetflow.referencias calibrar` (o arquivo fica em
-`data/referencias/calibracao.md`, fora do git), com o mínimo por pacote (30),
-o mínimo de pacotes por parte (2) e o validador calibrado:
+`data/referencias/calibracao.md`, fora do git), com os dez pacotes, o mínimo
+por pacote (30), o mínimo de pacotes por parte (2) e o validador calibrado:
 
 ```markdown
 # Calibração pelas referências
@@ -361,13 +390,19 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 - `dungeontileset-ii` — 0x72, CC0-1.0, 339 quadros
 - `kings-and-pigs` — Pixel Frog, CC0-1.0, 282 quadros
 - `ninja-adventure` — pixel-boy, CC0-1.0, 5311 quadros
+- `pixel-adventure` — Pixel Frog, CC0-1.0, 316 quadros
+- `sunny-land` — ansimuz, CC0-1.0, 210 quadros
+- `hylsy-64-character` — Hylsy, CC0-1.0, 12 quadros
+- `ninja-animated` — Morgan McGuire (morgan3d) e DezrasDragons, CC0-1.0, 78 quadros
+- `super-sprite-boy` — Chris_M_The_Game_Dude., CC0-1.0, 30 quadros
 
 ## humanóide 16x16
 
-2751 quadros de estilo; 2156 de porte parecido (12–16 px de altura).
+2985 quadros de estilo; 2210 de porte parecido (12–16 px de altura).
+
+- estilo: fora por amostra pequena (menos de 30 quadros na parte): `hylsy-64-character` (12).
 
 - porte: fora por amostra pequena (menos de 30 quadros na parte): `dungeontileset-ii` (9).
-- porte: **insuficiente** (1 pacote, mínimo 2): os números de porte abaixo não entram na linha `referências:` nem no `ver_referencia`.
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
@@ -378,16 +413,17 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 | cabecas | 2 a 3 | — | — | não medida: exige separar a cabeça |
 | olho_px | 1×1 | — | — | não medida: exige achar o olho |
 | braco_px | 1 | — | — | não medida: exige separar o braço |
-| tons_por_material | 2 | 2–3–4 (n=2751, 5 pac.) | 3 | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 2 | 2–3–4 (n=2985, 9 pac.) | 3 | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 14 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
-| cores por quadro (informativo) | — | 6–7–9 (n=2156, 1 pac.; insuficiente: 1 pacote, mínimo 2) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
+| cores por quadro (informativo) | — | 7–10–11 (n=2210, 2 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
 
 ## humanóide 32x32
 
-2751 quadros de estilo; 400 de porte parecido (23–33 px de altura).
+2985 quadros de estilo; 515 de porte parecido (23–33 px de altura).
 
-- porte: fora por amostra pequena (menos de 30 quadros na parte): `kings-and-pigs` (26), `dungeontileset-ii` (2), `pixel-character-base-64` (1).
-- porte: **insuficiente** (1 pacote, mínimo 2): os números de porte abaixo não entram na linha `referências:` nem no `ver_referencia`.
+- estilo: fora por amostra pequena (menos de 30 quadros na parte): `hylsy-64-character` (12).
+
+- porte: fora por amostra pequena (menos de 30 quadros na parte): `kings-and-pigs` (26), `sunny-land` (12), `dungeontileset-ii` (2), `ninja-animated` (2), `pixel-character-base-64` (1).
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
@@ -398,21 +434,22 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 | cabecas | 2,8 | — | — | não medida: exige separar a cabeça |
 | folga_topo_px | 2 | — | — | não comparável: depende do quadro |
 | largura_cabeca_px | 12 | — | — | não medida: exige separar a cabeça |
-| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~16 px (com braços, arma e pose); porte insuficiente: 1 pacote, mínimo 2 |
+| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~23 px (com braços, arma e pose) |
 | largura_braco_px | 5 | — | — | não medida: exige separar o braço |
 | largura_perna_px | 5 | — | — | não medida: exige separar a perna |
 | vao_braco_px | 1 | — | — | não medida: exige separar o braço |
 | olho_px | 2×2 | — | — | não medida: exige achar o olho |
-| tons_por_material | 3 | 2–3–4 (n=2751, 5 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 3 | 2–3–4 (n=2985, 9 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 30 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
-| cores por quadro (informativo) | — | 6–7–8 (n=400, 1 pac.; insuficiente: 1 pacote, mínimo 2) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
+| cores por quadro (informativo) | — | 7–11–24 (n=515, 3 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
 
 ## humanóide 48x48 (corpo 32x32)
 
-2751 quadros de estilo; 400 de porte parecido (23–33 px de altura).
+2985 quadros de estilo; 515 de porte parecido (23–33 px de altura).
 
-- porte: fora por amostra pequena (menos de 30 quadros na parte): `kings-and-pigs` (26), `dungeontileset-ii` (2), `pixel-character-base-64` (1).
-- porte: **insuficiente** (1 pacote, mínimo 2): os números de porte abaixo não entram na linha `referências:` nem no `ver_referencia`.
+- estilo: fora por amostra pequena (menos de 30 quadros na parte): `hylsy-64-character` (12).
+
+- porte: fora por amostra pequena (menos de 30 quadros na parte): `kings-and-pigs` (26), `sunny-land` (12), `dungeontileset-ii` (2), `ninja-animated` (2), `pixel-character-base-64` (1).
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
@@ -423,18 +460,18 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 | cabecas | 2,8 | — | — | não medida: exige separar a cabeça |
 | folga_topo_px | 2 | — | — | não comparável: depende do quadro |
 | largura_cabeca_px | 12 | — | — | não medida: exige separar a cabeça |
-| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~16 px (com braços, arma e pose); porte insuficiente: 1 pacote, mínimo 2 |
+| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~23 px (com braços, arma e pose) |
 | largura_braco_px | 5 | — | — | não medida: exige separar o braço |
 | largura_perna_px | 5 | — | — | não medida: exige separar a perna |
 | vao_braco_px | 1 | — | — | não medida: exige separar o braço |
 | olho_px | 2×2 | — | — | não medida: exige achar o olho |
-| tons_por_material | 3 | 2–3–4 (n=2751, 5 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 3 | 2–3–4 (n=2985, 9 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 46 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
-| cores por quadro (informativo) | — | 6–7–8 (n=400, 1 pac.; insuficiente: 1 pacote, mínimo 2) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
+| cores por quadro (informativo) | — | 7–11–24 (n=515, 3 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
 
 ## objeto 16x16
 
-156 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
+278 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
 
 - estilo: fora por amostra pequena (menos de 30 quadros na parte): `kings-and-pigs` (17).
 
@@ -442,12 +479,12 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 |---|---|---|---|---|
 | margem_px | 1 | — | — | não comparável: depende do quadro |
 | ocupacao_min | 0,5 | — | — | não comparável: depende do quadro (ocupação é pixels ÷ área do quadro) |
-| tons_por_material | 2 | 1,5–2–2 (n=156, 2 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 2 | 1,5–2–3 (n=278, 4 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 14 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
 
 ## objeto 32x32
 
-156 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
+278 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
 
 - estilo: fora por amostra pequena (menos de 30 quadros na parte): `kings-and-pigs` (17).
 
@@ -455,7 +492,7 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 |---|---|---|---|---|
 | margem_px | 1 | — | — | não comparável: depende do quadro |
 | ocupacao_min | 0,5 | — | — | não comparável: depende do quadro (ocupação é pixels ÷ área do quadro) |
-| tons_por_material | 3 | 1,5–2–2 (n=156, 2 pac.) | 2 | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 3 | 1,5–2–3 (n=278, 4 pac.) | 2 | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 30 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
 
 ## O validador atual sobre as referências
@@ -472,6 +509,11 @@ p90: percentil 90 da fração de blocos pequenos e da contagem de cores raras.
 | `dungeontileset-ii` | 300 | 98 | 1% | 0% | 0,688 | 0 |
 | `kings-and-pigs` | 282 | 80 | 6% | 2% | 0,831 | 1 |
 | `ninja-adventure` | 300 | 100 | 0% | 0% | 0,591 | 1 |
+| `pixel-adventure` | 300 | 96 | 1% | 0% | 0,579 | 1 |
+| `sunny-land` | 210 | 100 | 0% | 0% | 0,5 | 0 |
+| `hylsy-64-character` | 12 | 90 | 0% | 0% | 0,34 | 0 |
+| `ninja-animated` | 78 | 92 | 0% | 0% | 0,632 | 2 |
+| `super-sprite-boy` | 30 | 87 | 0% | 0% | 0,345 | 0 |
 
 Proposta pela regra de `quality.yaml`: p90 do pacote mais alto, arredondado para cima, para nenhum pacote receber o aviso em mais de 10% dos quadros. Só propõe: o arquivo não foi alterado.
 
@@ -486,7 +528,8 @@ validador que a última tabela propõe são os que estão em
 `config/quality.yaml`: a regra foi aplicada uma vez, à mão, e o relatório
 confere.
 
-O que mudou no relatório com esta calibração:
+O que a calibração mudou no relatório (ainda com os cinco pacotes da primeira
+leva):
 
 - **porte do humanóide 16:** sai a `dungeontileset-ii` (9 quadros); sobra o
   Ninja, um pacote só, e a parte fica marcada insuficiente;
@@ -501,6 +544,29 @@ O que mudou no relatório com esta calibração:
   em 0% a 6% dos quadros (antes 89% a 100%), e a amostra passa a ser espaçada
   pelo pacote (antes, os 300 primeiros quadros: o Ninja dava mediana 78 com
   eles e 86 com todos).
+
+O que a segunda leva mudou (de 5 para 10 pacotes; nenhum valor da base nem
+limiar foi alterado):
+
+- **porte do humanóide 16 volta:** 2.210 quadros de 2 pacotes, Ninja
+  Adventure (2.156) e Ninja [Animated] (54); a DungeonTileset (9) segue fora.
+  Cores por quadro 7–10–11 (antes 6–7–9, de 1 pacote, insuficiente);
+- **porte do humanóide 32 e do 48 volta:** 515 quadros de 3 pacotes,
+  Customizable (400), Pixel Adventure (85) e Super Sprite Boy (30); ficam fora
+  Kings and Pigs (26), SunnyLand (12), DungeonTileset (2), Ninja [Animated] (2)
+  e Retraissance (1). Cores por quadro 7–11–24 — o p75 de 24 vem do Super
+  Sprite Boy, que tem 23 a 25 cores por quadro —, largura de conteúdo ~23 px
+  (antes ~16, só o corpo-base) e, na linha, largura 0,81× a altura;
+- **estilo humanoide:** 2.985 quadros de 9 pacotes (o Hylsy, com 12, fica
+  fora); o contorno escuro único cai de 75% para 58% dos quadros (peso igual);
+  os tons por grupo de matiz seguem 2–3–4 e as propostas não mudam;
+- **objeto:** 278 quadros de 4 pacotes (entram Pixel Adventure e SunnyLand;
+  Kings and Pigs, com 17, segue fora); tons 1,5–2–3; propostas iguais;
+- **validador:** os novos têm mediana 96, 100, 90, 92 e 87 na amostra, aviso
+  de blocos pequenos em 0% a 1% e de cor rara em 0%. **A regra do p90 continua
+  propondo 0,84 e 3 cores raras** — os pacotes mais altos seguem Kings and
+  Pigs (0,831) e Customizable (3); entre os novos, o maior p90 é o do Ninja
+  [Animated] (0,632 e 2). Os limiares configurados valem com os 10 pacotes.
 
 ## 9. Validador: como a nota é calculada
 
@@ -547,9 +613,9 @@ raras, a calibração em `pixel/validation/calibration.py`, lida de
 
 ### Notas dos pacotes, antes e depois
 
-Todos os 6.397 quadros, cada um no próprio tamanho, sem limite de paleta,
-validados pelo código com e sem a calibração (o `calibrar` usa amostra de até
-300 por pacote e dá as mesmas medianas):
+Todos os quadros (6.397 da primeira leva e 646 da segunda), cada um no próprio
+tamanho, sem limite de paleta, validados pelo código com e sem a calibração (o
+`calibrar` usa amostra de até 300 por pacote):
 
 | Pacote | Quadros | Nota mediana | Abaixo de 70 | Aviso de blocos pequenos | Aviso de cor rara | O que ainda desconta (média) |
 |---|---|---|---|---|---|---|
@@ -558,6 +624,15 @@ validados pelo código com e sem a calibração (o `calibrar` usa amostra de at�
 | `dungeontileset-ii` | 339 | 79 → 98 | 17% → 0% | 90% → 1% | 6% → 0% | órfãos 4,4 |
 | `kings-and-pigs` | 282 | **60 → 80** | 87% → 2% | 98% → 6% | 31% → 2% | **órfãos 16,9** · redundância 0,5 |
 | `ninja-adventure` | 5.311 | 86 → 100 | 5% → 0% | 61% → 0% | 11% → 0% | órfãos 1,9 |
+| `pixel-adventure` | 316 | 77 → 96 | 12% → 0% | 78% → 1% | 19% → 0% | órfãos 4,4 |
+| `sunny-land` | 210 | 90 → 100 | 3% → 0% | 61% → 0% | 7% → 0% | órfãos 1,4 · redundância 0,1 |
+| `hylsy-64-character` | 12 | 79,5 → 90 | 8% → 0% | 92% → 0% | 0% → 0% | **redundância 10** · órfãos 0,1 |
+| `ninja-animated` | 78 | 71,5 → 92 | 42% → 0% | 100% → 0% | 58% → 0% | órfãos 8,5 · redundância 0,5 |
+| `super-sprite-boy` | 30 | 76 → 87 | 10% → 0% | 100% → 0% | 3% → 0% | **redundância 10** · órfãos 2,8 |
+
+Na segunda leva aparece um terceiro desconto que sobra: **redundância** (pares
+de cores a menos de 12 de distância RGB) leva o teto de 10 pontos no Hylsy e no
+Super Sprite Boy. Também não foi calibrado (seção 12, item 17).
 
 ### Notas dos assets do projeto, antes e depois
 
@@ -722,7 +797,8 @@ Em ordem de gravidade. São as coisas que eu olharia primeiro.
    disso.
 9. **Decisões de gosto tomadas rápido:** as rampas por material, os dois
    moldes, 2,8 cabeças (abaixo da fonte), larguras do humanóide, a faixa de
-   porte de 20%, quais personagens da DungeonTileset contam como humanoides.
+   porte de 20%, quais personagens da DungeonTileset contam como humanoides, o
+   Foxy (raposa bípede) como humanoide e o sapo do SunnyLand como quadrúpede.
    Todas marcadas ou explicadas, mas nenhuma foi validada além dos poucos
    desenhos feitos.
 10. **A desenhista conta cor por chave.** Moldes limitados a 8 chaves; um olho
@@ -751,16 +827,21 @@ Em ordem de gravidade. São as coisas que eu olharia primeiro.
     sobra nas referências: 17 pontos na Retraissance e no Kings and Pigs
     (fração mediana 5,5% e 6,8%; franquia de 1%, teto 20). Contorno,
     ocupação e redundância também continuam com os números do plano, no
-    código.
+    código; a redundância tira o teto de 10 pontos do Hylsy e do Super
+    Sprite Boy.
 18. **A nota ficou em 99–100 para os desenhos da desenhista e só detecta
     ruído**, até a Fase 5 trazer medidas que distinguem qualidade. Ela não
     pune mais detalhe, mas também não separa um desenho bom de um mediano;
     o laudo continua útil para os requisitos duros e para ruído.
-19. **Faltam pacotes de personagens vestidos com corpo de 32 a 48 px.** Com
-    os mínimos por parte, o porte do humanóide 32 e do 48 ficou sem dados (só
-    o corpo-base sem roupa do Customizable passa de 30 quadros), e a linha
-    `referências:` desses pedidos traz só o estilo. O humanóide 16 também
-    ficou só com o Ninja no porte.
+19. **Faltam pacotes de personagens vestidos, de proporção realista, com corpo
+    de 32 a 48 px.** A segunda leva devolveu o porte do humanóide 32 e 48 (3
+    pacotes) e do 16 (2), mas o de 32 vem do corpo-base sem roupa do
+    Customizable e de personagens cabeçudos e fantasiados (Pixel Adventure,
+    Super Sprite Boy): a largura na linha subiu de 0,57× para 0,81× a altura,
+    e as cores vão de 7 a 24. O Super Sprite Boy entra com 30 quadros,
+    exatamente o mínimo: com um a menos, o porte cairia para 2 pacotes. Os
+    dois candidatos de 50 px (Enemy Biker e Yakuza Enemy, de Rancic) estão
+    indisponíveis, e o Pixel Boy (53 px) não foi importado.
 
 ---
 
@@ -770,12 +851,12 @@ Só existe na máquina local:
 
 - **`backend/data/`** inteiro (ignorado): os assets gerados citados aqui, os
   relatórios de validação, o histórico `history/generations.jsonl`, os cinco
-  pacotes em `data/referencias/` (~12 MB, arte de terceiros) com seus
+  pacotes em `data/referencias/` (10 pacotes, ~13 MB, arte de terceiros) com seus
   `manifesto.yaml` e `medidas.json`, e o `calibracao.md` (refeito depois da
   calibração; transcrito na seção 8).
 - **Os downloads originais** dos pacotes (uma pasta `Downloads\refs` do
   usuário, com os zips e um `LICENCAS.md` com a data e o texto de licença de
-  cada página).
+  cada página), inclusive os dois da segunda leva que não foram importados.
 - **`.mcp.json`** na raiz (ignorado): o registro do servidor MCP com o caminho
   do Python da venv.
 - **`backend/.venv`** e o extra `mcp` instalado.

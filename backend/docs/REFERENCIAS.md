@@ -118,19 +118,16 @@ Reinicie o backend e o servidor MCP depois de mudar a lista (`/mcp`).
 ## 5. Como chega ao Claude
 
 **A linha `referências:`**, a última seção do recorte — a primeira a sair
-quando o teto aperta. Ela tem duas partes, e cada uma some sozinha. Com os
-cinco pacotes ativos em 2026-11-25, o humanóide 32 só tem a de estilo (o porte
-ficou com um pacote só; ver abaixo):
+quando o teto aperta. Ela tem duas partes, e cada uma some sozinha. Com os dez
+pacotes ativos em 2026-11-25, o humanóide 32 (e o quadro 48×48, que tem o mesmo
+corpo) recebe:
 
 ```text
-referências: estilo de 2751 quadros (5 pacotes, peso igual): contorno escuro único em 75% (cor mais comum #222222) · 3 tons por grupo de matiz (mediana)
+referências: estilo de 2985 quadros (9 pacotes, peso igual): contorno escuro único em 58% (cor mais comum #222222) · 3 tons por grupo de matiz (mediana); porte de 23–33 px de altura, 515 quadros (3 pacotes, peso igual): 7–24 cores (mediana 11) · largura 0,81× a altura · preenchimento 76% da caixa
 ```
 
-Com as duas partes, ela segue assim (exemplo de formato):
-
-```text
-referências: estilo de … quadros (N pacotes, peso igual): contorno … · 3 tons por grupo de matiz (mediana); porte de 23–33 px de altura, … quadros (N pacotes, peso igual): 6–20 cores (mediana 11) · largura 0,79× a altura · preenchimento 63% da caixa
-```
+Com os cinco da primeira leva, o porte tinha ficado com um pacote só e a parte
+saía da linha (ver abaixo).
 
 - **estilo** vale de qualquer tamanho: quadros do mesmo tipo (e do mesmo
   corpo, quando o pedido o conhece);

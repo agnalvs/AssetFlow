@@ -24,6 +24,13 @@ ativos:
   - dungeontileset-ii
   - kings-and-pigs
   - ninja-adventure
+  # Segunda leva (2026-11-25). Quadro conferido nos arquivos, não no nome:
+  # backend/docs/REFERENCIAS_FONTES.md tem o que entrou e o que ficou de fora.
+  - pixel-adventure
+  - sunny-land
+  - hylsy-64-character
+  - ninja-animated
+  - super-sprite-boy
 
 porte:
   # Referências de "porte parecido": altura do conteúdo dentro de
