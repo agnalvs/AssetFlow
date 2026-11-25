@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1330 passed, 1 skipped)
+pytest -q                                # suíte completa (1342 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -136,6 +136,10 @@ Feito:
     larguras e nomes de camadas. A receita do molde só vem com
     `consultar_pedido(..., molde=true)` — entregue sempre, ela engessava o
     desenho no corpo do manequim.
+  - **corpo e quadro são separados**: a grade do spec é o quadro, e
+    `proporcoes.yaml` diz qual corpo vive nele — do mesmo tamanho
+    (`tamanhos`) ou menor (`quadros`, como corpo de 32 em 48×48, centrado e
+    com o chão do quadro). O profile `pixel_character_48` pede esse quadro.
 
 ## Arquitetura
 

@@ -83,6 +83,38 @@ profiles:
       validate_grid: true
       thumbnail_scale: 8
 
+  # Corpo de 32 num quadro de 48×48 (PIXEL_KNOWLEDGE.md §2): a folga dos
+  # lados e de cima é para arma, escudo, crista e animação. Qual corpo vive no
+  # quadro quem diz é config/pixel_knowledge/proporcoes.yaml (`quadros`); este
+  # profile só faz o pedido não depender de o texto dizer "48x48".
+  pixel_character_48:
+    display_name: "Personagem Pixel Art 32 em quadro 48×48"
+    capability: "text_to_image.pixel"
+    pipeline: "pixel.character"
+    pixel_profile: "pixel_character_48_strict"
+    asset:
+      type: "character"
+      mode: "pixel"
+    output:
+      logical_width: 48
+      logical_height: 48
+      # 48 × 10: múltiplo inteiro da grade, para a redução por blocos não
+      # misturar pixels vizinhos. Ver a nota sobre render em `pixel_character_64`.
+      render_width: 480
+      render_height: 480
+      variations: 4
+      transparent: true
+    palette:
+      size: 12
+      strategy: "adaptive"
+    postprocessing:
+      pixel_cleanup: true
+      antialiasing: false
+      alpha_threshold: 128
+      validate_color_count: true
+      validate_grid: true
+      thumbnail_scale: 10
+
   pixel_prop_64:
     display_name: "Prop Pixel Art 64×64"
     capability: "text_to_image.pixel"

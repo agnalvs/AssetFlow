@@ -324,8 +324,14 @@ instalar e sai.
 pytest tests/test_mcp.py tests/test_mcp_servidor.py -q
 ```
 
-**3. Registre no Claude Code**, num terminal aberto na **raiz do clone**, com o
-caminho absoluto do Python da venv:
+**3. Registre no Claude Code**, de um destes dois jeitos. Nos dois, o comando é
+o Python **da venv**, com caminho absoluto, e não precisa de variável de
+ambiente nem de diretório de trabalho: o pacote está instalado em modo
+editável e acha o `backend/` sozinho.
+
+*3a. Pelo terminal*, se o comando `claude` existir nele (CLI do Claude Code
+instalada à parte; a extensão do VS Code **não** põe `claude` no PATH). Num
+terminal aberto na **raiz do clone**:
 
 ```bash
 claude mcp add --scope local assetflow -- <caminho-do-clone>\backend\.venv\Scripts\python.exe -m assetflow.mcp
@@ -334,19 +340,40 @@ claude mcp add --scope local assetflow -- <caminho-do-clone>\backend\.venv\Scrip
 - As opções vêm **antes** do nome; tudo depois de `--` é o comando do servidor.
 - `--scope local` vale só para este projeto e fica no seu `~/.claude.json`. É o
   escopo certo porque o caminho da venv é desta máquina. Para usar em qualquer
-  pasta, use `--scope user`. Não ponha num `.mcp.json` versionado.
-- Não precisa de variável de ambiente nem de diretório de trabalho: o pacote
-  está instalado em modo editável e acha o `backend/` sozinho.
+  pasta, use `--scope user`.
 
-**4. Verifique:**
+*3b. Por arquivo*, para quem usa só a extensão do VS Code. Crie `.mcp.json` na
+**raiz do clone**:
+
+```json
+{
+  "mcpServers": {
+    "assetflow": {
+      "command": "<caminho-do-clone>\\backend\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "assetflow.mcp"]
+    }
+  }
+}
+```
+
+- No JSON, cada `\` do caminho vira `\\`.
+- Sem `"type"`, a entrada é lida como servidor stdio, que é o caso aqui.
+- **O `.mcp.json` está no `.gitignore`**: ele guarda o caminho desta máquina.
+  Normalmente esse arquivo é versionado para o time inteiro; aqui não deve ser.
+- O Claude Code pede aprovação antes de usar um servidor de projeto vindo de
+  `.mcp.json`. Se o pedido aparecer, aprove o `assetflow`.
+- O `/mcp` da extensão também consegue acrescentar servidores (Claude Code
+  2.1.261 ou mais novo), se preferir não criar o arquivo à mão.
+
+**4. Verifique.** Abra uma **conversa nova** — a configuração vale para as
+conversas que começam depois dela — e digite `/mcp`. O `assetflow` deve
+aparecer como **Connected**, com as três ferramentas: `consultar_pedido`,
+`desenhar` e `ver_asset`. Pelo terminal (3a), também dá para conferir com:
 
 ```bash
 claude mcp list            # assetflow ... ✔ Connected
 claude mcp get assetflow   # escopo e comando registrados
 ```
-
-Dentro de uma sessão do Claude Code, `/mcp` mostra o `assetflow` com as três
-ferramentas: `consultar_pedido`, `desenhar` e `ver_asset`.
 
 **5. Teste na conversa.** Peça, por exemplo:
 
@@ -361,10 +388,11 @@ O Claude deve chamar `consultar_pedido`, depois `desenhar` com a receita, e
 Code (ou reconecte o servidor pelo `/mcp`): o processo do servidor carrega
 tudo uma vez, quando sobe.
 
-**Se aparecer `✘ Failed to connect`**, rode o comando registrado à mão (passo
-2): o erro de verdade aparece no terminal.
+**Se aparecer `✘ Failed to connect`** (ou **Failed** no `/mcp`), rode o comando
+registrado à mão (passo 2): o erro de verdade aparece no terminal.
 
-**Para remover:** `claude mcp remove assetflow`.
+**Para remover:** `claude mcp remove assetflow` (3a), ou apague o `.mcp.json`
+(3b), ou remova pelo `/mcp`.
 
 ---
 

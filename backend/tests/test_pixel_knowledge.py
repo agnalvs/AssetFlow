@@ -14,6 +14,7 @@ Plano desenhista, Fase 3. Três grupos:
 from __future__ import annotations
 
 import colorsys
+import json
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
@@ -38,6 +39,7 @@ from assetflow.pixel_knowledge import (
     luminancia,
     montar_recorte,
 )
+from assetflow.pixel_knowledge.recorte import _deslocar
 from tests.conftest import BACKEND_ROOT
 
 DIRETORIO = BACKEND_ROOT / "config" / "pixel_knowledge"
@@ -433,8 +435,12 @@ def test_recorte_do_cavaleiro_traz_medidas_e_nao_a_receita(base: BaseDeConhecime
         " · larguras com contorno: cabeça 12, tronco 12, braço 5, perna 5"
         " · olho 2×2 com brilho de 1 px · 3 tons por material"
     )
-    assert linhas[1].startswith("luz: de cima e da esquerda (padrão da base; o pedido não definiu)")
-    assert linhas[2].startswith("cores: até 8, contorno incluído · paleta-mestra endesga-32")
+    assert linhas[1] == (
+        "quadro: corpo centrado entre x=15 e x=16, com braços em x4–27 (vão de 1 px entre"
+        " braço e tronco); livre x1–3 e x28–30 dos lados, para arma, escudo, crista e animação"
+    )
+    assert linhas[2].startswith("luz: de cima e da esquerda (padrão da base; o pedido não definiu)")
+    assert linhas[3].startswith("cores: até 8, contorno incluído · paleta-mestra endesga-32")
     assert "  contorno #181425" in linhas
     assert any(linha.startswith("silhueta: arma e escudo fora do corpo") for linha in linhas)
     assert linhas[-1] == (
@@ -563,13 +569,100 @@ def test_teto_tira_secoes_inteiras_e_diz_quais(base: BaseDeConhecimento):
 
 
 def test_teto_corta_na_ordem_de_prioridade(base: BaseDeConhecimento):
-    proporcoes, luz = montar_recorte(_spec(), base).splitlines()[:2]
+    # Proporções são duas linhas (medidas e quadro); depois vem a luz.
+    primeiras = montar_recorte(_spec(), base).splitlines()[:3]
     # Cabem proporções e luz, mais a linha do que saiu; as cores já não cabem.
-    teto = len(proporcoes) + len(luz) + 2 + 70
+    teto = sum(map(len, primeiras)) + 3 + 70
 
     cortado = montar_recorte(_spec(), base, teto=teto)
 
-    assert cortado.splitlines()[:2] == [proporcoes, luz]
+    assert cortado.splitlines()[:3] == primeiras
     assert cortado.splitlines()[-1] == (
         f"omitido pelo teto de {teto} caracteres: cores, silhueta, molde"
     )
+
+
+# ---------------------------------------------------------------------------
+# Corpo num quadro maior
+# ---------------------------------------------------------------------------
+def test_quadro_de_48_traz_o_corpo_de_32_centrado_e_no_chao_do_quadro(base: BaseDeConhecimento):
+    linhas = montar_recorte(_spec(48, 48), base).splitlines()
+
+    assert linhas[0] == (
+        "humanóide, corpo 32×32 num quadro 48×48: cabeça y19–28 (10 px) · tronco y29–36 (8 px)"
+        " · pernas y37–46 (10 px) · chão y=46 (pixel opaco mais baixo)"
+        " · folga y17–18 acima da cabeça, para crista, penacho ou cabelo"
+        " · larguras com contorno: cabeça 12, tronco 12, braço 5, perna 5"
+        " · olho 2×2 com brilho de 1 px · 3 tons por material"
+    )
+    assert linhas[1] == (
+        "quadro: corpo centrado entre x=23 e x=24, com braços em x12–35 (vão de 1 px entre"
+        " braço e tronco); livre x1–11 e x36–46 dos lados e y1–16 acima, para arma, escudo,"
+        " crista e animação"
+    )
+    assert linhas[-1].startswith("camadas: pernas, tronco, braco_dir, braco_esq, cabeca")
+
+
+def test_quadro_sem_tabela_fica_sem_proporcoes(base: BaseDeConhecimento):
+    recorte = montar_recorte(_spec(40, 40), base)
+    assert recorte.startswith("luz: ") and "quadro:" not in recorte and "camadas:" not in recorte
+
+
+def test_molde_no_quadro_de_48_vem_deslocado_e_desenha_o_mesmo_corpo(base: BaseDeConhecimento):
+    molde = base.moldes[("humanoid", "32x32")]
+    linhas = montar_recorte(_spec(48, 48), base, molde=True).splitlines()
+    cabecalho = next(linha for linha in linhas if linha.startswith("molde "))
+    receita = json.loads(next(linha for linha in linhas if linha.startswith("{")))
+
+    assert cabecalho.startswith("molde humanoid_32x32 (deslocado +8, +16 para o quadro 48×48): ")
+    assert receita["grade"] == [48, 48]
+    assert molde.receita["grade"] == [32, 32], "o molde da base não pode ser alterado"
+
+    grande = desenhar(ler_receita(receita), 48, 48).grade.linhas()
+    pequeno = desenhar(ler_receita(dict(molde.receita)), 32, 32).grade.linhas()
+    assert [linha[8:40] for linha in grande[16:48]] == pequeno
+    opacas = [y for y, linha in enumerate(grande) if linha.strip(".")]
+    assert opacas[-1] == 46, "pés no chão do quadro"
+
+
+def test_deslocar_move_toda_operacao():
+    receita = {
+        "grade": [8, 8],
+        "paleta": {"a": "#000000"},
+        "camadas": [{"nome": "c", "ops": [
+            {"ret": [0, 0, 2, 2], "cor": "a"},
+            {"elipse": [1, 1, 3, 3], "cor": "a"},
+            {"linha": [0, 0, 3, 3], "cor": "a"},
+            {"poligono": [0, 0, 2, 0, 1, 2], "cor": "a"},
+            {"balde": [5, 5], "cor": "a"},
+            {"px": ["a"], "em": [4, 4]},
+        ]}],
+    }
+    ops = _deslocar(receita, 2, 3, (12, 12))["camadas"][0]["ops"]
+
+    assert [op.get("ret") or op.get("elipse") or op.get("linha") or op.get("poligono")
+            or op.get("balde") or op.get("em") for op in ops] == [
+        [2, 3, 2, 2], [3, 4, 3, 3], [2, 3, 5, 6], [2, 3, 4, 3, 3, 5], [7, 8], [6, 7],
+    ]
+    assert receita["camadas"][0]["ops"][0]["ret"] == [0, 0, 2, 2], "a original fica como era"
+
+
+@pytest.mark.parametrize(
+    ("bloco", "erro"),
+    [
+        ('"48x48":\n        corpo: "24x24"', "não está em tamanhos"),
+        ('"47x48":\n        corpo: "32x32"', "é ímpar"),
+        ('"32x32":\n        corpo: "16x16"', "já é um tamanho de corpo"),
+    ],
+)
+def test_a_carga_recusa_quadro_torto(tmp_path: Path, bloco: str, erro: str):
+    diretorio = _copia(tmp_path)
+    arquivo = diretorio / "proporcoes.yaml"
+    texto = arquivo.read_text(encoding="utf-8")
+    original = '"48x48":\n        corpo: "32x32"'
+    assert original in texto
+    arquivo.write_text(texto.replace(original, bloco, 1), encoding="utf-8")
+
+    problemas = BaseDeConhecimento.do_diretorio(diretorio).problemas
+
+    assert len(problemas) == 1 and erro in problemas[0]

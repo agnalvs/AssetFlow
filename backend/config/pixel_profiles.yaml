@@ -110,6 +110,47 @@ pixel_profiles:
       quality_threshold: 70
 
   # -------------------------------------------------------------------------
+  # Corpo de 32 num quadro de 48×48 (PIXEL_KNOWLEDGE.md §2). O corpo é o do
+  # profile de 32, e por isso a paleta também: 12 cores. O resto do quadro é
+  # folga para arma, escudo, crista e animação.
+  # -------------------------------------------------------------------------
+  pixel_character_48_strict:
+    version: "1.0.0"
+    mode: "pixel_exact"
+    metadata:
+      display_name: "Personagem Pixel Art 32 em quadro 48×48 (estrito)"
+    logical_size:
+      width: 48
+      height: 48
+    alpha:
+      mode: "binary"
+      threshold: 128
+    palette:
+      mode: "max_colors"
+      max_colors: 12
+    dithering:
+      enabled: false
+    logical_reduction:
+      method: "box_then_quantize"
+    canvas:
+      mode: "contain"
+    cleanup:
+      mode: "conservative"
+    preview:
+      enabled: true
+      # 48 × 10 = 480 px. 512 não é múltiplo de 48, e a escala tem de ser
+      # inteira (§34).
+      scale: 10
+    validation:
+      require_exact_dimensions: true
+      require_binary_alpha: true
+      require_palette_limit: true
+      require_non_empty: true
+      require_locked_palette: true
+      boundary_touch: "warn"
+      quality_threshold: 70
+
+  # -------------------------------------------------------------------------
   # Props (espada, poção, baú) usam o mesmo canvas do personagem 64×64, mas
   # ocupam bem menos dele — um item pequeno e centralizado é o resultado
   # correto, não um defeito.

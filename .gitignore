@@ -34,6 +34,11 @@ htmlcov/
 .idea/
 *.swp
 
+# Registro do servidor MCP no Claude Code (SETUP.md §10). Ele guarda o caminho
+# absoluto do Python da venv, que é desta máquina — versionado, entraria no
+# ambiente de quem clonar.
+.mcp.json
+
 # Sistema
 .DS_Store
 Thumbs.db

@@ -267,6 +267,14 @@ def test_consultar_sem_nada_da_base_diz_isso(container: AppContainer):
     assert texto.endswith("conhecimento: (nada da base para este pedido)")
 
 
+def test_perfil_de_48_poe_o_corpo_de_32_no_quadro(servico: ServicoDesenhista):
+    """O quadro de 48 vem do profile, sem depender de o texto dizer "48x48"."""
+    texto = servico.consultar("cavaleiro, 8 cores, sem fundo", "pixel_character_48")
+
+    assert "grade: 48×48 (do perfil)" in texto
+    assert "humanóide, corpo 32×32 num quadro 48×48: cabeça y19–28 (10 px)" in texto
+
+
 def test_consultar_sem_tamanho_usa_o_perfil(servico: ServicoDesenhista):
     texto = servico.consultar("uma espada", "pixel_prop_64")
     assert "grade: 64×64 (do perfil)" in texto

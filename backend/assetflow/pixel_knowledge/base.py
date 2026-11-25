@@ -41,6 +41,7 @@ __all__ = [
     "Medida",
     "Molde",
     "Paleta",
+    "Quadro",
     "Regra",
     "luminancia",
 ]
@@ -115,14 +116,31 @@ class Luz:
 
 
 @dataclass(frozen=True, slots=True)
+class Quadro:
+    """Um quadro maior que o corpo: qual corpo vive nele e onde fica o chão.
+
+    O corpo não muda de medida no quadro maior: fica centrado na horizontal,
+    e as faixas de y descem junto com o chão do quadro.
+    """
+
+    #: A grade do quadro, ``"48x48"``.
+    tamanho: str
+    #: A chave de ``tamanhos`` cujo corpo vive neste quadro, ``"32x32"``.
+    corpo: str
+    chao_y: Medida
+
+
+@dataclass(frozen=True, slots=True)
 class Forma:
     """Uma forma (``humanoid``, ``prop``...) com regras e medidas por tamanho."""
 
     id: str
     nome: str
     regras: tuple[Regra, ...]
-    #: ``"32x32"`` -> medidas daquele tamanho de grade.
+    #: ``"32x32"`` -> medidas do corpo, num quadro do mesmo tamanho.
     tamanhos: Mapping[str, Mapping[str, Medida]]
+    #: ``"48x48"`` -> qual corpo de :attr:`tamanhos` vive num quadro maior.
+    quadros: Mapping[str, Quadro] = field(default_factory=dict)
 
     def medidas(self, largura: int, altura: int) -> Mapping[str, Medida] | None:
         return self.tamanhos.get(f"{largura}x{altura}")
@@ -360,7 +378,7 @@ def _ler_proporcoes(dados: Mapping[str, Any], origem: str) -> dict[str, Forma]:
     for fid, bruta in _mapa(dados.get("formas"), "formas").items():
         onde = f"formas.{fid}"
         bruta = _mapa(bruta, onde)
-        _so_chaves(bruta, {"nome", "regras", "tamanhos"}, onde)
+        _so_chaves(bruta, {"nome", "regras", "tamanhos", "quadros"}, onde)
 
         tamanhos: dict[str, dict[str, Medida]] = {}
         for tamanho, medidas in _mapa(bruta.get("tamanhos") or {}, f"{onde}.tamanhos").items():
@@ -377,8 +395,53 @@ def _ler_proporcoes(dados: Mapping[str, Any], origem: str) -> dict[str, Forma]:
             nome=_texto(bruta.get("nome"), f"{onde}.nome"),
             regras=_regras(bruta.get("regras"), f"{onde}.regras"),
             tamanhos=tamanhos,
+            quadros=_ler_quadros(bruta.get("quadros") or {}, tamanhos, f"{onde}.quadros"),
         )
     return formas
+
+
+def _ler_quadros(
+    brutos: Any, tamanhos: Mapping[str, Mapping[str, Medida]], onde: str
+) -> dict[str, Quadro]:
+    quadros: dict[str, Quadro] = {}
+    for tamanho, bruto in _mapa(brutos, onde).items():
+        tamanho = str(tamanho)
+        lugar = f"{onde}.{tamanho}"
+        if not _TAMANHO.match(tamanho):
+            raise ConhecimentoInvalido(f"{lugar}: quadro é \"LxA\", como \"48x48\"")
+        if tamanho in tamanhos:
+            raise ConhecimentoInvalido(
+                f"{lugar}: {tamanho} já é um tamanho de corpo; quadro é só para corpo menor"
+            )
+        bruto = _mapa(bruto, lugar)
+        _so_chaves(bruto, {"corpo", "chao_y"}, lugar)
+        corpo = _texto(bruto.get("corpo"), f"{lugar}.corpo")
+        if corpo not in tamanhos:
+            raise ConhecimentoInvalido(
+                f"{lugar}.corpo: '{corpo}' não está em tamanhos ({', '.join(tamanhos)})"
+            )
+        if "chao_y" not in tamanhos[corpo]:
+            # O corpo desce do chão dele para o do quadro; sem o primeiro, não
+            # há como saber quanto.
+            raise ConhecimentoInvalido(f"{lugar}.corpo: o corpo '{corpo}' não declara chao_y")
+        (qw, qh), (cw, ch) = _lados(tamanho), _lados(corpo)
+        if qw < cw or qh < ch:
+            raise ConhecimentoInvalido(f"{lugar}: o quadro é menor que o corpo {corpo}")
+        if (qw - cw) % 2:
+            raise ConhecimentoInvalido(
+                f"{lugar}: a sobra de largura ({qw - cw}) é ímpar, e o corpo não fica "
+                "centrado em coluna inteira"
+            )
+        chao = _ler_medida("chao_y", bruto.get("chao_y"), f"{lugar}.chao_y")
+        if not isinstance(chao.valor, int) or not 0 <= chao.valor < qh:
+            raise ConhecimentoInvalido(f"{lugar}.chao_y: linha inteira dentro do quadro")
+        quadros[tamanho] = Quadro(tamanho=tamanho, corpo=corpo, chao_y=chao)
+    return quadros
+
+
+def _lados(tamanho: str) -> tuple[int, int]:
+    largura, altura = tamanho.split("x")
+    return int(largura), int(altura)
 
 
 def _ler_medida(nome: str, bruta: Any, onde: str) -> Medida:

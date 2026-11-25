@@ -146,7 +146,7 @@ para o pedido — nunca a base inteira. Quem monta é
 
 | Arquivo | O que entra no recorte |
 |---|---|
-| `proporcoes.yaml` | faixas de y de cabeça, tronco e pernas, chão, folga acima da cabeça, larguras, e as regras de silhueta |
+| `proporcoes.yaml` | faixas de y de cabeça, tronco e pernas, chão, folga acima da cabeça, larguras, onde o corpo fica no quadro, e as regras de silhueta |
 | `luz.yaml` | a direção padrão, quando o pedido não define uma, e as regras de luz e sombra |
 | `paletas.yaml` | o limite de cores do spec e as rampas da paleta-mestra |
 | `silhuetas/*.yaml` | os nomes das camadas do molde-base; a receita inteira só com `molde=true` |
@@ -156,6 +156,7 @@ Para "cavaleiro 32x32, 8 cores, sem fundo":
 ```text
 conhecimento:
 humanóide 32×32: cabeça y3–12 (10 px) · tronco y13–20 (8 px) · pernas y21–30 (10 px) · chão y=30 (pixel opaco mais baixo) · folga y1–2 acima da cabeça, para crista, penacho ou cabelo · larguras com contorno: cabeça 12, tronco 12, braço 5, perna 5 · olho 2×2 com brilho de 1 px · 3 tons por material
+quadro: corpo centrado entre x=15 e x=16, com braços em x4–27 (vão de 1 px entre braço e tronco); livre x1–3 e x28–30 dos lados, para arma, escudo, crista e animação
 luz: de cima e da esquerda (padrão da base; o pedido não definiu) · luz do lado de onde ela vem e sombra no oposto, nunca só acompanhando o contorno · sombra principal com o vizinho imediato da rampa; o tom mais escuro só em pontos pequenos, nunca em faixa
 cores: até 8, contorno incluído · paleta-mestra endesga-32, rampas do escuro ao claro; cada material usa tons vizinhos de uma rampa:
   contorno #181425
@@ -173,6 +174,35 @@ molde humanoid_32x32: manequim de frente, pose neutra; ...; camadas pernas, tron
 {"grade":[32,32],"paleta":{...},"camadas":[...]}
 o molde é guia de medidas e de camadas, não desenho a copiar: mantenha as proporções, a linha de chão e os nomes das camadas; redesenhe pose, silhueta e detalhes para o pedido
 ```
+
+### Corpo num quadro maior
+
+A grade do spec é o **quadro**. O corpo que vive nele sai de
+`proporcoes.yaml`: do mesmo tamanho (`tamanhos`) ou menor (`quadros`). Um
+personagem de 32 num quadro de 48×48 — o caso do §2 do PIXEL_KNOWLEDGE.md, com
+folga para arma, escudo, crista e animação — vem do bloco:
+
+```yaml
+quadros:
+  "48x48":
+    corpo: "32x32"
+    chao_y: {valor: 46, classe: semantic, secao: "§2", a_calibrar: true}
+```
+
+As medidas do corpo não mudam: ele fica centrado na horizontal, e as faixas de
+y descem junto com o chão do quadro. O seletor continua lendo só a grade do
+spec; "corpo de 32" no texto não é lido — é a tabela que diz qual corpo vive
+em 48×48. Para o pedido não depender de o texto dizer "48x48", o profile
+`pixel_character_48` já resolve a grade em 48×48:
+
+```text
+humanóide, corpo 32×32 num quadro 48×48: cabeça y19–28 (10 px) · tronco y29–36 (8 px) · pernas y37–46 (10 px) · chão y=46 (pixel opaco mais baixo) · folga y17–18 acima da cabeça, ...
+quadro: corpo centrado entre x=23 e x=24, com braços em x12–35 (vão de 1 px entre braço e tronco); livre x1–11 e x36–46 dos lados e y1–16 acima, para arma, escudo, crista e animação
+```
+
+Com `molde=true`, a receita do molde vem **deslocada** para o quadro (+8 em x,
++16 em y, grade 48×48), e a linha do molde diz isso. O molde da base continua
+em 32×32. Acrescentar 64×64 é acrescentar um bloco em `quadros`.
 
 A receita deixou de vir por padrão porque virava o desenho em vez de
 orientá-lo: o primeiro cavaleiro com ela saiu com o corpo fino e reto do
@@ -192,8 +222,8 @@ Quatro regras:
   troca paleta, luz, contorno e proporções juntos mudando só esse método.
 - **Teto de 4.000 caracteres** (`TETO_CARACTERES`, cerca de 1.300 tokens). As
   seções entram na ordem proporções, luz, cores, silhueta, molde; a que não
-  cabe sai inteira, e a última linha diz qual saiu. O cavaleiro usa ~1.650
-  caracteres, ou ~2.900 com `molde=true`.
+  cabe sai inteira, e a última linha diz qual saiu. O cavaleiro usa ~1.800
+  caracteres (~1.850 no quadro de 48), ou ~3.100 a 3.200 com `molde=true`.
 - **Diretório ausente não quebra o boot**: o recorte sai vazio, e a consulta
   diz `conhecimento: (nada da base para este pedido)`. Arquivo fora do formato
   é ignorado com aviso no log e em `BaseDeConhecimento.problemas`.

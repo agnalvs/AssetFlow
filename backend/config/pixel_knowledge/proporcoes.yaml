@@ -3,6 +3,8 @@
 # O seletor acha o bloco por dois campos do FinalResolvedSpec, que ele só lê:
 # a forma (`character.body_type` num personagem; `asset.type` nos demais, como
 # `prop`) e a grade lógica ("32x32"). Nada aqui muda tamanho, paleta ou tipo.
+# A grade procura primeiro em `tamanhos` (corpo do tamanho do quadro) e depois
+# em `quadros` (corpo menor, num quadro maior).
 #
 # Toda regra e toda medida declaram a classe (hard | semantic | style) e a
 # seção de origem. Número leva `fonte` (externa) ou `a_calibrar: true` — e
@@ -54,10 +56,24 @@ formas:
         largura_tronco_px: {valor: 12,     classe: style,    secao: "§9", a_calibrar: true}
         largura_braco_px:  {valor: 5,      classe: style,    secao: "§9", a_calibrar: true}
         largura_perna_px:  {valor: 5,      classe: style,    secao: "§9", a_calibrar: true}
+        # Corpo com braços = tronco + 2 × (vão + braço): é o que diz quanto do
+        # quadro sobra dos lados.
+        vao_braco_px:      {valor: 1,      classe: semantic, secao: "§3", a_calibrar: true}
         olho_px:           {valor: [2, 2], classe: style,    secao: "§9", fonte: Pixnote,
                             nota: com brilho de 1 px}
         tons_por_material: {valor: 3,      classe: style,    secao: "§6", a_calibrar: true}
         chao_y:            {valor: 30,     classe: semantic, secao: "§9", a_calibrar: true}
+
+    # Quadros maiores que o corpo (§2: "um personagem 32×32 costuma viver num
+    # quadro de 48×48 ou 64×64", com os pés na mesma linha em todo frame). A
+    # grade do spec diz o quadro; esta tabela diz qual corpo de `tamanhos` vive
+    # nele e onde fica o chão. As medidas do corpo não mudam: ele é centrado na
+    # horizontal, e as faixas de y descem junto com o chão. Acrescentar 64×64
+    # é acrescentar um bloco aqui.
+    quadros:
+      "48x48":
+        corpo: "32x32"
+        chao_y:            {valor: 46,     classe: semantic, secao: "§2", a_calibrar: true}
 
   prop:
     nome: objeto
