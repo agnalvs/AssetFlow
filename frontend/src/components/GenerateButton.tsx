@@ -1,22 +1,21 @@
 interface GenerateButtonProps {
   disabled: boolean;
   busy: boolean;
-  /**
-   * Por que o botão está desligado, quando é por decisão do app e não por um
-   * campo vazio. Aparece junto do botão, para ninguém achar que ele quebrou.
-   */
+  /** O que acontece com o pedido, ou o que fazer em seguida. */
   note?: string | null;
+  /** Um pedido recusado, com a razão do backend. */
+  error?: string | null;
   onClick: () => void;
 }
 
 /**
  * CTA principal (plano da tela §10 e §11).
  *
- * Fica desabilitado com prompt vazio e durante a geração — o que também
- * impede o clique duplo criando dois jobs (§41). Na Fase A do plano do app ele
- * fica desligado de todo, com `note` dizendo por quê.
+ * Desde a Fase B do plano do app ele **cria um pedido** na fila; quem desenha
+ * é o Claude, pela conversa. Fica desabilitado com a descrição vazia e
+ * enquanto o pedido é enviado — o que também impede o clique duplo (§41).
  */
-export function GenerateButton({ disabled, busy, note, onClick }: GenerateButtonProps) {
+export function GenerateButton({ disabled, busy, note, error, onClick }: GenerateButtonProps) {
   return (
     <div className="generate">
       <button
@@ -24,19 +23,23 @@ export function GenerateButton({ disabled, busy, note, onClick }: GenerateButton
         className="generate-button"
         disabled={disabled || busy}
         aria-busy={busy}
-        aria-describedby={note ? "generate-note" : undefined}
+        aria-describedby={note || error ? "generate-note" : undefined}
         onClick={onClick}
       >
         {busy ? (
           <>
             <span className="generate-button__spinner" aria-hidden="true" />
-            Gerando...
+            Enviando...
           </>
         ) : (
           "Gerar Asset"
         )}
       </button>
-      {note ? (
+      {error ? (
+        <p id="generate-note" className="generate__note generate__note--erro" role="alert">
+          {error}
+        </p>
+      ) : note ? (
         <p id="generate-note" className="generate__note">
           {note}
         </p>

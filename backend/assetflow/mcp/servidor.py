@@ -55,6 +55,14 @@ def criar_servidor(
         "Profile de partida; só vale no que o texto não disser. "
         f"Opções: {', '.join(servico.perfis())}. Padrão: {PERFIL_PADRAO}."
     )
+    liberdade_consulta = (
+        "Fiel (padrão, como hoje), equilibrado ou ousado: muda só a orientação do "
+        "recorte; grade, cores e fundo não mudam."
+    )
+    liberdade_referencia = (
+        "Fiel (padrão, como hoje), equilibrado ou ousado; em ousado, a imagem é "
+        "escolhida pelo estilo, sem o filtro de porte."
+    )
 
     @servidor.tool(structured_output=False)
     def consultar_pedido(
@@ -63,10 +71,24 @@ def criar_servidor(
         molde: Annotated[
             bool, Field(description="true inclui a receita do molde-base; sem ele, só as medidas.")
         ] = False,
+        liberdade: Annotated[str | None, Field(description=liberdade_consulta)] = None,
     ) -> str:
         """Resolve um pedido de pixel art em texto livre (ex.: "cavaleiro 32x32, 8 cores, sem fundo") e devolve o que o AssetFlow entendeu, o formato da receita e as medidas, a paleta e a luz da base. Chame antes de desenhar."""
         try:
-            return servico.consultar(pedido, perfil, molde)
+            return servico.consultar(pedido, perfil, molde, liberdade)
+        except ErroDoPedido as exc:
+            raise ToolError(str(exc)) from exc
+
+    @servidor.tool(structured_output=False)
+    async def pedidos_pendentes(
+        limite: Annotated[
+            int,
+            Field(description="Quantos pedidos trazer, dos mais antigos (padrão 5, máximo 10)."),
+        ] = 5,
+    ) -> str:
+        """Lista os pedidos feitos na tela do AssetFlow que esperam desenho, cada um já com o que consultar_pedido devolveria, e os reserva para você. Desenhe cada um com desenhar(pedido_id=...)."""
+        try:
+            return await servico.pedidos_pendentes(limite)
         except ErroDoPedido as exc:
             raise ToolError(str(exc)) from exc
 
@@ -87,10 +109,22 @@ def criar_servidor(
             str | None,
             Field(description="Igual a consultar_pedido; num remendo, o da base."),
         ] = None,
+        pedido_id: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Id de um pedido de pedidos_pendentes. Texto, perfil e controles vêm "
+                    "dele: omita pedido e perfil. Aprovado, o pedido fica concluído e "
+                    "aparece na tela."
+                )
+            ),
+        ] = None,
     ) -> str:
-        """Desenha um sprite a partir de uma receita e devolve o laudo: aprovação, nota, problemas, id do asset e caminho do PNG. Para corrigir, passe base=<id> e só o que mudou."""
+        """Desenha um sprite a partir de uma receita e devolve o laudo: aprovação, nota, problemas, id do asset e caminho do PNG. Para corrigir, passe base=<id> e só o que mudou. Com pedido_id, atende um pedido da fila da tela."""
         try:
-            return await servico.desenhar(pedido=pedido, receita=receita, base=base, perfil=perfil)
+            return await servico.desenhar(
+                pedido=pedido, receita=receita, base=base, perfil=perfil, pedido_id=pedido_id
+            )
         except ErroDoPedido as exc:
             raise ToolError(str(exc)) from exc
 
@@ -98,10 +132,11 @@ def criar_servidor(
     def ver_referencia(
         pedido: Annotated[str, Field(description="O mesmo texto de consultar_pedido.")],
         perfil: Annotated[str | None, Field(description="Igual a consultar_pedido.")] = None,
+        liberdade: Annotated[str | None, Field(description=liberdade_referencia)] = None,
     ) -> list:
         """Mostra UMA imagem de referência dos pacotes livres ativos, do tipo de asset do pedido, ampliada. Serve para ver estilo, não para copiar; use só quando precisar ver."""
         try:
-            png, legenda = servico.ver_referencia(pedido, perfil)
+            png, legenda = servico.ver_referencia(pedido, perfil, liberdade)
         except ErroDoPedido as exc:
             raise ToolError(str(exc)) from exc
         return [legenda, Image(data=png, format="png")]

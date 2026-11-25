@@ -50,7 +50,13 @@ def test_ferramentas_com_descricao_curta(servidor):
             return (await cliente.list_tools()).tools
 
     ferramentas = {f.name: f for f in run(cenario())}
-    assert set(ferramentas) == {"consultar_pedido", "desenhar", "ver_asset", "ver_referencia"}
+    assert set(ferramentas) == {
+        "consultar_pedido",
+        "desenhar",
+        "pedidos_pendentes",
+        "ver_asset",
+        "ver_referencia",
+    }
     for ferramenta in ferramentas.values():
         assert ferramenta.description
         assert len(ferramenta.description) <= TETO_DA_DESCRICAO, ferramenta.name
@@ -64,10 +70,22 @@ def test_ferramentas_com_descricao_curta(servidor):
     consultar = ferramentas["consultar_pedido"].input_schema
     assert consultar["properties"]["molde"]["default"] is False, "a receita do molde só vem pedida"
     assert consultar.get("required") == ["pedido"]
+    # Sem liberdade, o comportamento de antes: o parâmetro é opcional.
+    assert "liberdade" in consultar["properties"]
+    assert "liberdade" in ferramentas["ver_referencia"].input_schema["properties"]
+    for parametro in (
+        consultar["properties"]["liberdade"],
+        ferramentas["ver_referencia"].input_schema["properties"]["liberdade"],
+    ):
+        assert len(parametro["description"]) <= TETO_DA_DESCRICAO
 
     desenhar = ferramentas["desenhar"].input_schema
-    assert set(desenhar["properties"]) == {"pedido", "receita", "base", "perfil"}
+    assert set(desenhar["properties"]) == {"pedido", "receita", "base", "perfil", "pedido_id"}
     assert desenhar.get("required", []) == []
+
+    pendentes = ferramentas["pedidos_pendentes"].input_schema
+    assert set(pendentes["properties"]) == {"limite"}
+    assert pendentes["properties"]["limite"]["default"] == 5
 
 
 def test_consultar_devolve_texto(servidor):
@@ -127,7 +145,13 @@ def test_o_servidor_sobe_por_stdio():
         async with Client(parametros) as cliente:
             return [f.name for f in (await cliente.list_tools()).tools]
 
-    assert sorted(run(cenario())) == ["consultar_pedido", "desenhar", "ver_asset", "ver_referencia"]
+    assert sorted(run(cenario())) == [
+        "consultar_pedido",
+        "desenhar",
+        "pedidos_pendentes",
+        "ver_asset",
+        "ver_referencia",
+    ]
     assert NOME == "assetflow"
 
 
@@ -135,3 +159,16 @@ def test_ver_referencia_sem_pacote_ativo_diz_o_que_fazer(servidor):
     resultado = _chamar(servidor, "ver_referencia", {"pedido": "cavaleiro 32x32"})
     assert resultado.is_error
     assert "não há referência ativa de character/humanoid" in resultado.content[0].text
+
+
+def test_pedidos_pendentes_pela_ferramenta(servidor):
+    resultado = _chamar(servidor, "pedidos_pendentes", {})
+    assert not resultado.is_error
+    assert resultado.content[0].text == "nenhum pedido esperando desenho na fila do AssetFlow."
+
+
+def test_consultar_ousado_pela_ferramenta(servidor):
+    texto = _chamar(
+        servidor, "consultar_pedido", {"pedido": "cavaleiro 32x32", "liberdade": "ousado"}
+    ).content[0].text
+    assert "liberdade: ousado — os limites duros são grade 32×32" in texto

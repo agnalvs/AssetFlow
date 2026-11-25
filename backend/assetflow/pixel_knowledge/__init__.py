@@ -20,17 +20,21 @@ from .base import (
     luminancia,
 )
 from .recorte import (
+    CONVITE_OUSADO,
     SEM_CORPO,
     TETO_CARACTERES,
     USO_DO_MOLDE,
     FonteDeReferencias,
+    Liberdade,
     Porte,
     montar_recorte,
     porte,
+    rampas_da_base,
 )
 
 __all__ = [
     "CLASSES",
+    "CONVITE_OUSADO",
     "SEM_CORPO",
     "TETO_CARACTERES",
     "USO_DO_MOLDE",
@@ -39,6 +43,7 @@ __all__ = [
     "Estilo",
     "FonteDeReferencias",
     "Forma",
+    "Liberdade",
     "Luz",
     "Medida",
     "Molde",
@@ -48,4 +53,5 @@ __all__ = [
     "luminancia",
     "montar_recorte",
     "porte",
+    "rampas_da_base",
 ]

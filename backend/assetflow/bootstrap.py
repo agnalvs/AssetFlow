@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import timedelta
 
 from .generation.kernel import (
     EngineCatalog,
@@ -41,6 +42,7 @@ from .jobs import (
     RetryPolicy,
 )
 from .llm import ChatClient, ChatConfig, LLMPixelReviewer
+from .pedidos import FilaDePedidos, ServicoDePedidos
 from .pixel import PixelProfileRegistry, PixelValidator, QualityCalibration
 from .pixel.optimizer import AssetFlowPixelOptimizer, PixelReviewer, ReviewLoop
 from .pixel_knowledge import BaseDeConhecimento
@@ -96,6 +98,9 @@ class AppContainer:
     jobs: JobManager
     worker: GenerationWorker
     service: GenerationService
+    #: A fila de pedidos da tela (Fase B do plano do app), num SQLite que a API
+    #: e o servidor MCP dividem. ``pedidos.fila`` é o arquivo.
+    pedidos: ServicoDePedidos
     _worker_started: bool = field(default=False, init=False)
 
     async def startup(self) -> None:
@@ -248,6 +253,24 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         default_max_attempts=settings.worker.max_attempts,
     )
 
+    # -- Fila de pedidos (Fase B do plano do app) --------------------------
+    # Nada é aberto aqui: cada operação abre e fecha o SQLite. Um arquivo
+    # travado ou danificado vira erro na hora de usar a fila, não no boot.
+    fila = FilaDePedidos(
+        settings.pedidos_path,
+        espera_s=settings.pedidos.espera_s,
+        max_tentativas=settings.pedidos.tentativas,
+        reserva=timedelta(minutes=settings.pedidos.reserva_min),
+    )
+    pedidos = ServicoDePedidos(
+        fila,
+        service,
+        storage,
+        records,
+        projeto=settings.pedidos.projeto_padrao,
+        gerador=settings.gerador,
+    )
+
     _LOG.info(
         "AssetFlow pronto [%s]: %s gaveta(s), %s profile(s), "
         "%s profile(s) Pixel, %s pipeline(s), %s vocabulário(s) de asset, "
@@ -286,6 +309,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         jobs=jobs,
         worker=worker,
         service=service,
+        pedidos=pedidos,
     )
 
 

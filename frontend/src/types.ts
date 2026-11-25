@@ -17,15 +17,6 @@
 /** O modo de criação: o app só gera Pixel Art (Fase A do plano do app). */
 export type GenerationMode = "pixel";
 
-/** Estados genéricos do fluxo, independentes de backend. */
-export type GenerationState =
-  | "idle"
-  | "queued"
-  | "generating"
-  | "processing"
-  | "completed"
-  | "failed";
-
 /** Configuração de cada modo. Note que só há capacidade e profile aqui. */
 export interface ModeConfig {
   readonly id: GenerationMode;
@@ -324,11 +315,20 @@ export interface OutputSelection {
   light_direction?: string;
 }
 
-export interface CreateJobPayload {
-  project_id: string;
-  capability: string;
-  profile: string;
-  prompt: string;
+/**
+ * Quanto o desenho pode se afastar da base (Fase B do plano do app). Muda só
+ * a orientação que o Claude recebe; grade, cores, fundo e validação não mudam.
+ */
+export type Liberdade = "fiel" | "equilibrado" | "ousado";
+
+/**
+ * O corpo de um pedido, como a tela manda (`POST /api/pedidos` e a prévia).
+ * Sem motor e sem projeto: os dois são do app.
+ */
+export interface PedidoCorpo {
+  capability?: string;
+  profile?: string;
+  prompt?: string;
   /** Tipo escolhido no dropdown; ausente = automático (classificador decide). */
   asset_type?: AssetTypeId;
   output?: OutputSelection;
@@ -336,22 +336,63 @@ export interface CreateJobPayload {
   spec_overrides?: SpecOverrides;
   /** Semântica corrigida à mão. Presente, ela substitui o PromptBuilder. */
   semantic_prompt?: SemanticPrompt;
-  /**
-   * O motor escolhido. Em `auto` o campo vai só com o modo: um `engine_id`
-   * junto com `auto` seria dizer duas coisas ao mesmo tempo.
-   *
-   * Não existe um campo irmão para a otimização. Ela não é opção do pedido —
-   * é parte do pipeline, e o servidor a impõe (plano Optimizer §33 e §34).
-   */
-  engine?: { mode: "auto" | "manual"; engine_id?: string };
+  liberdade?: Liberdade;
+  /** Texto livre, entregue ao Claude como está. */
+  direcao_de_arte?: string;
+  /** Num ajuste: o asset de origem e o que mudar. */
+  origem_asset_id?: string;
+  texto?: string;
 }
 
-export interface JobSubmission {
-  job_id: string;
-  status: string;
-  capability: string;
-  profile: string | null;
-  pipeline: string;
+/** O que a tela diz sobre um pedido. */
+export type PedidoEtapa =
+  | "na_fila"
+  | "na_vez"
+  | "desenhando"
+  | "corrigindo"
+  | "pronto"
+  | "nao_aprovado"
+  | "cancelado";
+
+/** Um pedido como a lista mostra (espelha `PedidoView`). */
+export interface Pedido {
+  id: string;
+  tipo: "desenho" | "ajuste";
+  situacao: "pendente" | "em_desenho" | "concluido" | "falhou" | "cancelado";
+  etapa: PedidoEtapa;
+  texto: string;
+  projeto: string;
+  liberdade: Liberdade;
+  direcao_de_arte: string | null;
+  origem_asset_id: string | null;
+  tentativas: number;
+  max_tentativas: number;
+  reservado_ate: string | null;
+  motivo: string | null;
+  criado_em: string;
+  atualizado_em: string;
+  resumo: {
+    tipo_asset: string | null;
+    grade: string | null;
+    cores: number | null;
+    fundo: string | null;
+  };
+  /** O desenho que concluiu o pedido, ou o último não aprovado. */
+  asset: Asset | null;
+}
+
+/** O pedido inteiro (espelha `PedidoDetalhe`). */
+export interface PedidoDetalhe extends Pedido {
+  corpo: PedidoCorpo;
+  leitura: { resolved?: FinalResolvedSpec; semantic?: SemanticPrompt | null };
+  eventos: { em: string; situacao: string; nota: string }[];
+  ultimo_laudo: string | null;
+}
+
+/** A resposta de `GET /api/pedidos`. */
+export interface PedidoLista {
+  projeto: string;
+  items: Pedido[];
 }
 
 export interface AssetVariant {
@@ -424,56 +465,20 @@ export interface Asset {
   variants: AssetVariant[];
 }
 
-/**
- * Motor pedido × motor usado (plano de motores §25, regra 3).
- *
- * A regra exige que a tela mostre os dois, mais o modelo carregado. Um
- * fallback silencioso — em que a pessoa escolhe um motor e recebe o resultado
- * de outro sem saber — é exatamente o que ela existe para impedir.
- */
-export interface EngineSelectionView {
-  mode: "auto" | "manual";
-  requested_engine_id: string | null;
-  reason: string;
-  allow_fallback: boolean;
-  resolved_engine_id: string | null;
-  resolved_model_id: string | null;
-  resolved_engine_version: string | null;
-  fallback_used: boolean;
-  attempted_engines: string[];
-}
-
-export interface Job {
-  job_id: string;
-  status: string;
-  progress: number;
-  stage: string;
-  asset: Asset | null;
-  engine_selection: EngineSelectionView;
-  /**
-   * O asset não veio do gerador preferido para este modo (plano §44).
-   *
-   * É um booleano, e é assim que tem de ser: a interface precisa avisar que
-   * houve substituição sem descobrir **quem** substituiu quem. O backend
-   * também manda a frase pronta em `warnings`, mas ela cita o id do motor —
-   * exibi-la aqui furaria a regra de a tela não conhecer motor (§32/§46).
-   */
-  fallback_used: boolean;
-  /** O que o AssetFlow entendeu. Chega preenchido quando o job termina. */
-  prompt: PromptPreview | null;
-  /**
-   * Avisos do backend, já escritos para serem lidos.
-   *
-   * Eles não chegavam à tela, e a ausência tinha um custo concreto: um pedido
-   * saía como uma forma genérica, o backend avisava por quê, e a pessoa via só
-   * o resultado estranho — sem nenhuma pista de que o sistema **sabia** o que
-   * tinha acontecido.
-   */
+/** Um desenho pronto, como a área de resultado o mostra. */
+export interface GenerationOutcome {
+  /** O id do pedido que o produziu (serve de chave e de nome do arquivo). */
+  jobId: string;
+  mode: GenerationMode;
+  prompt: string;
+  variant: AssetVariant;
+  /** A leitura que produziu esta imagem, quando a tela a tem. */
+  preview: PromptPreview | null;
+  /** Avisos sobre este desenho, prontos para exibir. */
   warnings: string[];
-  error: { code: string; message: string } | null;
 }
 
-/** Uma geração concluída, guardada na sessão (plano da tela §25). */
+/** Um desenho pronto na faixa "Prontos" (plano da tela §25). */
 export interface HistoryEntry {
   jobId: string;
   mode: GenerationMode;
@@ -483,30 +488,4 @@ export interface HistoryEntry {
   preview: PromptPreview | null;
   warnings: string[];
   createdAt: number;
-}
-
-/**
- * Traduz o status técnico do job para o estado da interface.
- *
- * Os nomes internos do backend (`postprocessing`, `cancel_requested`) não
- * vazam para os componentes: eles só conhecem :type:`GenerationState`.
- */
-export function toGenerationState(status: string): GenerationState {
-  switch (status) {
-    case "queued":
-      return "queued";
-    case "running":
-    case "generating":
-      return "generating";
-    case "postprocessing":
-      return "processing";
-    case "completed":
-      return "completed";
-    case "failed":
-    case "cancelled":
-    case "cancel_requested":
-      return "failed";
-    default:
-      return "idle";
-  }
 }

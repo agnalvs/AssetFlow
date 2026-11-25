@@ -103,6 +103,31 @@ class ApiSettings(AssetFlowModel):
     dev_endpoints: bool = False
 
 
+class PedidosSettings(AssetFlowModel):
+    """A fila de pedidos da tela (Fase B do plano do app).
+
+    A fila mora num SQLite em ``data/``, porque a API e o servidor MCP são
+    dois processos, cada um com a sua fila de jobs em memória: só um arquivo
+    em disco é visto pelos dois.
+    """
+
+    #: O projeto da tela e dos pedidos. Fixo, e não um id do navegador: limpar
+    #: o navegador não pode fazer a lista sumir. ``ASSETFLOW_PROJETO_PADRAO``.
+    projeto_padrao: str = Field(default="principal", min_length=1)
+    #: O arquivo da fila. ``ASSETFLOW_PEDIDOS_DB``.
+    arquivo: str = "data/pedidos/pedidos.sqlite3"
+    #: Desenhos não aprovados antes de o pedido ir para "falhou".
+    #: ``ASSETFLOW_PEDIDOS_TENTATIVAS``.
+    tentativas: int = Field(default=3, ge=1, le=10)
+    #: Por quantos minutos ``pedidos_pendentes`` reserva um pedido para quem o
+    #: pegou. Cada ``desenhar(pedido_id)`` renova a reserva da leva inteira.
+    #: ``ASSETFLOW_PEDIDOS_RESERVA_MIN``.
+    reserva_min: float = Field(default=30.0, gt=0)
+    #: Quanto esperar por outro processo que esteja escrevendo na fila antes
+    #: de desistir com erro (``busy_timeout``). ``ASSETFLOW_PEDIDOS_ESPERA_S``.
+    espera_s: float = Field(default=5.0, ge=0)
+
+
 class Settings(AssetFlowModel):
     """Configuração completa do backend."""
 
@@ -116,6 +141,7 @@ class Settings(AssetFlowModel):
     storage: StorageSettings = Field(default_factory=StorageSettings)
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
     api: ApiSettings = Field(default_factory=ApiSettings)
+    pedidos: PedidosSettings = Field(default_factory=PedidosSettings)
 
     #: Conteúdo bruto dos YAMLs (interpretado pelos respectivos registries).
     engines_config: dict[str, Any] = Field(default_factory=dict)
@@ -193,6 +219,22 @@ class Settings(AssetFlowModel):
     @property
     def engine_defaults(self) -> dict[str, Any]:
         return dict(self.engines_config.get("defaults") or {})
+
+    @property
+    def gerador(self) -> str | None:
+        """O gerador do app: a gaveta que desenha os pedidos da tela.
+
+        Vem do ``engines.yaml`` (chave ``gerador``), e não do código — nenhum id
+        de motor fica escrito fora das gavetas. Ausente, criar pedido falha
+        dizendo isso.
+        """
+        valor = self.engines_config.get("gerador")
+        return str(valor) if valor else None
+
+    @property
+    def pedidos_path(self) -> Path:
+        """O SQLite da fila de pedidos (``data/pedidos/pedidos.sqlite3``)."""
+        return self._resolve(Path(self.pedidos.arquivo))
 
     @property
     def storage_root(self) -> Path:
@@ -274,6 +316,15 @@ def load_settings(
         dev_endpoints=_env_bool("DEV_ENDPOINTS", False),
     )
 
+    padrao_pedidos = PedidosSettings()
+    pedidos = PedidosSettings(
+        projeto_padrao=_env("PROJETO_PADRAO") or padrao_pedidos.projeto_padrao,
+        arquivo=_env("PEDIDOS_DB") or str(data / "pedidos" / "pedidos.sqlite3"),
+        tentativas=int(_env("PEDIDOS_TENTATIVAS") or padrao_pedidos.tentativas),
+        reserva_min=float(_env("PEDIDOS_RESERVA_MIN") or padrao_pedidos.reserva_min),
+        espera_s=float(_env("PEDIDOS_ESPERA_S") or padrao_pedidos.espera_s),
+    )
+
     return Settings(
         app_env=_app_env(),
         base_dir=base,
@@ -282,6 +333,7 @@ def load_settings(
         storage=storage,
         worker=worker,
         api=api,
+        pedidos=pedidos,
         engines_config=engines_config,
         capabilities_config=capabilities_config,
         profiles_config=profiles_config,

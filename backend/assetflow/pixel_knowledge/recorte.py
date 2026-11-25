@@ -30,6 +30,14 @@ personagem.
 O recorte tem teto, para a base poder crescer sem aumentar o gasto por pedido.
 As seções entram em ordem de prioridade; a que não couber sai **inteira**, e a
 última linha diz qual saiu.
+
+A **liberdade** (Fase B do plano do app) muda como a base é apresentada, nunca
+o spec: ``fiel`` é o recorte de sempre; ``equilibrado`` apresenta medidas e
+rampas como ponto de partida; ``ousado`` tira as medidas do corpo (número
+pronto vira âncora), deixa do quadro só a grade e o chão, mantém luz e
+silhueta, convida a uma proporção e a uma pose próprias e põe as rampas como
+sugestão. A linha ``liberdade:`` com os limites duros é do MCP, que lê o spec
+inteiro; o recorte continua lendo só os cinco campos acima.
 """
 
 from __future__ import annotations
@@ -38,19 +46,23 @@ import copy
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Protocol
 
 from ..generation.schemas import AssetType
 from .base import BaseDeConhecimento, Forma, Luz, Medida, Molde, Paleta
 
 __all__ = [
+    "CONVITE_OUSADO",
     "SEM_CORPO",
     "TETO_CARACTERES",
     "USO_DO_MOLDE",
     "FonteDeReferencias",
+    "Liberdade",
     "Porte",
     "montar_recorte",
     "porte",
+    "rampas_da_base",
 ]
 
 #: Teto do recorte, em caracteres (cerca de 1.300 tokens). Contagem de
@@ -63,6 +75,27 @@ USO_DO_MOLDE = (
     "proporções, a linha de chão e os nomes das camadas; redesenhe pose, "
     "silhueta e detalhes para o pedido"
 )
+
+class Liberdade(str, Enum):
+    """Quanto o desenho pode se afastar da base (Fase B do plano do app)."""
+
+    #: O recorte de sempre: medidas, rampas e molde como orientação.
+    FIEL = "fiel"
+    #: Medidas e rampas como ponto de partida, com permissão para desviar.
+    EQUILIBRADO = "equilibrado"
+    #: Só os limites duros; proporção, pose e ideia próprias.
+    OUSADO = "ousado"
+
+
+#: O convite do ousado, em uma linha.
+CONVITE_OUSADO = (
+    "convite: a proporção é livre (cabeça enorme, corpo esguio, atarracado); "
+    "exagere o traço que define o personagem; escolha uma pose em vez da figura "
+    "parada de frente; use o quadro inteiro se a ideia pedir."
+)
+
+#: Quem pisa no chão, para a linha do quadro do ousado.
+_QUEM_PISA = {"character": "personagens", "prop": "objetos"}
 
 #: As partes do corpo, de cima para baixo, como viram faixas de y.
 _PARTES = (("cabeca_px", "cabeça"), ("tronco_px", "tronco"), ("pernas_px", "pernas"))
@@ -123,18 +156,24 @@ def montar_recorte(
     molde: bool = False,
     referencias: FonteDeReferencias | None = None,
     teto: int = TETO_CARACTERES,
+    liberdade: Liberdade | str = Liberdade.FIEL,
+    rampas: bool = True,
 ) -> str:
     """As linhas da base que valem para este spec; ``""`` quando não há nada.
 
     Com ``molde=True``, a receita do molde-base vem inteira no lugar da linha
     de camadas. Com ``referencias``, a linha ``referências:`` entra por último
-    — é a primeira a sair quando o teto aperta.
+    — é a primeira a sair quando o teto aperta. ``liberdade`` muda a
+    apresentação (ver o topo do módulo). Com ``rampas=False``, as rampas da
+    paleta-mestra não entram na linha de cores — quem lista vários pedidos as
+    põe uma vez só, no topo (:func:`rampas_da_base`).
     """
     logica = resolved.logical_resolution
     if logica is None:  # pedido que não é Pixel Art
         return ""
+    liberdade = Liberdade(liberdade)
     linha_de_referencias = ""
-    if referencias is not None:
+    if referencias is not None and liberdade is not Liberdade.OUSADO:
         alvo = porte(resolved, base)
         linha_de_referencias = referencias.linha(alvo.tipo, alvo.corpo, alvo.altura)
     if base is None or base.esta_vazia:
@@ -146,15 +185,65 @@ def montar_recorte(
     encaixe = _encaixe(forma, largura, altura)
     molde_base = estilo.molde(forma.id, *encaixe.corpo) if forma and encaixe else None
 
+    cores = _cores(resolved, estilo.paleta, liberdade=liberdade, rampas=rampas)
+    if liberdade is Liberdade.OUSADO:
+        # Sem medidas do corpo, sem molde e sem referências: número pronto vira
+        # âncora. Luz e silhueta ficam — são princípios, não medidas.
+        secoes = [
+            ("convite", CONVITE_OUSADO),
+            ("quadro", _quadro_ousado(resolved, encaixe, largura, altura)),
+            ("luz", _luz(resolved, estilo.luz)),
+            ("cores", cores),
+            ("silhueta", _silhueta(forma)),
+        ]
+        return _caber([(nome, texto) for nome, texto in secoes if texto], teto)
+
+    proporcoes = _proporcoes(
+        forma,
+        encaixe,
+        largura,
+        altura,
+        ponto_de_partida=liberdade is Liberdade.EQUILIBRADO,
+    )
     secoes = [
-        ("proporções", _proporcoes(forma, encaixe, largura, altura) or _sem_corpo(resolved)),
+        ("proporções", proporcoes or _sem_corpo(resolved)),
         ("luz", _luz(resolved, estilo.luz)),
-        ("cores", _cores(resolved, estilo.paleta)),
+        ("cores", cores),
         ("silhueta", _silhueta(forma)),
         ("molde", _molde(molde_base, encaixe, largura, altura, completo=molde)),
         ("referências", linha_de_referencias),
     ]
     return _caber([(nome, texto) for nome, texto in secoes if texto], teto)
+
+
+def rampas_da_base(base: BaseDeConhecimento | None) -> str:
+    """As rampas da paleta-mestra, para ir uma vez só no topo de uma lista.
+
+    ``""`` sem base ou sem rampas. Cada pedido da lista diz, na própria linha
+    de cores, como usá-las (conforme a liberdade dele).
+    """
+    if base is None or base.esta_vazia:
+        return ""
+    paleta = base.estilo().paleta
+    if paleta is None or not paleta.rampas:
+        return ""
+    return "\n".join(
+        [f"rampas da paleta-mestra {paleta.id}, do escuro ao claro:", *_linhas_de_rampas(paleta)]
+    )
+
+
+def _quadro_ousado(
+    resolved: Any, encaixe: _Encaixe | None, largura: int, altura: int
+) -> str:
+    """Do quadro, só o que é do jogo e não do corpo: a grade e o chão."""
+    texto = f"quadro: grade {largura}×{altura}"
+    if encaixe is not None and encaixe.chao is not None:
+        quem = _QUEM_PISA.get(_valor(resolved.asset.type), "assets")
+        texto += (
+            f" · chão em y={encaixe.chao} (pixel opaco mais baixo), para pisar na "
+            f"mesma linha que os outros {quem}"
+        )
+    return texto
 
 
 @dataclass(frozen=True, slots=True)
@@ -236,7 +325,14 @@ def _sem_corpo(resolved: Any) -> str:
     return ""
 
 
-def _proporcoes(forma: Forma | None, encaixe: _Encaixe | None, largura: int, altura: int) -> str:
+def _proporcoes(
+    forma: Forma | None,
+    encaixe: _Encaixe | None,
+    largura: int,
+    altura: int,
+    *,
+    ponto_de_partida: bool = False,
+) -> str:
     if forma is None or encaixe is None:
         return ""
     medidas = encaixe.medidas
@@ -282,6 +378,8 @@ def _proporcoes(forma: Forma | None, encaixe: _Encaixe | None, largura: int, alt
         if encaixe.em_quadro_maior
         else f"{forma.nome} {largura}×{altura}"
     )
+    if ponto_de_partida:
+        titulo += " (ponto de partida)"
     linhas = [f"{titulo}: " + " · ".join(partes)]
     quadro = _linha_do_quadro(valor, largura, topo - folga if topo is not None else None)
     if quadro:
@@ -354,28 +452,60 @@ def _luz(resolved: Any, luz: Luz | None) -> str:
     return " · ".join([cabeca, *regras])
 
 
-def _cores(resolved: Any, paleta: Paleta | None) -> str:
+#: Em ousado, a regra de cor que fica: qualquer cor, com vizinhas por material.
+_COR_LIVRE = (
+    "qualquer cor vale dentro do limite, desde que cada material tenha tons "
+    "vizinhos (escuro, médio, claro)"
+)
+
+
+def _cores(
+    resolved: Any,
+    paleta: Paleta | None,
+    *,
+    liberdade: Liberdade = Liberdade.FIEL,
+    rampas: bool = True,
+) -> str:
     pedida = resolved.palette
     if pedida is not None and pedida.mode == "locked" and pedida.colors:
-        # Paleta travada é do spec: as rampas da mestra não se aplicam.
+        # Paleta travada é do spec: as rampas da mestra não se aplicam, em
+        # nenhuma liberdade.
         return f"cores: paleta travada pelo pedido, use só estas: {' '.join(pedida.colors)}"
 
     limite = pedida.max_colors if pedida is not None else None
     cabeca = f"cores: até {limite}, contorno incluído" if limite else "cores: o pedido não limita"
     if paleta is None or not paleta.rampas:
-        return cabeca
+        return f"{cabeca} · {_COR_LIVRE}" if liberdade is Liberdade.OUSADO else cabeca
 
-    linhas = [
-        (
-            f"{cabeca} · paleta-mestra {paleta.id}, rampas do escuro ao claro; "
-            "cada material usa tons vizinhos de uma rampa:"
-        ),
-        f"  contorno {paleta.contorno}",
-    ]
+    no_topo = "" if rampas else " (no topo da lista)"
+    fim = ":" if rampas else ""
+    if liberdade is Liberdade.OUSADO:
+        primeira = (
+            f"{cabeca} · {_COR_LIVRE}; como sugestão, as rampas da paleta-mestra "
+            f"{paleta.id}, do escuro ao claro{no_topo}{fim}"
+        )
+    elif liberdade is Liberdade.EQUILIBRADO:
+        primeira = (
+            f"{cabeca} · paleta-mestra {paleta.id}, rampas do escuro ao claro como "
+            f"ponto de partida{no_topo}; cada material costuma usar tons vizinhos de "
+            f"uma rampa{fim}"
+        )
+    else:
+        primeira = (
+            f"{cabeca} · paleta-mestra {paleta.id}, rampas do escuro ao claro{no_topo}; "
+            f"cada material usa tons vizinhos de uma rampa{fim}"
+        )
+    if not rampas:
+        return primeira
+    return "\n".join([primeira, *_linhas_de_rampas(paleta)])
+
+
+def _linhas_de_rampas(paleta: Paleta) -> list[str]:
+    linhas = [f"  contorno {paleta.contorno}"]
     rampas = [f"{material} {' '.join(cores)}" for material, cores in paleta.rampas.items()]
     for i in range(0, len(rampas), 2):
         linhas.append("  " + " · ".join(rampas[i : i + 2]))
-    return "\n".join(linhas)
+    return linhas
 
 
 def _silhueta(forma: Forma | None) -> str:

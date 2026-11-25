@@ -7,21 +7,18 @@ interface SessionHistoryProps {
 }
 
 /**
- * Histórico da sessão (plano da tela §25).
+ * Os pedidos prontos (plano da tela §25; Fase B do plano do app).
  *
- * Vive só em memória: recarregar a página limpa. O backend já guarda o
- * histórico de verdade, e a galeria permanente da Fase C do plano do app
+ * Vêm da fila de pedidos, gravada no backend: recarregar a página não os
+ * perde. A galeria permanente da Fase C do plano do app
  * (backend/docs/PLANO_APP_DESENHISTA.md) toma o lugar deste componente.
- *
- * As miniaturas não dizem mais quem gerou: com um gerador só, o rótulo de
- * motor saiu junto com a escolha de motor (Fase A).
  */
 export function SessionHistory({ entries, activeJobId, onSelect }: SessionHistoryProps) {
   if (entries.length === 0) return null;
 
   return (
-    <section className="history" aria-label="Gerações desta sessão">
-      <h2 className="history__title">Resultados desta sessão</h2>
+    <section className="history" aria-label="Pedidos prontos">
+      <h2 className="history__title">Prontos</h2>
       <ul className="history__list">
         {entries.map((entry) => {
           const mode = MODES[entry.mode];

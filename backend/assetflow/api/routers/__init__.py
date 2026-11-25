@@ -1,6 +1,6 @@
 """Routers da API do AssetFlow."""
 
-from . import assets, capabilities, dev_pixel, engines, jobs
+from . import assets, capabilities, dev_pixel, engines, jobs, pedidos
 
 __all__ = [
     "assets",
@@ -8,4 +8,5 @@ __all__ = [
     "dev_pixel",
     "engines",
     "jobs",
+    "pedidos",
 ]

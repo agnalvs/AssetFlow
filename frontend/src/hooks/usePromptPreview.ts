@@ -29,8 +29,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type FieldError,
   GenerationApiError,
-  buildJobPayload,
-  previewPrompt,
+  buildPedidoPayload,
+  previaPedido,
 } from "../services/generationApi";
 import type { AssetSelection } from "../components/AssetControls";
 import type {
@@ -105,8 +105,9 @@ export function usePromptPreview(
       const controller = new AbortController();
       inFlight.current = controller;
 
-      previewPrompt(
-        buildJobPayload({ mode, prompt: trimmed, selection, spec, semantic }),
+      // A prévia dos pedidos: o spec mostrado é o que a criação grava.
+      previaPedido(
+        buildPedidoPayload({ mode, prompt: trimmed, selection, spec, semantic }),
         controller.signal,
       )
         .then((result) => {

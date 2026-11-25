@@ -4,11 +4,13 @@ Primeira interface web do AssetFlow: descrever o asset, ver o que o AssetFlow
 entendeu do pedido e, quando o caminho estiver ligado, gerar, acompanhar e
 baixar.
 
-> **Fase A do plano do app** ([../backend/docs/PLANO_APP_DESENHISTA.md](../backend/docs/PLANO_APP_DESENHISTA.md)).
+> **Plano do app** ([../backend/docs/PLANO_APP_DESENHISTA.md](../backend/docs/PLANO_APP_DESENHISTA.md)).
 > O app tem um gerador só, a desenhista, que desenha a partir de uma receita
-> escrita pelo Claude. Saíram o seletor e o crédito de motor e o modo 2D Normal.
-> O botão "Gerar" está desligado (`GERAR_LIGADO` no `App.tsx`), com uma frase
-> dizendo que os pedidos passam a ir para uma fila na próxima fase.
+> escrita pelo Claude. Desde a Fase B, "Gerar" **cria um pedido** numa fila
+> (`/api/pedidos`); o Claude o desenha pela conversa e a tela mostra o
+> resultado sozinha (`usePedidos` consulta a lista a cada 2 s enquanto houver
+> pedido ativo). A fila de pedidos e os prontos vêm da API: recarregar a
+> página não os perde. Detalhes: [../backend/docs/PEDIDOS.md](../backend/docs/PEDIDOS.md).
 
 ## A regra que governa esta camada
 

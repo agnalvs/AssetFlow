@@ -91,11 +91,34 @@ class GenerationService:
     # ------------------------------------------------------------------
     # Submissão de jobs
     # ------------------------------------------------------------------
-    async def submit(self, request: AssetGenerationRequest) -> Job:
-        """Cria e enfileira um job. Retorna imediatamente (plano §53)."""
+    async def submit(
+        self,
+        request: AssetGenerationRequest,
+        *,
+        resolved: FinalResolvedSpec | None = None,
+    ) -> Job:
+        """Cria e enfileira um job. Retorna imediatamente (plano §53).
+
+        ``resolved`` é um spec **já resolvido** — o de um pedido da fila,
+        gravado na criação (Fase B do plano do app). Com ele, nada é resolvido
+        de novo: o job executa exatamente aquele spec, mesmo que a taxonomia
+        ou os profiles tenham mudado desde então. Ele precisa ser do mesmo
+        profile do pedido; o resto (receita, projeto) vem do pedido.
+        """
         profile = self.resolve_profile(request)
-        capability = request.capability or profile.capability
-        pipeline_id = request.pipeline or profile.pipeline
+        if resolved is not None and resolved.profile_id != profile.id:
+            raise InvalidGenerationRequest(
+                f"o spec gravado é do profile '{resolved.profile_id}', e o pedido é do "
+                f"'{profile.id}'"
+            )
+        capability = (
+            resolved.capability if resolved is not None else request.capability or profile.capability
+        )
+        pipeline_id = (
+            resolved.pipeline_id
+            if resolved is not None and resolved.pipeline_id
+            else request.pipeline or profile.pipeline
+        )
 
         # Falha cedo: pipeline inexistente é erro determinístico.
         self._pipelines.get(pipeline_id)
@@ -107,7 +130,8 @@ class GenerationService:
         # §15 e §33). O worker não reinterpreta nada: ele recebe o mesmo
         # objeto que a pré-visualização mostrou. É essa identidade que
         # sustenta a promessa "o JSON exibido é o JSON executado".
-        resolved = self.resolve_spec(request, profile=profile, pipeline_id=pipeline_id)
+        if resolved is None:
+            resolved = self.resolve_spec(request, profile=profile, pipeline_id=pipeline_id)
 
         job = Job(
             project_id=request.project_id,

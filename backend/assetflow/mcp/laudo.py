@@ -17,7 +17,29 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-__all__ = ["FORMATO_RECEITA", "formatar_consulta", "formatar_laudo"]
+__all__ = [
+    "FORMATO_RECEITA",
+    "LIBERDADE_EQUILIBRADO",
+    "TETO_PENDENTES",
+    "bloco_do_pedido",
+    "formatar_consulta",
+    "formatar_laudo",
+    "formatar_pendentes",
+    "linha_de_liberdade",
+]
+
+#: A abertura do recorte em ``equilibrado``. Não cita números: os limites
+#: duros estão nas linhas ``grade``/``paleta``/``fundo`` logo acima.
+LIBERDADE_EQUILIBRADO = (
+    "liberdade: equilibrado — as medidas, a luz e as rampas abaixo são ponto de "
+    "partida, não regra: desvie delas quando o pedido justificar (uma capa longa, "
+    "um chapéu alto, uma cor que nenhuma rampa tem). Grade, número de cores e "
+    "fundo não mudam."
+)
+
+#: Teto da resposta de ``pedidos_pendentes``, em caracteres (~5.300 tokens a
+#: ~3 caracteres por token). O pedido que não couber fica na fila, sem reserva.
+TETO_PENDENTES = 16_000
 
 #: O formato da receita, em poucas linhas. Vai na resposta de
 #: ``consultar_pedido`` — e não na descrição de ``desenhar`` — para só ocupar
@@ -62,8 +84,21 @@ _TIPOS_DE_PROBLEMA = {
 # ---------------------------------------------------------------------------
 # consultar_pedido
 # ---------------------------------------------------------------------------
-def formatar_consulta(pedido: str, perfil: str, spec: Any, *, conhecimento: str = "") -> str:
-    """O que o AssetFlow entendeu do pedido, o formato da receita e o recorte."""
+def formatar_consulta(
+    pedido: str,
+    perfil: str,
+    spec: Any,
+    *,
+    conhecimento: str = "",
+    liberdade: str | None = None,
+    com_formato: bool = True,
+) -> str:
+    """O que o AssetFlow entendeu do pedido, o formato da receita e o recorte.
+
+    ``liberdade`` abre o recorte com a linha dela (nada em ``fiel``). Sem
+    ``com_formato``, o formato da receita fica de fora — quem lista vários
+    pedidos o põe uma vez só.
+    """
     asset = spec.asset
     partes_tipo = [_valor(asset.type)]
     if asset.subject:
@@ -103,15 +138,116 @@ def formatar_consulta(pedido: str, perfil: str, spec: Any, *, conhecimento: str 
         ),
         f"motor: {spec.engine.engine_id or 'automático'}",
         "",
-        FORMATO_RECEITA,
-        "",
     ]
+    if com_formato:
+        linhas.extend([FORMATO_RECEITA, ""])
     # O recorte da base (assetflow.pixel_knowledge) vem pronto; aqui só entra
     # no lugar. Sem nada para este pedido, a linha diz isso em vez de sumir.
+    abertura = linha_de_liberdade(liberdade, spec)
     if conhecimento:
-        linhas.extend(["conhecimento:", conhecimento])
+        linhas.extend(["conhecimento:", *([abertura] if abertura else []), conhecimento])
     else:
         linhas.append("conhecimento: (nada da base para este pedido)")
+        if abertura:
+            linhas.append(abertura)
+    return "\n".join(linhas)
+
+
+def linha_de_liberdade(liberdade: str | None, spec: Any) -> str:
+    """A primeira linha do recorte em ``equilibrado`` e em ``ousado``.
+
+    A do ousado diz os limites duros com os números do spec — grade, cores e
+    fundo —, e por isso é montada aqui: o recorte só lê cinco campos do spec, e
+    o fundo não é um deles.
+    """
+    valor = _valor(liberdade) if liberdade else "fiel"
+    if valor == "equilibrado":
+        return LIBERDADE_EQUILIBRADO
+    if valor != "ousado":
+        return ""
+    limites = []
+    logica = spec.logical_resolution
+    if logica is not None:
+        limites.append(f"grade {logica.width}×{logica.height}")
+    paleta = spec.palette
+    if paleta is not None and paleta.mode == "locked":
+        limites.append(f"só as {len(paleta.colors)} cores da paleta travada")
+    elif paleta is not None and paleta.max_colors:
+        limites.append(f"até {paleta.max_colors} cores com o contorno")
+    limites.append(f"fundo {_fundo(spec.background.mode)}")
+    juntos = ", ".join(limites[:-1]) + f" e {limites[-1]}" if len(limites) > 1 else limites[0]
+    return (
+        f"liberdade: ousado — os limites duros são {juntos}; o resto é seu. Proponha "
+        "uma silhueta e uma ideia próprias para o pedido, em vez da figura de sempre."
+    )
+
+
+# ---------------------------------------------------------------------------
+# pedidos_pendentes
+# ---------------------------------------------------------------------------
+def bloco_do_pedido(
+    *,
+    pedido_id: str,
+    tipo: str,
+    liberdade: str,
+    esperando_min: int,
+    consulta: str,
+    direcao_de_arte: str | None = None,
+    tentativas: int = 0,
+    max_tentativas: int = 3,
+    ultimo_asset: str | None = None,
+    ajuste: tuple[str, str] | None = None,
+    base: str | None = None,
+) -> str:
+    """Um pedido na lista: cabeçalho, direção de arte, base do ajuste e consulta."""
+    if ajuste is not None:
+        origem, texto = ajuste
+        cabeca = f'== {pedido_id} · ajuste de {origem}: "{texto}"'
+    else:
+        cabeca = f"== {pedido_id} · {tipo}"
+    cabeca += f" · liberdade {liberdade} · na fila há {esperando_min} min"
+    linhas = [cabeca]
+    if tentativas:
+        linhas.append(
+            f"já houve {tentativas} de {max_tentativas} desenho(s) não aprovado(s); o "
+            f"último é {ultimo_asset}: corrija com base={ultimo_asset}"
+        )
+    if direcao_de_arte:
+        linhas.append(f'direção de arte (como escrita no pedido): "{direcao_de_arte}"')
+    if base:
+        linhas.append(base)
+    linhas.append(consulta)
+    return "\n".join(linhas)
+
+
+def formatar_pendentes(
+    blocos: list[str], *, restantes: int, reserva_min: float, rampas: str
+) -> str:
+    """A resposta de ``pedidos_pendentes``: o comum uma vez, depois cada pedido."""
+    if not blocos:
+        return (
+            "nenhum pedido esperando desenho na fila do AssetFlow"
+            + (f" (há {restantes} que não couberam nesta resposta)" if restantes else "")
+            + "."
+        )
+    quantos = len(blocos)
+    plural = "s" if quantos > 1 else ""
+    linhas = [
+        (
+            f"{quantos} pedido{plural} da tela, reservado{plural} para você por "
+            f"{reserva_min:g} min (mais {restantes} na fila)."
+        ),
+        (
+            "Desenhe cada um com desenhar(pedido_id=..., receita=...): o texto, o perfil e "
+            "os controles vêm do pedido. Cada desenhar renova a reserva dos outros."
+        ),
+        "",
+        FORMATO_RECEITA,
+    ]
+    if rampas:
+        linhas.extend(["", rampas])
+    for bloco in blocos:
+        linhas.extend(["", bloco])
     return "\n".join(linhas)
 
 

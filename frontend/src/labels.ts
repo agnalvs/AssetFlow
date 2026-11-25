@@ -267,3 +267,43 @@ export function shadingLabel(value: string): string {
 export function constraintLabel(value: string | undefined): string {
   return value ? CONSTRAINT_CLASSES[value] ?? value : "";
 }
+
+// ---------------------------------------------------------------------------
+// Pedidos (Fase B do plano do app)
+// ---------------------------------------------------------------------------
+
+/** O que a tela diz de cada etapa de um pedido. */
+export function etapaLabel(pedido: {
+  etapa: string;
+  tentativas: number;
+  max_tentativas: number;
+}): string {
+  switch (pedido.etapa) {
+    case "na_fila":
+      return "Na fila";
+    case "na_vez":
+      return "Na vez do Claude";
+    case "desenhando":
+      return "O Claude está desenhando";
+    case "corrigindo":
+      return `Não aprovado na tentativa ${pedido.tentativas} de ${pedido.max_tentativas} — o Claude vai corrigir`;
+    case "pronto":
+      return "Pronto";
+    case "nao_aprovado":
+      return "Não aprovado";
+    case "cancelado":
+      return "Cancelado";
+    default:
+      return pedido.etapa;
+  }
+}
+
+const LIBERDADES: Record<string, string> = {
+  fiel: "Fiel",
+  equilibrado: "Equilibrado",
+  ousado: "Ousado",
+};
+
+export function liberdadeLabel(value: string): string {
+  return LIBERDADES[value] ?? value;
+}

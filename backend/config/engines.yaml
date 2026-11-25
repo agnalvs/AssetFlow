@@ -22,6 +22,11 @@
 # Motores que declarem outra versão são rejeitados pelo EngineRegistry.
 engine_api_version: "1"
 
+# O gerador do app (Fase B do plano do app): a gaveta que desenha os pedidos
+# feitos na tela. Ela é pedida pelo nome, sem fallback, e o spec de cada pedido
+# já nasce com ela — é o que a pré-visualização mostra e o que o desenho executa.
+gerador: "desenhista-v1"
+
 discovery:
   # Diretórios varridos em busca de `manifest.json` de engines.
   paths:

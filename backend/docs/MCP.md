@@ -29,10 +29,11 @@ nelas.
 
 | Ferramenta | Recebe | Devolve |
 |---|---|---|
-| `consultar_pedido` | `pedido`, `perfil?`, `molde?` | o que o spec resolveu + o formato da receita + o recorte de conhecimento |
-| `desenhar` | `pedido?`, `receita?`, `base?`, `perfil?` | o laudo em texto |
+| `consultar_pedido` | `pedido`, `perfil?`, `molde?`, `liberdade?` | o que o spec resolveu + o formato da receita + o recorte de conhecimento |
+| `pedidos_pendentes` | `limite?` (padrão 5, máximo 10) | os pedidos da tela que esperam desenho, cada um com a consulta dele, já reservados ([PEDIDOS.md](PEDIDOS.md)) |
+| `desenhar` | `pedido?`, `receita?`, `base?`, `perfil?`, `pedido_id?` | o laudo em texto; com `pedido_id`, a primeira linha diz o que aconteceu com o pedido |
 | `ver_asset` | `id` | uma legenda e o PNG ampliado |
-| `ver_referencia` | `pedido`, `perfil?` | um quadro de referência do tipo do pedido, ampliado, com origem e licença ([REFERENCIAS.md](REFERENCIAS.md)) |
+| `ver_referencia` | `pedido`, `perfil?`, `liberdade?` | um quadro de referência do tipo do pedido, ampliado, com origem e licença ([REFERENCIAS.md](REFERENCIAS.md)) |
 
 - **`perfil`** é o profile de partida, e só vale no que o texto não disser. O
   padrão é `pixel_character_32`. A lista de opções na descrição sai dos
@@ -43,8 +44,16 @@ nelas.
   linhas de `config/pixel_knowledge/` que valem para aquele spec (§4).
   **`molde`** (padrão `false`) troca a linha de camadas pela receita inteira
   do molde-base.
-- Cada desenho é uma variação, no projeto `mcp`: os arquivos ficam em
-  `backend/data/assets/projects/mcp/`.
+- Cada desenho é uma variação. Os avulsos ficam no projeto `mcp`
+  (`backend/data/assets/projects/mcp/`); os de pedidos da tela, no projeto do
+  app (`principal`).
+- **Pedidos da tela** (Fase B do plano do app): `pedidos_pendentes` traz e
+  reserva os pedidos; `desenhar(pedido_id=...)` desenha com o spec gravado na
+  criação, sem `pedido` nem `perfil`. Situações, reserva, tentativas e erros:
+  [PEDIDOS.md](PEDIDOS.md).
+- **`liberdade`** (`fiel`, `equilibrado`, `ousado`) muda só a orientação do
+  recorte; sem ela, fiel — o comportamento de antes. Em `ver_referencia`, ousado
+  escolhe a imagem só pelo estilo. Os três textos: [PEDIDOS.md](PEDIDOS.md) §5.
 
 Erros — receita inválida, perfil que não é de Pixel Art, asset que não existe —
 chegam ao Claude como erro da ferramenta, com a mensagem em português que diz

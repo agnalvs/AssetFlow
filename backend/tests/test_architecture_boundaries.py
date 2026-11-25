@@ -540,3 +540,53 @@ def test_engines_ignore_the_referencias(path: Path):
         if _imports_any(module, ("assetflow.referencias",))
     ]
     assert not violations, "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# Fila de pedidos (Fase B do plano do app)
+# ---------------------------------------------------------------------------
+# ``assetflow/pedidos/`` é o que a API e o servidor MCP dividem: os dois o
+# usam, e por isso ele não pode importar nenhum dos dois — nem gaveta, nem a
+# fila de jobs em memória, que é de cada processo. E nenhuma gaveta o importa:
+# um motor não decide o que acontece com o pedido depois de desenhar.
+
+PEDIDOS_ROOT = PACKAGE_ROOT / "pedidos"
+PEDIDOS_FILES = _python_files(PEDIDOS_ROOT)
+
+LAYERS_FORBIDDEN_TO_PEDIDOS = (
+    "assetflow.api",
+    "assetflow.mcp",
+    "assetflow.generation.engines",
+    "assetflow.jobs",
+)
+
+
+def test_there_are_pedidos_files_to_inspect():
+    """Guarda da própria seção: parametrização vazia passa sem provar nada."""
+    assert len(PEDIDOS_FILES) >= 4
+
+
+@pytest.mark.parametrize(
+    "path", PEDIDOS_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT))
+)
+def test_pedidos_do_not_import_api_mcp_engines_or_jobs(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, LAYERS_FORBIDDEN_TO_PEDIDOS)
+    ]
+    assert not violations, "assetflow/pedidos/ é dividido por API e MCP:\n" + "\n".join(
+        violations
+    )
+
+
+@pytest.mark.parametrize(
+    "path", ENGINE_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT))
+)
+def test_engines_ignore_the_pedidos(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, ("assetflow.pedidos",))
+    ]
+    assert not violations, "\n".join(violations)

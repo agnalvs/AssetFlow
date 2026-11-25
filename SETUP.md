@@ -143,9 +143,14 @@ seletor de motor e o modo "Automático" saíram na Fase A do plano do app
 ([backend/docs/PLANO_APP_DESENHISTA.md](backend/docs/PLANO_APP_DESENHISTA.md)).
 
 O único gerador é a desenhista, que precisa de uma receita escrita pelo Claude
-— e a tela não manda receita. Por isso o botão **"Gerar" está desligado**, com
-uma frase dizendo que os pedidos passam a ir para uma fila na próxima fase. O
-desenho de verdade vem pela conversa com o Claude (passo 10).
+— e a tela não manda receita. Por isso **"Gerar" cria um pedido numa fila**
+(Fase B do plano do app). Na conversa com o Claude Code, com o servidor MCP
+registrado (passo 10), diga *"desenhe os pedidos pendentes do AssetFlow"*: o
+Claude pega a fila, desenha cada pedido, e o resultado aparece na tela sem
+recarregar. Abaixo dos controles ficam a **liberdade criativa** (fiel,
+equilibrado, ousado) e a **direção de arte**, que vão para o Claude e não
+mudam grade, cores nem fundo. A fila mora em `backend/data/pedidos/`;
+detalhes em [backend/docs/PEDIDOS.md](backend/docs/PEDIDOS.md).
 
 Entre a descrição e o botão fica o painel **"O que o AssetFlow entendeu"**,
 fechado por padrão. Ele mostra a estrutura que o sistema montou da sua frase —

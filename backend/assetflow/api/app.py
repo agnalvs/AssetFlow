@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 
 from ..bootstrap import AppContainer, build_container
 from ..generation.kernel.exceptions import ErrorCode, GenerationError
+from ..pedidos import ErroDaFila, PedidoNaoEncontrado, TransicaoRecusada
 from ..settings import Settings
 from ..version import __version__
 from .routers import (
@@ -26,6 +27,7 @@ from .routers import (
     dev_pixel,
     engines,
     jobs,
+    pedidos,
     prompt,
 )
 from .schemas import ErrorResponse, HealthResponse
@@ -122,6 +124,31 @@ def create_app(
             ).model_dump(mode="json"),
         )
 
+    @app.exception_handler(ErroDaFila)
+    async def _fila_error_handler(_request: Request, exc: ErroDaFila) -> JSONResponse:
+        """Erros da fila de pedidos, no formato normalizado e em português.
+
+        Banco ocupado por outro processo ou danificado é 503 com a frase para
+        ser lida; a tela a mostra crua. O arquivo nunca é tocado aqui.
+        """
+        if isinstance(exc, PedidoNaoEncontrado):
+            status_code = 404
+        elif isinstance(exc, TransicaoRecusada):
+            status_code = 409
+        else:
+            status_code = 503
+            _LOG.error("fila de pedidos: %s", exc)
+        detail = {"situacao": exc.pedido.situacao.value} if isinstance(exc, TransicaoRecusada) else {}
+        return JSONResponse(
+            status_code=status_code,
+            content=ErrorResponse(
+                code=exc.codigo,
+                message=str(exc),
+                retryable=status_code == 503,
+                detail=detail,
+            ).model_dump(mode="json"),
+        )
+
     @app.exception_handler(RequestValidationError)
     async def _validation_error_handler(
         _request: Request, exc: RequestValidationError
@@ -174,6 +201,7 @@ def create_app(
     app.include_router(prompt.router)
     app.include_router(jobs.router)
     app.include_router(assets.router)
+    app.include_router(pedidos.router)
 
     # Diagnóstico do Pixel Exact (plano Pixel §78). Quem decide se ele
     # responde é o próprio endpoint, lendo `api.dev_endpoints` do container em

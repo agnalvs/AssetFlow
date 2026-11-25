@@ -8,7 +8,7 @@ interface ResultActionsProps {
   onNewPrompt: () => void;
 }
 
-/** Ações pós-geração (plano da tela §23). */
+/** Ações sobre um desenho pronto (plano da tela §23). "Pedir de novo" cria outro pedido igual. */
 export function ResultActions({
   variant,
   fileName,
@@ -24,10 +24,10 @@ export function ResultActions({
         onClick={onRegenerate}
         disabled={busy}
       >
-        Gerar novamente
+        Pedir de novo
       </button>
       <button type="button" className="button button--ghost" onClick={onNewPrompt}>
-        Novo prompt
+        Novo pedido
       </button>
       {variant.url ? (
         <a

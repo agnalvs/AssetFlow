@@ -60,8 +60,7 @@ _MANIFEST_PATH = Path(__file__).resolve().parent / "manifest.json"
 MENSAGEM_SEM_RECEITA = (
     "o motor 'desenhista-v1' só desenha a partir de uma receita, que chega pelo "
     "servidor MCP do AssetFlow em engine_options['desenhista-v1']['receita']. "
-    "O botão Gerar da tela não envia receita: peça o desenho na conversa com o "
-    "Claude, ou escolha outro motor."
+    "Um pedido feito na tela vai para a fila, e o Claude o desenha pela conversa."
 )
 
 

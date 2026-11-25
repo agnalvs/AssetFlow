@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1448 passed, 1 skipped)
+pytest -q                                # suíte completa (1540 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -204,6 +204,30 @@ Feito:
   - **o histórico lê registros antigos**: `GenerationRecord.do_historico`
     ignora campos de topo que saíram do modelo (os da era do STRATEGY, que
     faziam 18 linhas sumirem em silêncio). Gravar continua estrito.
+- **Fase B** (fila de pedidos) — "Gerar" cria um **pedido**
+  (`assetflow/pedidos/`, `/api/pedidos`); o Claude os pega com
+  `pedidos_pendentes` e desenha com `desenhar(pedido_id=...)`; a tela consulta
+  a lista e mostra o resultado sem recarregar. Pedido tem **liberdade**
+  (`fiel`, `equilibrado`, `ousado`) e **direção de arte**, que mudam o recorte
+  e nunca o spec. Detalhes: [backend/docs/PEDIDOS.md](backend/docs/PEDIDOS.md).
+  Cinco regras:
+  - **a fila é um SQLite em `data/pedidos/`**, porque API e MCP são dois
+    processos: conexão curta por operação, WAL com o `-wal` mantido entre
+    conexões, `busy_timeout`, e **toda transição é um `UPDATE` condicional
+    só**, com `RETURNING`. O arquivo nunca é apagado: travado ou danificado
+    vira erro em português (503 na API, erro da ferramenta no MCP);
+  - **o spec é resolvido uma vez, na criação**, e o desenho o executa
+    (`GenerationService.submit(..., resolved=spec)`). Prévia, criação e
+    desenho montam o pedido no mesmo lugar (`ServicoDePedidos.requisicao`): o
+    projeto do app (`principal`, em settings), o gerador do `engines.yaml`
+    (`gerador:`) pelo nome e sem fallback, uma variação;
+  - **aprovado conclui; não aprovado conta tentativa** (3, `settings`), e o
+    teto leva a `falhou`. Receita inválida não conta. Concluir é condicional:
+    cancelado, devolvido ou concluído por outro desenho deixa o asset avulso;
+  - **reserva**: `pedidos_pendentes` reserva o que entrega (30 min, renovados
+    a cada `desenhar` da leva); a tela pode devolver à fila sem cancelar;
+  - **`pedidos/` não importa API, MCP, gaveta nem jobs** (teste de
+    fronteiras), e nenhuma gaveta o importa.
 
 ## Arquitetura
 
@@ -492,9 +516,10 @@ conteúdo vira `engine_options[<id>]` no pedido do contrato.
 React 18 + Vite + TS. A interface conhece **Pixel Art** e mais nada — o rótulo
 vira uma capacidade em `src/types.ts`. Desde a Fase A do plano do app ela não
 pergunta nada de tecnologia: saíram o seletor e o crédito de motor e o modo 2D
-Normal. **"Gerar" está desligado** (`GERAR_LIGADO` no `App.tsx`), com a frase
-explicando que os pedidos vão para uma fila na Fase B; o desenho acontece pela
-conversa com o Claude, pelo MCP. Nenhum id de motor está escrito no frontend.
+Normal. Desde a Fase B, **"Gerar" cria um pedido** na fila (`usePedidos`,
+`PedidosList`, `LiberdadeControls`), e o desenho acontece pela conversa com o
+Claude, pelo MCP; o resultado aparece sem recarregar a página. A prévia do painel é a dos pedidos (`/api/pedidos/previa`),
+para o spec mostrado ser o gravado. Nenhum id de motor está escrito no frontend.
 
 A tela mostra o `FinalResolvedSpec` que o backend devolve: o painel "O que o AssetFlow
 entendeu" tem a aba **Interpretação** (o contrato em português, com a origem de

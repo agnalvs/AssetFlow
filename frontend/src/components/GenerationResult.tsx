@@ -1,6 +1,5 @@
-import type { GenerationOutcome } from "../hooks/useGenerationJob";
 import { optimizationLabel } from "../labels";
-import { MODES, type PixelOptimization } from "../types";
+import { type GenerationOutcome, MODES, type PixelOptimization } from "../types";
 import { AssetPreview } from "./AssetPreview";
 import { GenerationNotices } from "./GenerationNotices";
 import { ResultActions } from "./ResultActions";

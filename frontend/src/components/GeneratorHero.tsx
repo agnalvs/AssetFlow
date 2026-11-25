@@ -4,8 +4,8 @@ export function GeneratorHero() {
     <section className="hero">
       <h1 className="hero__title">Crie assets para o seu jogo com IA</h1>
       <p className="hero__subtitle">
-        Escolha o estilo, descreva o que precisa e deixe o AssetFlow criar o primeiro
-        conceito para você.
+        Descreva o que precisa, confira o que o AssetFlow entendeu e mande o pedido
+        para o Claude desenhar.
       </p>
     </section>
   );

@@ -4,7 +4,7 @@
 # Este arquivo configura o estágio que TODA geração Pixel Art atravessa:
 #
 #   engines.yaml        COM O QUÊ  -> qual motor produz a imagem
-#   engine_policy.yaml  QUAL DELES -> a escolha automática
+#   capabilities.yaml   QUAL DELES -> as rotas (no app, só a desenhista)
 #   optimizer.yaml      DEPOIS     -> a correção pixel a pixel  <- este
 #
 # Antes disto, o AssetFlow perguntava "modelo ou agente?" e quem pedia um

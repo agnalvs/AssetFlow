@@ -484,3 +484,60 @@ class HealthResponse(AssetFlowModel):
     version: str
     engines: dict[str, str] = Field(default_factory=dict)
     queued_jobs: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Pedidos da fila (Fase B do plano do app)
+# ---------------------------------------------------------------------------
+class PedidoResumo(AssetFlowModel):
+    """O que o cartão da tela mostra do spec, sem o spec inteiro."""
+
+    tipo_asset: str | None = None
+    grade: str | None = None
+    cores: int | None = None
+    fundo: str | None = None
+
+
+class PedidoView(AssetFlowModel):
+    """Um pedido como a lista da tela o mostra."""
+
+    id: str
+    tipo: str
+    situacao: str
+    #: O que a tela diz: na_fila, na_vez, desenhando, corrigindo, pronto,
+    #: nao_aprovado ou cancelado.
+    etapa: str
+    texto: str
+    projeto: str
+    liberdade: str
+    direcao_de_arte: str | None = None
+    origem_asset_id: str | None = None
+    tentativas: int = 0
+    max_tentativas: int = 3
+    reservado_ate: datetime | None = None
+    motivo: str | None = None
+    criado_em: datetime
+    atualizado_em: datetime
+    resumo: PedidoResumo = Field(default_factory=PedidoResumo)
+    #: O desenho que concluiu o pedido, ou o último não aprovado.
+    asset: AssetView | None = None
+
+
+class PedidoEventoView(AssetFlowModel):
+    em: datetime
+    situacao: str
+    nota: str = ""
+
+
+class PedidoDetalhe(PedidoView):
+    """O pedido inteiro: o corpo que a tela mandou, a leitura e o andamento."""
+
+    corpo: dict[str, Any] = Field(default_factory=dict)
+    leitura: dict[str, Any] = Field(default_factory=dict)
+    eventos: list[PedidoEventoView] = Field(default_factory=list)
+    ultimo_laudo: str | None = None
+
+
+class PedidoListResponse(AssetFlowModel):
+    projeto: str
+    items: list[PedidoView]

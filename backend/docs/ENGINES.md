@@ -40,9 +40,10 @@ onde cada peça mora e como acrescentar a próxima gaveta.
 
 Nada de motor. A tela não tem seletor nem crédito de motor: o app tem um
 gerador só, a `desenhista-v1`, que desenha a partir de uma receita escrita pelo
-Claude na conversa, pelo servidor MCP ([MCP.md](MCP.md)). A tela não manda
-receita, e por isso o botão "Gerar" está desligado até a fila da Fase B do
-plano do app, com uma frase dizendo isso.
+Claude na conversa, pelo servidor MCP ([MCP.md](MCP.md)). "Gerar" cria um
+pedido numa fila que o Claude atende ([PEDIDOS.md](PEDIDOS.md)). O gerador do
+app é configuração: a chave `gerador:` do `engines.yaml`, que os pedidos pedem
+pelo nome e sem fallback.
 
 **Nenhum id de motor está escrito no frontend.** O catálogo continua em
 `GET /api/generation/engines/catalog`, para diagnóstico — e o Pixel Optimizer

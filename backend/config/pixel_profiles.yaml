@@ -202,7 +202,7 @@ pixel_profiles:
   # (`ASSETFLOW_DEV_ENDPOINTS=1`) e `scripts/pixel_report.py`. É de propósito:
   # tile ainda não é caminho de produto (a capacidade `tileset.pixel` está
   # marcada como experimental, não existe pipeline de tile e a interface só
-  # conhece Pixel Art e 2D Normal). Ele fica aqui, vivo e testado, porque é o
+  # conhece Pixel Art). Ele fica aqui, vivo e testado, porque é o
   # caso que mais estica o contrato — e é assim que se prova que o
   # `PixelOutputSpec` já cobre o §66 antes de existir produto para ele.
   # Para expor o tile de verdade faltam um prompt builder de tile e o bloco

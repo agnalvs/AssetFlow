@@ -706,6 +706,236 @@ input {
   text-align: center;
 }
 
+.generate__note--erro {
+  color: var(--danger);
+}
+
+/* Liberdade criativa (Fase B do plano do app) ------------------------------ */
+.liberdade {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.liberdade__titulo {
+  padding: 0;
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.liberdade__opcoes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.liberdade__opcao {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.liberdade__opcao input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.liberdade__opcao:focus-within {
+  border-color: var(--border-strong);
+}
+
+.liberdade__opcao--ativa {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.liberdade__rotulo {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.liberdade__frase {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.liberdade__direcao {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.liberdade__texto {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+  resize: vertical;
+}
+
+.liberdade__texto:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Fila de pedidos (Fase B do plano do app) --------------------------------- */
+.pedidos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pedidos__titulo {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.pedidos__dica,
+.pedidos__vazio {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.pedidos__erro {
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid rgba(242, 112, 127, 0.35);
+  border-radius: var(--radius-sm);
+  background: rgba(242, 112, 127, 0.1);
+  color: var(--text);
+  font-size: 0.84rem;
+}
+
+.pedidos__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pedido {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.pedido--selecionado {
+  border-color: var(--accent);
+}
+
+.pedido--cancelado {
+  opacity: 0.55;
+}
+
+.pedido__corpo {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pedido__corpo:disabled {
+  cursor: default;
+}
+
+.pedido__miniatura {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: var(--bg-input);
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+
+.pedido__miniatura--vazia {
+  border: 1px dashed var(--border-strong);
+}
+
+.pedido__textos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pedido__texto {
+  overflow: hidden;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pedido__meta,
+.pedido__direcao {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pedido__direcao {
+  font-style: italic;
+}
+
+.pedido__etapa {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.pedido__etapa--na_vez,
+.pedido__etapa--desenhando {
+  color: var(--accent-strong);
+}
+
+.pedido__etapa--corrigindo,
+.pedido__etapa--nao_aprovado {
+  color: #f2b470;
+}
+
+.pedido__acoes {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
 .generate-button {
   align-self: center;
   min-width: 220px;
@@ -1110,6 +1340,14 @@ input {
 
   .generate-button {
     width: 100%;
+  }
+
+  .liberdade__opcoes {
+    grid-template-columns: 1fr;
+  }
+
+  .pedido {
+    flex-wrap: wrap;
   }
 
   .outcome {

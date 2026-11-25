@@ -1,6 +1,6 @@
 # Relatório de estado — branch `desenhista-mcp`
 
-Data: 2026-11-25 (atualizado depois da Fase A do plano do app). Base: `main` em `be3e9aa`. Escrito para quem revisa pelo
+Data: 2026-11-25 (atualizado depois da Fase B do plano do app). Base: `main` em `be3e9aa`. Escrito para quem revisa pelo
 GitHub, sem acesso à máquina onde o trabalho foi feito. Onde um número veio de
 dado que só existe nessa máquina (assets gerados, pacotes de referência), o
 texto diz isso.
@@ -37,7 +37,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `9795710` | Calibração | Pendências 1 e 4. **Nota:** limiares de blocos pequenos (84%) e cores raras (a partir da 4ª) em `config/quality.yaml`, `a_calibrar`, pela regra "p90 do pacote mais alto"; um validador só, do `bootstrap`, no pipeline, no Optimizer e na rota de dev; `quality.calibration` no relatório; validador 1.2.0. **Referências:** `minimo_por_pacote` (30) e `minimo_de_pacotes` (2) por parte, na linha, no `ver_referencia` (cai para o estilo) e no `calibrar` (que marca a parte insuficiente e propõe os limiares do validador). | 1440 / 1 |
 | `fab1337` | Segunda leva de referências | Cinco pacotes CC0 importados e ativos (`pixel-adventure`, `sunny-land`, `hylsy-64-character`, `ninja-animated`, `super-sprite-boy`), com o quadro conferido nos arquivos; Character Prototype (não é pixel art) e Pixel Boy (pintura com centenas de cores) baixados e não importados. Só lista de ativos e documentação: nenhum limiar nem valor da base mudou. | 1440 / 1 |
 | `7e02362` | Corpo do personagem | `character.yaml` com uma linha por palavra (masculino, feminino e plurais) e os nomes das formas de corpo; `category_body_types` (`humanoid -> humanoid`) deduz o corpo no resolvedor do spec, com a origem nova `category_inference` ("inferido da categoria"); o recorte diz "corpo não identificado" em vez de sair sem medidas. Teste das flexões em `test_taxonomia_flexoes.py`. | 1461 / 1 |
-| (este) | Fase A do plano do app — simplificação | Saem o seletor e o crédito de motor e o modo 2D Normal da tela; o modo "Automático" (`auto_policy.py`, `engine_policy.yaml`, `engine_advisor.py`, `EngineAdvice`, `EngineSuggestion`, a dica `preferred_engine_id`); os pipelines Studio e Raw, o pós-processamento e os prompt builders Studio, os profiles `studio_character`, `studio_background` e `raw_image`. Mocks só no ambiente de testes (`AppEnvironment.TEST`), rotas Pixel só com a desenhista, fallback desligado. "Gerar" desligado com a frase da fila. Leitor do histórico tolerante a campos antigos. `prompting/`, `AssetMode.STUDIO`, o campo `engine` da API e o `SessionHistory` ficam. | 1448 / 1 |
+| `4f9fdc6` | Fase A do plano do app — simplificação | Saem o seletor e o crédito de motor e o modo 2D Normal da tela; o modo "Automático" (`auto_policy.py`, `engine_policy.yaml`, `engine_advisor.py`, `EngineAdvice`, `EngineSuggestion`, a dica `preferred_engine_id`); os pipelines Studio e Raw, o pós-processamento e os prompt builders Studio, os profiles `studio_character`, `studio_background` e `raw_image`. Mocks só no ambiente de testes (`AppEnvironment.TEST`), rotas Pixel só com a desenhista, fallback desligado. "Gerar" desligado com a frase da fila. Leitor do histórico tolerante a campos antigos. `prompting/`, `AssetMode.STUDIO`, o campo `engine` da API e o `SessionHistory` ficam. | 1448 / 1 |
+| (este) | Fase B do plano do app — fila de pedidos | "Gerar" cria um pedido; fila num SQLite em `data/pedidos/` (`assetflow/pedidos/`), dividida pela API (`/api/pedidos`: prévia, criar, listar, ler, cancelar, devolver) e pelo MCP (`pedidos_pendentes`, `desenhar(pedido_id)`). Spec resolvido uma vez, na criação, e executado pelo desenho (`submit(resolved=)`). Tentativas (3), reserva por leva (30 min), conclusão condicional. Liberdade criativa (fiel, equilibrado, ousado) e direção de arte, só no recorte; `liberdade` também em `consultar_pedido` e `ver_referencia` avulsos. Projeto fixo `principal`; gerador do app no `engines.yaml`. Tela com fila, prontos e resultado sem recarregar. Textos pendentes da Fase A corrigidos. | 1540 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -102,6 +103,9 @@ assetflow/
 ├── jobs/                      Fila, store e GenerationWorker (o MCP roda o worker ele mesmo).
 ├── storage/   [alterado]      Assets, artefatos e histórico (data/history/generations.jsonl);
 │                              o leitor ignora campos de topo que saíram do modelo.
+├── pedidos/   [novo]          A fila de pedidos da tela (Fase B do app): modelo.py (situações,
+│                              etapas), fila.py (SQLite, transições condicionais), servico.py
+│                              (montar, prévia, criar; spec resolvido uma vez).
 └── llm/                       Revisor opcional do Optimizer por modelo (não usado por padrão).
 ```
 
@@ -112,6 +116,7 @@ config/
 ├── engines.yaml          [alterado]  Allowlist: desenhista-v1 + as duas de referência.
 ├── (engine_policy.yaml)  [removido]  O modo "Automático" saiu na Fase A do app.
 ├── capabilities.yaml     [alterado]  Rotas Pixel só com a desenhista; sem fallback nem motor fora da rota.
+├── (engines.yaml)        [alterado]  + `gerador: desenhista-v1`, o gerador dos pedidos da tela.
 ├── profiles.yaml         [alterado]  + pixel_character_48; − studio_character, studio_background, raw_image.
 ├── pixel_profiles.yaml   [alterado]  + pixel_character_48_strict (48×48, 12 cores, prévia 10×).
 ├── optimizer.yaml                    Teto de iterações, revisor, interruptor.
@@ -127,7 +132,9 @@ config/
 
 Testes novos: `test_desenhista.py`, `test_mcp.py`, `test_mcp_servidor.py`,
 `test_pixel_knowledge.py`, `test_referencias.py`, `pixel/test_quality_calibration.py`,
-`test_taxonomia_flexoes.py`, `test_gerador_unico.py`, `test_historico_antigo.py`, e seções novas em
+`test_taxonomia_flexoes.py`, `test_gerador_unico.py`, `test_historico_antigo.py`,
+`test_pedidos_fila.py`, `test_pedidos_processos.py` (dois processos de verdade),
+`test_pedidos_api.py`, `test_pedidos_mcp.py`, e seções novas em
 `test_architecture_boundaries.py`.
 
 ---
@@ -185,16 +192,22 @@ Texto exato, como o SDK as expõe (gerado de `criar_servidor`).
 - `pedido` (string, obrigatório): O pedido em texto livre.
 - `perfil` (string | null, padrão null): Profile de partida; só vale no que o texto não disser. Opções: pixel_character_32, pixel_character_48, pixel_character_64, pixel_prop_64. Padrão: pixel_character_32.
 - `molde` (boolean, padrão false): true inclui a receita do molde-base; sem ele, só as medidas.
+- `liberdade` (string | null): Fiel (padrão, como hoje), equilibrado ou ousado: muda só a orientação do recorte; grade, cores e fundo não mudam.
 
-**`desenhar`** — Desenha um sprite a partir de uma receita e devolve o laudo: aprovação, nota, problemas, id do asset e caminho do PNG. Para corrigir, passe base=<id> e só o que mudou.
+**`pedidos_pendentes`** — Lista os pedidos feitos na tela do AssetFlow que esperam desenho, cada um já com o que consultar_pedido devolveria, e os reserva para você. Desenhe cada um com desenhar(pedido_id=...).
+- `limite` (integer, padrão 5): Quantos pedidos trazer, dos mais antigos (padrão 5, máximo 10).
+
+**`desenhar`** — Desenha um sprite a partir de uma receita e devolve o laudo: aprovação, nota, problemas, id do asset e caminho do PNG. Para corrigir, passe base=<id> e só o que mudou. Com pedido_id, atende um pedido da fila da tela.
 - `pedido` (string | null): O mesmo texto de consultar_pedido. Com base, pode omitir.
 - `receita` (object | null): A receita completa; com base, só paleta e camadas alteradas.
 - `base` (string | null): Id de um asset anterior, para remendo.
 - `perfil` (string | null): Igual a consultar_pedido; num remendo, o da base.
+- `pedido_id` (string | null): Id de um pedido de pedidos_pendentes. Texto, perfil e controles vêm dele: omita pedido e perfil. Aprovado, o pedido fica concluído e aparece na tela.
 
 **`ver_referencia`** — Mostra UMA imagem de referência dos pacotes livres ativos, do tipo de asset do pedido, ampliada. Serve para ver estilo, não para copiar; use só quando precisar ver.
 - `pedido` (string, obrigatório): O mesmo texto de consultar_pedido.
 - `perfil` (string | null): Igual a consultar_pedido.
+- `liberdade` (string | null): Fiel (padrão, como hoje), equilibrado ou ousado; em ousado, a imagem é escolhida pelo estilo, sem o filtro de porte.
 
 **`ver_asset`** — Mostra o PNG de um asset, ampliado, para revisão visual. Custa mais contexto que o laudo: use só quando precisar ver.
 - `id` (string, obrigatório): Id do asset.
@@ -684,7 +697,7 @@ pendência da Fase 5 (seção 12).
 
 ## 10. Testes e lint
 
-`pytest -q`: **1448 passando, 1 pulado** (1.449 coletados), cerca de 65 s.
+`pytest -q`: **1540 passando, 1 pulado** (1.541 coletados), cerca de 105 s.
 
 O pulado: `tests/contract/test_engine_contract.py:282`, "gaveta declara que não
 suporta seed" — o teste de reprodutibilidade por seed não se aplica à
@@ -693,7 +706,7 @@ quando o extra `mcp` está instalado; sem ele, é pulado inteiro.
 
 | Arquivo | Testes |
 |---|---|
-| test_architecture_boundaries.py | 705 (parametrizado por arquivo) |
+| test_architecture_boundaries.py | 736 (parametrizado por arquivo) |
 | pixel/test_engine_agnostic.py | 132 |
 | test_desenhista.py | 63 |
 | test_pixel_knowledge.py | 57 |
@@ -703,22 +716,24 @@ quando o extra `mcp` está instalado; sem ele, é pulado inteiro.
 | test_body_type_and_style.py | 28 |
 | test_resolved_spec.py | 27 |
 | contract/test_engine_contract.py | 25 |
+| test_pedidos_mcp.py | 24 |
 | test_pixel_optimizer.py | 21 |
 | pixel/test_quality_calibration.py, pixel/test_pixel_profiles_config.py | 19 cada |
-| test_api.py | 18 |
+| test_pedidos_fila.py, test_api.py | 18 cada |
 | pixel/test_stages_geometry.py | 17 |
 | test_gerador_unico.py, pixel/test_stages_color.py | 16 cada |
-| test_engine_selection.py, pixel/test_quality.py | 15 cada |
+| test_pedidos_api.py, test_engine_selection.py, pixel/test_quality.py | 15 cada |
 | test_job_system.py | 13 |
 | test_registry.py, test_prompt_preview.py, test_kernel.py, pixel/test_dev_api.py | 11 cada |
-| test_resolver.py, pixel/test_validator.py | 10 cada |
+| test_resolver.py, test_mcp_servidor.py, pixel/test_validator.py | 10 cada |
 | test_pixel_pipeline.py | 9 |
-| test_mcp_servidor.py, test_llm_pixel_reviewer.py | 8 cada |
+| test_llm_pixel_reviewer.py | 8 |
 | test_engine_persistence.py, test_capabilities.py, pixel/test_golden.py | 7 cada |
 | test_settings.py, test_historico_antigo.py | 6 cada |
 | test_taxonomia_flexoes.py | 5 |
 | test_third_party_engine.py | 4 |
 | test_engine_swap.py | 3 |
+| test_pedidos_processos.py | 2 (dois processos Python sobre o mesmo SQLite) |
 
 A suíte usa as gavetas de referência (mocks), no ambiente de testes
 (`AppEnvironment.TEST`) e com o roteamento dos testes (`ROTEAMENTO_DE_TESTE`,
@@ -730,7 +745,7 @@ geradas no próprio teste. Os testes da ilha Pixel usam o validador do plano
 
 `ruff check .` (sem config própria, regras padrão): **144 achados**. Até a
 Fase A do plano do app eram 154; os 10 que sumiram estavam em arquivos
-apagados. Nenhum código novo acrescentou achado.
+apagados. Nenhum código novo acrescentou achado (a Fase B também não).
 
 ```text
 33 UP037 quoted-annotation        30 RUF022 unsorted-dunder-all     20 BLE001 blind-except
@@ -762,6 +777,10 @@ apagados. Nenhum código novo acrescentou achado.
 | App, Fase A | Tirar o fallback para mock nas rotas do `capabilities.yaml`. | Três travas: mocks registrados só em `AppEnvironment.TEST`; rotas Pixel só com a desenhista e `allow_unlisted_engines: false`; fallback desligado. | Só as rotas não bastavam: `allow_unlisted_engines: true` e o registro em development punham o mock na cadeia. "Mocks só nos testes" estava em "Muda de papel" e entrou já na A. |
 | App, Fase A | Studio: pipeline, pós-processamento e profiles. | Também os prompt builders Studio, o profile e o pipeline `raw_image` e a saída `studio.character` do serviço. `AssetMode.STUDIO` e as capacidades 2D ficam no contrato. | Peças do mesmo modo que o plano não citava; o contrato fica para não mexer em manifestos e testes de mecanismo. |
 | App, Fase A | `SessionHistory` sai da tela (seção 3). | Fica até a galeria da Fase C. | Não estava na seção 4. |
+| App, Fase B | "A fila de pedidos se apoia em jobs, fila e worker." | Fila em SQLite (`data/pedidos/`); o sistema de jobs só executa o desenho, no MCP. | API e MCP são dois processos, cada um com a fila de jobs em memória. |
+| App, Fase B | "Em desenho" e "desenhar com pedido_id conclui". | Reserva por `pedidos_pendentes` (etapa "na vez do Claude"); só aprovado conclui, com 3 tentativas; "devolver à fila". | O desenho leva segundos; o tempo longo é a receita. Não aprovado precisava de destino. |
+| App, Fase B | Pedidos de ajuste na fila. | API e MCP aceitam ajuste; o campo da tela fica para a Fase C. | O campo "pedir ajuste" é da Fase C. |
+| App, Fase B | — | Liberdade criativa e direção de arte (pedido da autora durante a fase). | Muda o recorte, nunca o spec. |
 | App, Fase A | — | Leitor do histórico tolerante a campos antigos (`GenerationRecord.do_historico`). | A conferência pedida antes de apagar campos achou 18 de 91 registros, da era do STRATEGY, sumindo em silêncio para `ver_asset` e `desenhar(base=...)`. |
 
 ---
@@ -827,13 +846,13 @@ Em ordem de gravidade. São as coisas que eu olharia primeiro.
     de conhecimento e cabe no teto de 4.000.
 13. ~~`.env` fora do `.gitignore`~~ — **resolvido**: `.env` e `.env.*` estão
     ignorados, e `.env.example` (sem segredo) continua versionado.
-14. **Busca de asset por varredura do histórico.** `remendo` e `ver_asset`
-    leem o `generations.jsonl` inteiro (`list(limit=1_000_000)`); fica lento
-    com histórico grande.
-15. **Interface sem gerar.** Desde a Fase A do plano do app, "Gerar" está
-    desligado (`GERAR_LIGADO` no `App.tsx`), com a frase dizendo que os
-    pedidos vão para uma fila na Fase B; o desenho só acontece pela conversa.
-    O campo `engine` da API continua aceito: tirá-lo é da Fase B.
+14. **Busca de asset por varredura do histórico.** `remendo`, `ver_asset` e a
+    criação de ajuste leem o `generations.jsonl` inteiro
+    (`list(limit=1_000_000)`); fica lento com histórico grande. A lista de
+    pedidos não varre: lê o `asset.json` do job de cada pedido.
+15. ~~Interface sem gerar~~ — **resolvido na Fase B**: "Gerar" cria um pedido
+    na fila. O campo `engine` continua no `POST /api/generation/jobs`, que a
+    tela não usa mais (diagnóstico).
 16. **Configuração lida uma vez.** Base de conhecimento, referências e
     `quality.yaml` carregam no boot: mudar YAML ou a lista de ativos exige
     reiniciar o backend e reconectar o MCP (`/mcp`). Nada avisa que o
@@ -858,14 +877,10 @@ Em ordem de gravidade. São as coisas que eu olharia primeiro.
     dois candidatos de 50 px (Enemy Biker e Yakuza Enemy, de Rancic) estão
     indisponíveis, e o Pixel Boy (53 px) não foi importado.
 
-20. **A mensagem da desenhista sem receita ainda diz "ou escolha outro
-    motor".** Ela mora na gaveta (`engines/desenhista/engine.py`), que a Fase
-    A não tocou; com um gerador só, a última frase não vale mais.
-21. **Textos que ficaram fora do escopo da Fase A:** o comentário do
-    `config/optimizer.yaml` ainda cita o `engine_policy.yaml`; o
-    `config/pixel_profiles.yaml` diz que a interface conhece "2D Normal"; o
-    `GeneratorHero` da tela diz "Escolha o estilo". Ficaram porque a fase não
-    mexia no Optimizer, no Pixel Exact nem nesse componente.
+20. ~~A mensagem da desenhista sem receita~~ — **resolvido na Fase B**: diz
+    que um pedido da tela vai para a fila e o Claude o desenha pela conversa.
+21. ~~Textos que ficaram fora do escopo da Fase A~~ — **resolvido na Fase B**
+    (`optimizer.yaml`, `pixel_profiles.yaml`, `GeneratorHero`).
 22. **Restos de contrato do modo automático.** `ResolvedEngine.reason` fica
     sempre vazio, e o campo `dev_only` do manifesto mantém o nome com o
     significado novo ("só nos testes").
@@ -873,6 +888,16 @@ Em ordem de gravidade. São as coisas que eu olharia primeiro.
     outro motivo (JSON quebrado, tipo errado). Os 91 registros locais são
     lidos hoje; a troca por índice ou SQLite da Fase C é a hora de tornar isso
     visível.
+24. **A tela da Fase B não foi vista num navegador nesta sessão.** Typecheck e
+    build passam, e a API que ela usa tem testes (inclusive o marco, com API
+    e MCP em dois containers); o layout e o andamento ao vivo pedem a
+    conferência do passo a passo do marco.
+25. **Fila em três arquivos.** Para ser rápida no Windows com conexão curta,
+    a fila mantém o `-wal` entre conexões: `pedidos.sqlite3`, `-wal` e `-shm`
+    ficam juntos em `data/pedidos/`, e uma cópia de segurança leva os três.
+26. **`consultar_pedido` avulso é fiel por padrão**, e os pedidos da tela,
+    equilibrados. É de propósito (sem o parâmetro, o comportamento de antes),
+    mas a mesma frase pode receber orientações diferentes pelos dois caminhos.
 
 ---
 

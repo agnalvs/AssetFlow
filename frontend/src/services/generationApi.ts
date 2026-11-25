@@ -4,6 +4,10 @@
  * Nenhum componente faz `fetch` direto: tudo passa por aqui. Isso mantém o
  * contrato com o backend em um lugar só e permite trocar polling por
  * WebSocket/SSE mais tarde sem tocar na interface.
+ *
+ * Desde a Fase B do plano do app a tela não cria jobs: ela cria **pedidos**
+ * (`/api/pedidos`), que o Claude desenha pela conversa. A pré-visualização é a
+ * dos pedidos, para o spec mostrado ser o mesmo que fica gravado.
  */
 
 import {
@@ -11,51 +15,40 @@ import {
   selectionToOutput,
 } from "../components/AssetControls";
 import {
-  type CreateJobPayload,
   type GenerationMode,
-  type Job,
-  type JobSubmission,
+  type Liberdade,
   MODES,
+  type Pedido,
+  type PedidoCorpo,
+  type PedidoDetalhe,
+  type PedidoLista,
   type PromptPreview,
   type SemanticPrompt,
   type SpecOverrides,
 } from "../types";
 
-const BASE_URL = "/api/generation";
-
-/** Identidade de projeto do playground, estável entre recarregamentos. */
-export function getProjectId(): string {
-  const key = "assetflow.project_id";
-  try {
-    const stored = window.localStorage.getItem(key);
-    if (stored) return stored;
-    const created = `web_${Math.random().toString(36).slice(2, 10)}`;
-    window.localStorage.setItem(key, created);
-    return created;
-  } catch {
-    return "web_playground";
-  }
-}
+const PEDIDOS_URL = "/api/pedidos";
 
 /**
- * O corpo enviado ao backend, montado em um lugar só.
+ * O corpo de um pedido, montado em um lugar só.
  *
- * A pré-visualização e a geração precisam mandar **o mesmo objeto**: é isso
- * que faz o painel descrever a geração que vai acontecer, e não uma parecida.
- * Duas montagens separadas divergiriam no primeiro campo novo.
+ * A pré-visualização e a criação mandam **o mesmo objeto**: é isso que faz o
+ * painel descrever o pedido que vai ser gravado, e não um parecido. Sem
+ * motor e sem projeto: os dois são do app, e o backend os põe.
  */
-export function buildJobPayload(input: {
+export function buildPedidoPayload(input: {
   mode: GenerationMode;
   prompt: string;
   selection?: AssetSelection | null;
   spec?: SpecOverrides | null;
   semantic?: SemanticPrompt | null;
-}): CreateJobPayload {
+  liberdade?: Liberdade;
+  direcaoDeArte?: string;
+}): PedidoCorpo {
   const config = MODES[input.mode];
   const selection = input.selection ?? null;
+  const direcao = input.direcaoDeArte?.trim();
   return {
-    project_id: getProjectId(),
-    // O frontend pede uma CAPACIDADE, nunca um motor.
     capability: config.capability,
     profile: config.profile,
     prompt: input.prompt.trim(),
@@ -66,8 +59,8 @@ export function buildJobPayload(input: {
     output: selection ? selectionToOutput(selection) : { variations: 1 },
     ...(input.spec ? { spec_overrides: input.spec } : {}),
     ...(input.semantic ? { semantic_prompt: input.semantic } : {}),
-    // Sem campo de motor: o app tem um gerador só (Fase A do plano do app), e
-    // o backend resolve pela capacidade.
+    ...(input.liberdade ? { liberdade: input.liberdade } : {}),
+    ...(direcao ? { direcao_de_arte: direcao } : {}),
   };
 }
 
@@ -118,8 +111,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
-    // O backend devolve erro normalizado {code, message}. Mesmo assim, a
-    // mensagem técnica nunca é exibida crua ao usuário (plano da tela §40).
+    // O backend devolve erro normalizado {code, message}. A mensagem crua só
+    // aparece quando ela é escrita para ser lida (ver `messageForCode`).
     let code = "unknown_error";
     let fields: FieldError[] = [];
     let reason: string | undefined;
@@ -141,41 +134,47 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** Cria um job de geração. Retorna imediatamente, com status `queued`. */
-export function createGenerationJob(payload: CreateJobPayload): Promise<JobSubmission> {
-  return request<JobSubmission>(`${BASE_URL}/jobs`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
+// ---------------------------------------------------------------------------
+// Pedidos (Fase B do plano do app)
+// ---------------------------------------------------------------------------
 
-/**
- * Mostra o que o AssetFlow entenderia deste pedido, sem gerar nada.
- *
- * Recebe **o mesmo payload** do `createGenerationJob` de propósito: a
- * pergunta é "o que aconteceria se eu mandasse isto?", e ela só tem valor se
- * for feita com o objeto que seria mandado. O backend garante o outro lado —
- * as duas rotas resolvem a semântica pela mesma função.
- */
-export function previewPrompt(
-  payload: CreateJobPayload,
-  signal?: AbortSignal,
-): Promise<PromptPreview> {
-  return request<PromptPreview>(`${BASE_URL}/prompt/preview`, {
+/** O que o AssetFlow entenderia deste pedido — o spec que a criação grava. */
+export function previaPedido(payload: PedidoCorpo, signal?: AbortSignal): Promise<PromptPreview> {
+  return request<PromptPreview>(`${PEDIDOS_URL}/previa`, {
     method: "POST",
     body: JSON.stringify(payload),
     signal,
   });
 }
 
-/** Consulta o estado atual de um job. */
-export function getGenerationJob(jobId: string): Promise<Job> {
-  return request<Job>(`${BASE_URL}/jobs/${encodeURIComponent(jobId)}`);
+/** Cria um pedido na fila. */
+export function criarPedido(payload: PedidoCorpo): Promise<PedidoDetalhe> {
+  return request<PedidoDetalhe>(PEDIDOS_URL, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
-/** Pede o cancelamento de um job em andamento. */
-export function cancelGenerationJob(jobId: string): Promise<Job> {
-  return request<Job>(`${BASE_URL}/jobs/${encodeURIComponent(jobId)}/cancel`, {
+/** Os pedidos do projeto do app, do mais novo para o mais antigo. */
+export function listarPedidos(signal?: AbortSignal): Promise<PedidoLista> {
+  return request<PedidoLista>(`${PEDIDOS_URL}?limit=40`, { signal });
+}
+
+/** O pedido inteiro, com o corpo que a tela mandou. */
+export function detalharPedido(id: string): Promise<PedidoDetalhe> {
+  return request<PedidoDetalhe>(`${PEDIDOS_URL}/${encodeURIComponent(id)}`);
+}
+
+/** Cancela um pedido na fila ou em desenho. */
+export function cancelarPedido(id: string): Promise<Pedido> {
+  return request<Pedido>(`${PEDIDOS_URL}/${encodeURIComponent(id)}/cancelar`, {
+    method: "POST",
+  });
+}
+
+/** Tira a reserva de um pedido em desenho e o devolve à fila, sem cancelar. */
+export function devolverPedido(id: string): Promise<Pedido> {
+  return request<Pedido>(`${PEDIDOS_URL}/${encodeURIComponent(id)}/devolver`, {
     method: "POST",
   });
 }
@@ -187,32 +186,28 @@ export function cancelGenerationJob(jobId: string): Promise<Job> {
  * técnico fica no log do backend.
  */
 function messageForCode(code: string, reason?: string): string {
-  // `invalid_request` é o único código cuja mensagem do backend é escrita
-  // para ser lida por quem pediu: o resolver recusa em português e explica o
-  // motivo — "resolução 4×4 fora do suportado" (plano T→J §30). Trocá-la pela
-  // frase genérica esconderia justamente a informação que o §30 existe para
-  // dar. Todos os outros continuam traduzidos aqui, porque a mensagem crua
-  // deles é técnica ("CUDA OOM") e não serve a ninguém na tela.
-  if (code === "invalid_request" && reason) return reason;
+  // Estes códigos trazem frase escrita para ser lida por quem pediu: o
+  // resolver recusa em português e explica o motivo (plano T→J §30), e a fila
+  // de pedidos diz o que fazer quando o arquivo está ocupado ou danificado.
+  // Trocá-las pela frase genérica esconderia justamente a informação útil.
+  const legiveis = new Set([
+    "invalid_request",
+    "fila_indisponivel",
+    "fila_corrompida",
+    "pedido_nao_encontrado",
+    "pedido_em_outra_situacao",
+  ]);
+  if (legiveis.has(code) && reason) return reason;
 
   switch (code) {
-    // Quando a pessoa escolheu o motor, a mensagem genérica esconde a única
-    // coisa acionável: o motor escolhido é que não está de pé, e trocar de
-    // motor resolve. O backend não troca sozinho de propósito (§25, regra 1).
-    case "engine_not_found":
-    case "engine_disabled":
-      return reason
-        ? `${reason}. Escolha outro motor ou volte para Automático.`
-        : "O motor escolhido não está disponível. Escolha outro ou volte para Automático.";
     case "no_engine_available":
     case "engine_unavailable":
       return "O gerador está indisponível no momento. Tente novamente em instantes.";
-    case "engine_timeout":
-      return "A geração demorou mais do que o esperado. Tente novamente.";
-    case "engine_out_of_memory":
-      return "Não há recursos suficientes agora. Tente novamente em instantes.";
     case "invalid_request":
       return "Revise a descrição e tente de novo.";
+    case "fila_indisponivel":
+    case "fila_corrompida":
+      return "A fila de pedidos não respondeu. Tente de novo em instantes.";
     case "profile_not_found":
     case "pipeline_not_found":
       return "Esse tipo de asset não está disponível no momento.";
@@ -221,6 +216,6 @@ function messageForCode(code: string, reason?: string): string {
     case "aborted":
       return "requisição cancelada";
     default:
-      return "Não conseguimos concluir esta geração. Tente novamente ou altere sua descrição.";
+      return "Não conseguimos concluir este pedido. Tente novamente ou altere a descrição.";
   }
 }
