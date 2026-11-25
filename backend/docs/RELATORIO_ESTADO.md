@@ -1,6 +1,6 @@
 # Relatório de estado — branch `desenhista-mcp`
 
-Data: 2026-11-25 (atualizado depois da revisão). Base: `main` em `be3e9aa`. Escrito para quem revisa pelo
+Data: 2026-11-25 (atualizado depois da calibração da nota e do peso das referências). Base: `main` em `be3e9aa`. Escrito para quem revisa pelo
 GitHub, sem acesso à máquina onde o trabalho foi feito. Onde um número veio de
 dado que só existe nessa máquina (assets gerados, pacotes de referência), o
 texto diz isso.
@@ -31,7 +31,8 @@ falhas e com o ruff no mesmo baseline de 154 achados.
 | `8520337` | Ajuste da Fase 3 | A linha `quadro:` deixa de afirmar o vão do braço como exigência. | 1343 / 1 |
 | `0e67bc8` | Adiantado antes da Fase 4 | Biblioteca de referências: `assetflow/referencias/` (importar, medir, somar, calibrar), `config/pixel_knowledge/referencias.yaml`, linha `referências:` no recorte, ferramenta `ver_referencia`. | 1410 / 1 |
 | `d77cb6a` | Estado | Lista de ativos com os cinco pacotes importados, `PIXEL_STYLES.md`, `REFERENCIAS_FONTES.md` e este relatório. Nenhum código. | 1410 / 1 |
-| (este) | Correções da revisão | Pendências 1, 2 e 12: Retraissance reimportada com quadro 64×128; importador ganha `--excluir` (com teste) e o Ninja Adventure é reimportado sem `Faceset.png` e `SpriteInHand.png`; `calibrar` refeito; `.env` e `.env.*` no `.gitignore`, `.env.example` continua versionado. | 1411 / 1 |
+| `40e4bae` | Correções da revisão | Pendências 1, 2 e 12: Retraissance reimportada com quadro 64×128; importador ganha `--excluir` (com teste) e o Ninja Adventure é reimportado sem `Faceset.png` e `SpriteInHand.png`; `calibrar` refeito; `.env` e `.env.*` no `.gitignore`, `.env.example` continua versionado. | 1411 / 1 |
+| (este) | Calibração | Pendências 1 e 4. **Nota:** limiares de blocos pequenos (84%) e cores raras (a partir da 4ª) em `config/quality.yaml`, `a_calibrar`, pela regra "p90 do pacote mais alto"; um validador só, do `bootstrap`, no pipeline, no Optimizer e na rota de dev; `quality.calibration` no relatório; validador 1.2.0. **Referências:** `minimo_por_pacote` (30) e `minimo_de_pacotes` (2) por parte, na linha, no `ver_referencia` (cai para o estilo) e no `calibrar` (que marca a parte insuficiente e propõe os limiares do validador). | 1440 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -70,8 +71,9 @@ assetflow/
 │   ├── postprocessing/        Ponte Pixel (PixelExactProcessor) e Studio.
 │   ├── prompting/, profiles/
 │   └── (removido: benchmark/)
-├── pixel/                     Ilha Pixel Exact: processamento, validação, Optimizer, aceite, preview.
-│   ├── validation/            PixelValidator, analisadores, QualityScorer (seção 9).
+├── pixel/        [alterado]   Ilha Pixel Exact: processamento, validação, Optimizer, aceite, preview.
+│   ├── validation/ [alterado] PixelValidator, analisadores, QualityScorer (seção 9);
+│   │                          calibration.py [novo]: limiares de blocos pequenos e cores raras.
 │   └── optimizer/             AssetFlowPixelOptimizer (revisa e corrige na grade real).
 ├── pixel_knowledge/ [novo]    Base de conhecimento para o desenhista:
 │   ├── base.py                Carga e formato de config/pixel_knowledge (paletas, luz, proporções,
@@ -105,17 +107,18 @@ config/
 ├── profiles.yaml         [alterado]  + pixel_character_48 (corpo de 32 em 48×48).
 ├── pixel_profiles.yaml   [alterado]  + pixel_character_48_strict (48×48, 12 cores, prévia 10×).
 ├── optimizer.yaml                    Teto de iterações, revisor, interruptor.
+├── quality.yaml          [novo]      Limiares da nota: blocos pequenos e cores raras (seção 9).
 ├── asset_taxonomy/*.yaml             Vocabulário por tipo de asset.
 └── pixel_knowledge/      [novo]      Base de conhecimento (seção 7):
     ├── paletas.yaml                  Endesga 32 (mestra), Sweetie 16, PICO-8, DawnBringer 16.
     ├── luz.yaml                      Direção padrão e regras de luz e sombra.
     ├── proporcoes.yaml               Medidas por forma e tamanho; quadros maiores; regras.
-    ├── referencias.yaml              Pacotes de referência ativos; faixa de porte.
+    ├── referencias.yaml              Pacotes ativos; faixa de porte; mínimos por pacote e por parte.
     └── silhuetas/                    Moldes-base: humanoid_32x32.yaml, prop_32x32.yaml.
 ```
 
 Testes novos: `test_desenhista.py`, `test_mcp.py`, `test_mcp_servidor.py`,
-`test_pixel_knowledge.py`, `test_referencias.py`, e seções novas em
+`test_pixel_knowledge.py`, `test_referencias.py`, `pixel/test_quality_calibration.py`, e seções novas em
 `test_architecture_boundaries.py`.
 
 ---
@@ -217,8 +220,8 @@ O cavaleiro em quadro 48×48 (`asset_15607e958c4f`, aprovado com 84):
 ### Exemplo real de resposta
 
 `consultar_pedido("cavaleiro 32x32, 8 cores, sem fundo")`, com o código deste
-branch e os cinco pacotes de referência ativos (3.089 caracteres; o recorte, a
-partir de `conhecimento:`, tem 2.260):
+branch e os cinco pacotes de referência ativos (2.944 caracteres; o recorte, a
+partir de `conhecimento:`, tem 2.129):
 
 ```text
 pedido: cavaleiro 32x32, 8 cores, sem fundo (perfil pixel_character_32)
@@ -246,17 +249,32 @@ cores: até 8, contorno incluído · paleta-mestra endesga-32, rampas do escuro 
   tecido_roxo #3e2731 #68386c #b55088 #f6757a · folha #193c3e #265c42 #3e8948 #63c74d
 silhueta: arma e escudo fora do corpo, com vão de 1 px, mudando o contorno · o equipamento muda o contorno do corpo (ombreiras, elmo com crista, capa), não só a cor por dentro · uma assimetria intencional: pose, arma, cabelo ou capa · vão entre braço e tronco e entre as pernas quando a roupa deixa o membro à mostra; com manto, capa, vestido ou roupa larga, vale a silhueta da roupa · partes vizinhas com valores diferentes, antes de matizes diferentes
 camadas: pernas, tronco, braco_dir, braco_esq, cabeca (direita e esquerda do personagem) · a receita do molde-base vem com molde=true
-referências: estilo de 2751 quadros (5 pacotes, peso igual): contorno escuro único em 75% (cor mais comum #222222) · 3 tons por grupo de matiz (mediana); porte de 23–33 px de altura, 429 quadros (4 pacotes, peso igual): 6–20 cores (mediana 13) · largura 0,69× a altura · preenchimento 63% da caixa
+referências: estilo de 2751 quadros (5 pacotes, peso igual): contorno escuro único em 75% (cor mais comum #222222) · 3 tons por grupo de matiz (mediana)
 ```
 
-Atenção: dos 429 quadros de porte, 400 são de um pacote só e 1 é de outro; com
-peso igual por pacote, esse 1 quadro pesa como os 400 (seção 12, item 1).
+A linha `referências:` só tem a parte de estilo. A de porte saiu: dos 429
+quadros de porte, 400 eram do Customizable e os outros 29 de três pacotes com
+menos de 30 quadros cada (o `minimo_por_pacote`); sobrou um pacote só, abaixo
+do `minimo_de_pacotes` 2. Antes, com peso igual, 1 quadro da Retraissance
+pesava como os 400 (seção 12, item 1). O mesmo vale para o
+`pixel_character_48` ("cavaleiro, 8 cores, sem fundo"): a linha é a mesma.
 
 ---
 
 ## 6. Laudo devolvido por `desenhar`
 
-Exemplo real (o mesmo cavaleiro):
+Exemplo real: o cavaleiro da seção 5, redesenhado com a mesma receita e o perfil
+`pixel_character_48`, já com a calibração da nota (seção 9):
+
+```text
+APROVADO · asset_7b32cac39b80 · cavaleiro em quadro 48x48, corpo de 32, 8 cores, sem fundo
+Pixel Exact ✓ · qualidade 100/100 (mínimo 70)
+grade 48×48 · 8 de 8 cores · fundo transparente
+Optimizer: nada a corrigir
+arquivo: <data>/assets/projects/mcp/jobs/job_d0d5832063c6/000.png
+```
+
+O mesmo desenho, antes da calibração (`asset_15607e958c4f`, perfil padrão):
 
 ```text
 APROVADO · asset_15607e958c4f · cavaleiro em quadro 48x48, corpo de 32, 8 cores, sem fundo
@@ -285,7 +303,7 @@ recusa o que faltar.
 | `proporcoes.yaml` | Formas `humanoid` e `prop`; medidas por tamanho de corpo (`tamanhos`) e por quadro maior (`quadros`); regras de silhueta. | Ver abaixo. |
 | `silhuetas/humanoid_32x32.yaml` | Manequim de frente, 5 camadas com nome (pernas, tronco, braco_dir, braco_esq, cabeca), 8 chaves. Só chega ao Claude com `molde=true`. | Segue `proporcoes.yaml`. |
 | `silhuetas/prop_32x32.yaml` | Caixa em 3/4 (topo, frente, detalhe), 7 chaves. | — |
-| `referencias.yaml` | Lista de pacotes ativos e a faixa de porte. | `faixa_altura` = 0.2, `minimo_de_quadros` = 3. |
+| `referencias.yaml` | Lista de pacotes ativos, a faixa de porte e os mínimos por parte. | `faixa_altura` = 0.2, `minimo_de_quadros` = 3, `minimo_por_pacote` = 30, `minimo_de_pacotes` = 2. |
 
 Valores `a_calibrar` em `proporcoes.yaml`:
 
@@ -327,7 +345,8 @@ Lista de ativos em `config/pixel_knowledge/referencias.yaml`:
 ### Relatório de calibração, na íntegra
 
 Saída de `python -m assetflow.referencias calibrar` (o arquivo fica em
-`data/referencias/calibracao.md`, fora do git):
+`data/referencias/calibracao.md`, fora do git), com o mínimo por pacote (30),
+o mínimo de pacotes por parte (2) e o validador calibrado:
 
 ```markdown
 # Calibração pelas referências
@@ -345,7 +364,10 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 
 ## humanóide 16x16
 
-2751 quadros de estilo; 2165 de porte parecido (12–16 px de altura).
+2751 quadros de estilo; 2156 de porte parecido (12–16 px de altura).
+
+- porte: fora por amostra pequena (menos de 30 quadros na parte): `dungeontileset-ii` (9).
+- porte: **insuficiente** (1 pacote, mínimo 2): os números de porte abaixo não entram na linha `referências:` nem no `ver_referencia`.
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
@@ -358,11 +380,14 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 | braco_px | 1 | — | — | não medida: exige separar o braço |
 | tons_por_material | 2 | 2–3–4 (n=2751, 5 pac.) | 3 | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 14 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
-| cores por quadro (informativo) | — | 7–8–8 (n=2165, 2 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
+| cores por quadro (informativo) | — | 6–7–9 (n=2156, 1 pac.; insuficiente: 1 pacote, mínimo 2) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
 
 ## humanóide 32x32
 
-2751 quadros de estilo; 429 de porte parecido (23–33 px de altura).
+2751 quadros de estilo; 400 de porte parecido (23–33 px de altura).
+
+- porte: fora por amostra pequena (menos de 30 quadros na parte): `kings-and-pigs` (26), `dungeontileset-ii` (2), `pixel-character-base-64` (1).
+- porte: **insuficiente** (1 pacote, mínimo 2): os números de porte abaixo não entram na linha `referências:` nem no `ver_referencia`.
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
@@ -373,18 +398,21 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 | cabecas | 2,8 | — | — | não medida: exige separar a cabeça |
 | folga_topo_px | 2 | — | — | não comparável: depende do quadro |
 | largura_cabeca_px | 12 | — | — | não medida: exige separar a cabeça |
-| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~19 px (com braços, arma e pose) |
+| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~16 px (com braços, arma e pose); porte insuficiente: 1 pacote, mínimo 2 |
 | largura_braco_px | 5 | — | — | não medida: exige separar o braço |
 | largura_perna_px | 5 | — | — | não medida: exige separar a perna |
 | vao_braco_px | 1 | — | — | não medida: exige separar o braço |
 | olho_px | 2×2 | — | — | não medida: exige achar o olho |
 | tons_por_material | 3 | 2–3–4 (n=2751, 5 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 30 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
-| cores por quadro (informativo) | — | 6–13–20 (n=429, 4 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
+| cores por quadro (informativo) | — | 6–7–8 (n=400, 1 pac.; insuficiente: 1 pacote, mínimo 2) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
 
 ## humanóide 48x48 (corpo 32x32)
 
-2751 quadros de estilo; 429 de porte parecido (23–33 px de altura).
+2751 quadros de estilo; 400 de porte parecido (23–33 px de altura).
+
+- porte: fora por amostra pequena (menos de 30 quadros na parte): `kings-and-pigs` (26), `dungeontileset-ii` (2), `pixel-character-base-64` (1).
+- porte: **insuficiente** (1 pacote, mínimo 2): os números de porte abaixo não entram na linha `referências:` nem no `ver_referencia`.
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
@@ -395,116 +423,185 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 | cabecas | 2,8 | — | — | não medida: exige separar a cabeça |
 | folga_topo_px | 2 | — | — | não comparável: depende do quadro |
 | largura_cabeca_px | 12 | — | — | não medida: exige separar a cabeça |
-| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~19 px (com braços, arma e pose) |
+| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~16 px (com braços, arma e pose); porte insuficiente: 1 pacote, mínimo 2 |
 | largura_braco_px | 5 | — | — | não medida: exige separar o braço |
 | largura_perna_px | 5 | — | — | não medida: exige separar a perna |
 | vao_braco_px | 1 | — | — | não medida: exige separar o braço |
 | olho_px | 2×2 | — | — | não medida: exige achar o olho |
 | tons_por_material | 3 | 2–3–4 (n=2751, 5 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 46 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
-| cores por quadro (informativo) | — | 6–13–20 (n=429, 4 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
+| cores por quadro (informativo) | — | 6–7–8 (n=400, 1 pac.; insuficiente: 1 pacote, mínimo 2) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
 
 ## objeto 16x16
 
-173 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
+156 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
+
+- estilo: fora por amostra pequena (menos de 30 quadros na parte): `kings-and-pigs` (17).
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
 | margem_px | 1 | — | — | não comparável: depende do quadro |
 | ocupacao_min | 0,5 | — | — | não comparável: depende do quadro (ocupação é pixels ÷ área do quadro) |
-| tons_por_material | 2 | 1,5–2–3 (n=173, 3 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 2 | 1,5–2–2 (n=156, 2 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 14 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
 
 ## objeto 32x32
 
-173 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
+156 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
+
+- estilo: fora por amostra pequena (menos de 30 quadros na parte): `kings-and-pigs` (17).
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
 | margem_px | 1 | — | — | não comparável: depende do quadro |
 | ocupacao_min | 0,5 | — | — | não comparável: depende do quadro (ocupação é pixels ÷ área do quadro) |
-| tons_por_material | 3 | 1,5–2–3 (n=173, 3 pac.) | 2 | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 3 | 1,5–2–2 (n=156, 2 pac.) | 2 | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 30 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
 
 ## O validador atual sobre as referências
 
-Cada quadro validado no próprio tamanho, sem limite de paleta. É o insumo da
-calibração da Fase 5: quantas referências levariam os avisos de blocos pequenos
-(`PX-WARN-MICROCLUSTER`) e de cor de 1 pixel (`PX-WARN-PALETTE-RARE`).
+Cada quadro validado no próprio tamanho, sem limite de paleta, com os limiares de
+`config/quality.yaml`. Até 300 quadros por pacote, espaçados por igual.
+Avisos: blocos pequenos (`PX-WARN-MICROCLUSTER`) e cor rara (`PX-WARN-PALETTE-RARE`);
+p90: percentil 90 da fração de blocos pequenos e da contagem de cores raras.
 
-| pacote | quadros | nota (mediana) | blocos pequenos | cor de 1 px |
-|---|---|---|---|---|
-| `customizable-character-pack` | 300 | 78 | 94% | 45% |
-| `pixel-character-base-64` | 65 | 60 | 100% | 80% |
-| `dungeontileset-ii` | 300 | 79 | 90% | 6% |
-| `kings-and-pigs` | 282 | 60 | 98% | 31% |
-| `ninja-adventure` | 300 | 78 | 89% | 10% |
+| pacote | quadros | nota (mediana) | aviso de blocos pequenos | aviso de cor rara | blocos pequenos p90 | cores raras p90 |
+|---|---|---|---|---|---|---|
+| `customizable-character-pack` | 300 | 100 | 0% | 1% | 0,714 | 3 |
+| `pixel-character-base-64` | 65 | 81 | 0% | 0% | 0,666 | 1 |
+| `dungeontileset-ii` | 300 | 98 | 1% | 0% | 0,688 | 0 |
+| `kings-and-pigs` | 282 | 80 | 6% | 2% | 0,831 | 1 |
+| `ninja-adventure` | 300 | 100 | 0% | 0% | 0,591 | 1 |
+
+Proposta pela regra de `quality.yaml`: p90 do pacote mais alto, arredondado para cima, para nenhum pacote receber o aviso em mais de 10% dos quadros. Só propõe: o arquivo não foi alterado.
+
+| limiar | configurado (aviso / desconto) | proposta | pacote mais alto (p90) |
+|---|---|---|---|
+| blocos pequenos (fração) | 0,84 / 0,84 | 0,84 | `kings-and-pigs` (0,831) |
+| cores raras (quantas) | 3 / 3 | 3 | `customizable-character-pack` (3) |
 ```
 
-Nenhuma proposta do relatório foi aplicada.
+Das propostas para `proporcoes.yaml`, nenhuma foi aplicada. Os limiares do
+validador que a última tabela propõe são os que estão em
+`config/quality.yaml`: a regra foi aplicada uma vez, à mão, e o relatório
+confere.
 
----
+O que mudou no relatório com esta calibração:
 
-## 9. Validador: como a nota é calculada hoje
+- **porte do humanóide 16:** sai a `dungeontileset-ii` (9 quadros); sobra o
+  Ninja, um pacote só, e a parte fica marcada insuficiente;
+- **porte do humanóide 32 e do 48:** saem `kings-and-pigs` (26, todos do King
+  Human), `dungeontileset-ii` (2) e `pixel-character-base-64` (1); sobra o
+  corpo-base do Customizable (6–7–8 cores, largura de conteúdo ~16 px em vez
+  de ~19), insuficiente;
+- **objeto:** sai `kings-and-pigs` (17) do estilo; ficam 156 quadros de 2
+  pacotes, os tons por grupo de matiz passam de 1,5–2–3 para 1,5–2–2, e as
+  propostas de `tons_por_material` não mudam ("(manter)" no 16×16, 2 no 32×32);
+- **validador:** medianas 100 / 81 / 98 / 80 / 100, avisos de blocos pequenos
+  em 0% a 6% dos quadros (antes 89% a 100%), e a amostra passa a ser espaçada
+  pelo pacote (antes, os 300 primeiros quadros: o Ninja dava mediana 78 com
+  eles e 86 com todos).
 
-Código: `assetflow/pixel/validation/scoring.py` (`QualityScorer`) e os
-analisadores em `pixel/validation/analyzers/`. Os limiares **estão no código**,
-não em config.
+## 9. Validador: como a nota é calculada
+
+Código: `assetflow/pixel/validation/scoring.py` (`QualityScorer`), os
+analisadores em `pixel/validation/analyzers/` e, para blocos pequenos e cores
+raras, a calibração em `pixel/validation/calibration.py`, lida de
+`config/quality.yaml` (validador 1.2.0).
 
 - **Separação dura.** `pixel_exact` sai dos checks obrigatórios (dimensão,
   alpha binário, limite de paleta, paleta travada, não vazio). A nota de
-  qualidade é outra coisa e nunca compensa uma falha dura.
+  qualidade é outra coisa e nunca compensa uma falha dura. **A calibração não
+  toca nenhum hard check**; um teste confere que validador calibrado e do
+  plano dão o mesmo `pixel_exact` e os mesmos checks com dimensão, paleta e
+  alpha errados.
 - **A nota** começa em 100 e desconta; o resultado é `floor(100 − soma)`, entre
   0 e 100. Cada indicador tem franquia, taxa e teto:
 
-| Penalidade | Métrica | Franquia | Taxa | Teto |
-|---|---|---|---|---|
-| `orphan` | fração de pixels sem vizinho da mesma cor | 1% | 400 por unidade | 20 |
-| `microcluster` | fração de blocos de cor (8-conectados) com 1 a 3 px | 20% | 100 por unidade | 20 |
-| `occupancy` | ocupação fora da faixa do profile | dentro da faixa | proporcional ao desvio | 15 |
-| `redundancy` | pares de cores quase iguais | — | 2 por par | 10 |
-| `outline` | fragmentação do contorno | 0,20 | 50 por unidade | 10 |
-| `rare_colors` | cores que pintam ≤ max(1, 0,2% do foreground) px | — | 1 por cor | 5 |
-
-- **Avisos** (`PX-WARN-*`) não descontam por si; o de blocos pequenos aparece
-  acima de 25% de microclusters, o de cor rara com qualquer cor rara.
-- **Aceite:** aprovado quando Pixel Exact e nota ≥ `quality_threshold` do
-  profile (70 em todos).
-
-### Notas dos pacotes (validador atual)
-
-Na tabela final do relatório de calibração acima: medianas 60 a 79; o aviso de
-blocos pequenos em 89% a 100% dos quadros, o de cor de 1 px em 6% a 80%.
-
-### Notas dos assets do projeto
-
-Lidas dos `000_validation.json` gravados (na máquina local).
-
-| Asset | O que é | Profile | Nota | Penalidades | Microclusters (1/2/3 px de N blocos) | Cores raras |
+| Penalidade | Métrica | Franquia | Taxa | Teto | Aviso | Onde mora |
 |---|---|---|---|---|---|---|
-| `asset_fdb06fda2c81` | poção vermelha 16×16 | pixel_prop_64 | 81 | microcluster 17,5 · rare_colors 1 | 37,5% (1/1/1 de 8) | `#b98252` |
-| `asset_d702cf4d9e6e` | poção verde 16×16 (remendo) | pixel_prop_64 | 81 | microcluster 17,5 · rare_colors 1 | 37,5% (1/1/1 de 8) | `#b98252` |
-| `asset_5909a26ccc62` | cavaleiro 32×32, sem base de conhecimento | pixel_character_32 | 79 | orphan 0,42 · microcluster 20 | 44,2% (5/8/6 de 43) | — |
-| `asset_ec17965925c0` | cavaleiro 32×32, molde no recorte | pixel_character_32 | 80 | microcluster 20 | 41,3% (3/11/5 de 46) | — |
-| `asset_94101aa383a2` | cavaleiro 32×32, só medidas (aprovado pela autora) | pixel_character_32 | 82 | microcluster 17,25 | 37,3% (3/10/6 de 51) | — |
-| `asset_15607e958c4f` | cavaleiro, corpo 32 em 48×48 | pixel_character_32 ² | 84 | microcluster 15,19 | 35,2% (3/10/6 de 54) | — |
-| `asset_de58819be438` | mago, corpo 32 em 48×48 | pixel_character_48 | 83 | orphan 0,1 · microcluster 16 | 36% (8/5/5 de 50) | — |
-| `asset_27efd3c9d65c` | molde humanóide v1 (manequim) | pixel_character_32 | 100 | — | 15,8% | — |
-| `asset_c9caff9aed5d` | molde humanóide v2 | pixel_character_32 | 100 | — | 9,5% | — |
-| `asset_f7b0cdb92d08` | molde de objeto (caixa) | pixel_prop_64 | 99 | rare_colors 1 | 18,2% | `#c0cbdc` |
+| `orphan` | fração de pixels sem vizinho da mesma cor | 1% | 400 por unidade | 20 | > 2% | código |
+| `microcluster` | fração de blocos de cor (8-conectados) com 1 a 3 px | **84%** (plano: 20%) | 100 por unidade | 20 | **> 84%** (plano: > 25%) | `quality.yaml` |
+| `occupancy` | ocupação fora da faixa do profile | dentro da faixa | proporcional ao desvio | 15 | fora da faixa | código e profile |
+| `redundancy` | pares de cores quase iguais | — | 2 por par | 10 | qualquer par | código |
+| `outline` | fragmentação do contorno | 0,20 | 50 por unidade | 10 | > 0,15 | código |
+| `rare_colors` | cores que pintam ≤ max(1, 0,2% do foreground) px | **3 cores** (plano: nenhuma) | 1 por cor além da franquia | 5 | **> 3 cores** (plano: qualquer) | `quality.yaml` |
+
+- **De onde vieram os números.** Regra escrita no `quality.yaml`: o limiar é o
+  p90 do pacote mais alto, arredondado para cima, para nenhum pacote receber o
+  aviso em mais de 10% dos quadros. Blocos pequenos: p90 por pacote 0,71
+  (Customizable) · 0,67 (Retraissance) · 0,69 (DungeonTileset) · **0,831
+  (Kings and Pigs)** · 0,57 (Ninja) → 0,84. Cores raras por quadro: **3** · 1 ·
+  0 · 1 · 1 → 3. Aviso e desconto começam no mesmo ponto. Taxa, teto e a
+  definição de cor rara continuam os do plano, agora no arquivo. Todo número
+  ali tem `a_calibrar: true`; um número sem ele (nem `fonte`) é recusado e
+  fica o do plano.
+- **Uma régua só.** O `bootstrap` monta um validador com essa calibração e o
+  entrega ao pipeline Pixel, ao laço do Optimizer (para "otimizar não pode
+  piorar" comparar a mesma nota) e à rota de dev; o `calibrar` monta o seu
+  com o mesmo arquivo. O relatório de cada job grava qual calibração valeu em
+  `quality.calibration`. Sem `quality.yaml`, valem os números do plano e o boot
+  avisa.
+- **Aceite:** aprovado quando Pixel Exact e nota ≥ `quality_threshold` do
+  profile (70 em todos). Não mudou.
+
+### Notas dos pacotes, antes e depois
+
+Todos os 6.397 quadros, cada um no próprio tamanho, sem limite de paleta,
+validados pelo código com e sem a calibração (o `calibrar` usa amostra de até
+300 por pacote e dá as mesmas medianas):
+
+| Pacote | Quadros | Nota mediana | Abaixo de 70 | Aviso de blocos pequenos | Aviso de cor rara | O que ainda desconta (média) |
+|---|---|---|---|---|---|---|
+| `customizable-character-pack` | 400 | 78 → 100 | 0% → 0% | 93% → 0% | 54% → 1% | órfãos 0,4 · redundância 0,5 |
+| `pixel-character-base-64` | 65 | **60 → 81** | 97% → 0% | 100% → 0% | 80% → 0% | **órfãos 17,3** |
+| `dungeontileset-ii` | 339 | 79 → 98 | 17% → 0% | 90% → 1% | 6% → 0% | órfãos 4,4 |
+| `kings-and-pigs` | 282 | **60 → 80** | 87% → 2% | 98% → 6% | 31% → 2% | **órfãos 16,9** · redundância 0,5 |
+| `ninja-adventure` | 5.311 | 86 → 100 | 5% → 0% | 61% → 0% | 11% → 0% | órfãos 1,9 |
+
+### Notas dos assets do projeto, antes e depois
+
+PNG gravado de cada asset (na máquina local), revalidado com o spec do próprio
+job: com o validador do plano, a nota bate com a gravada em todos; com a
+calibração, Pixel Exact continua ✓ em todos e nenhum aviso sobra.
+
+| Asset | O que é | Profile | Antes | Depois | O que sobrou | Blocos pequenos | Cores raras |
+|---|---|---|---|---|---|---|---|
+| `asset_fdb06fda2c81` | poção vermelha 16×16 | pixel_prop_64 | 81 | **100** | — | 37,5% | 1 (`#b98252`) |
+| `asset_d702cf4d9e6e` | poção verde 16×16 (remendo) | pixel_prop_64 | 81 | 100 | — | 37,5% | 1 |
+| `asset_5909a26ccc62` | cavaleiro 32×32, sem base de conhecimento | pixel_character_32 | 79 | 99 | órfãos 0,42 | 44,2% | 0 |
+| `asset_ec17965925c0` | cavaleiro 32×32, molde no recorte | pixel_character_32 | 80 | 100 | — | 41,3% | 0 |
+| `asset_94101aa383a2` | cavaleiro 32×32, só medidas | pixel_character_32 | 82 | 100 | — | 37,3% | 0 |
+| `asset_15607e958c4f` | cavaleiro, corpo 32 em 48×48 | pixel_character_32 ² | 84 | **100** | — | 35,2% | 0 |
+| `asset_de58819be438` | mago, corpo 32 em 48×48 | pixel_character_48 | 83 | **99** | órfãos 0,1 | 36% | 0 |
+| `asset_27efd3c9d65c` | molde humanóide v1 (manequim) | pixel_character_32 | 100 | 100 | — | 15,8% | 0 |
+| `asset_c9caff9aed5d` | molde humanóide v2 | pixel_character_32 | 100 | 100 | — | 9,5% | 0 |
+| `asset_f7b0cdb92d08` | molde de objeto (caixa) | pixel_prop_64 | 99 | 100 | — | 18,2% | 1 (`#c0cbdc`) |
 
 ² Desenhado com o texto "48x48" e o perfil padrão, porque o servidor MCP em
-execução não conhecia `pixel_character_48` (seção 12, item 5).
+execução não conhecia `pixel_character_48` (seção 12, item 5). Redesenhado
+com a mesma receita e o perfil `pixel_character_48` depois da calibração:
+`asset_7b32cac39b80`, 100/100 (seção 6).
 
-Leitura: em todos os desenhos com detalhe, a penalidade de microclusters
-sozinha tira 15 a 20 pontos. Os moldes, que não têm detalhe, tiram 99 e 100. A
-calibração disso está pedida e ainda não foi feita.
+### O que a nota diz agora
 
----
+**Os desenhos da desenhista passaram a ficar em 99–100, e a nota só detecta
+ruído.** Blocos pequenos só avisam acima de 84% (ruído aleatório de 16 cores dá
+98%); um gradiente suave reduzido e quantizado, o defeito que a métrica nasceu
+para pegar, dá 36% a 51% — abaixo das referências — e passa. A nota deixou de
+empurrar o desenho para a simplificação, mas também não distingue um desenho
+bom de um mediano. Fica assim até a Fase 5 trazer medidas que distinguem
+qualidade (doubles, jaggies, banding, pillow shading, rampa reta, buracos
+internos).
+
+O que mais desconta nas referências agora são os **órfãos** (pixel sem vizinho
+da mesma cor): 17 pontos na Retraissance e no Kings and Pigs, com fração
+mediana de 5,5% e 6,8% contra franquia de 1%. Não foi calibrado aqui; é
+pendência da Fase 5 (seção 12).
 
 ## 10. Testes e lint
 
-`pytest -q`: **1411 passando, 1 pulado** (1.412 coletados), cerca de 60 s.
+`pytest -q`: **1440 passando, 1 pulado** (1.441 coletados), cerca de 60 s.
 
 O pulado: `tests/contract/test_engine_contract.py:282`, "gaveta declara que não
 suporta seed" — o teste de reprodutibilidade por seed não se aplica à
@@ -513,18 +610,19 @@ quando o extra `mcp` está instalado; sem ele, é pulado inteiro.
 
 | Arquivo | Testes |
 |---|---|
-| test_architecture_boundaries.py | 723 (parametrizado por arquivo) |
-| pixel/test_engine_agnostic.py | 130 |
+| test_architecture_boundaries.py | 728 (parametrizado por arquivo) |
+| pixel/test_engine_agnostic.py | 132 |
 | test_desenhista.py | 64 |
 | test_pixel_knowledge.py | 56 |
 | test_mcp.py | 46 |
+| test_referencias.py | 30 |
 | test_asset_taxonomy.py | 28 |
 | test_resolved_spec.py | 27 |
-| test_referencias.py | 27 |
 | contract/test_engine_contract.py | 25 |
 | test_engine_selection.py | 23 |
 | test_pixel_optimizer.py | 21 |
 | pixel/test_pixel_profiles_config.py | 20 |
+| pixel/test_quality_calibration.py | 19 |
 | test_body_type_and_style.py | 18 |
 | test_api.py | 17 |
 | pixel/test_stages_geometry.py | 17 |
@@ -542,7 +640,9 @@ quando o extra `mcp` está instalado; sem ele, é pulado inteiro.
 
 A suíte usa as gavetas de referência (mocks); testes que precisam da
 desenhista a habilitam pelo nome. Os testes de referências usam só imagens
-geradas no próprio teste.
+geradas no próprio teste. Os testes da ilha Pixel usam o validador do plano
+(`PixelValidator()` sem calibração), de propósito: fixam o mecanismo; os de
+`test_quality_calibration.py` fixam o efeito de `quality.yaml`.
 
 `ruff check .` (sem config própria, regras padrão): **154 achados**, o mesmo
 baseline do início do branch; o código novo não acrescentou nenhum.
@@ -571,7 +671,8 @@ baseline do início do branch; o código novo não acrescentou nenhum.
 | Fase 3 | — | Regras novas (sombra, equipamento, vão condicionado à roupa). | Lições de desenhos reais; ver a linha do tempo. |
 | Trilha | Calibrar com exemplos reais quando chegasse a hora. | Biblioteca de referências adiantada antes da Fase 4. | Pedido da autora, para calibrar com dados antes de estilos e validação. |
 | Processo | Desenhar pelo servidor MCP. | Depois da Fase 3, a consulta (e o desenho do mago) rodou por script no mesmo `ServicoDesenhista`. | O servidor MCP da sessão não foi reconectado e seguia com o código anterior. |
-| Fases 4 a 7 | — | Não começadas. A calibração do validador (parte da Fase 5) foi pedida e está em espera. | — |
+| Fase 5 | Calibrar o validador na Fase 5, com limiares em `pixel_knowledge/validacao.yaml`. | Blocos pequenos e cor rara calibrados antes da Fase 5, em `config/quality.yaml`. Órfãos ficam para a Fase 5. | Pedido da autora. O arquivo fica fora de `pixel_knowledge/` porque vale para todo pipeline Pixel, não só para o MCP. |
+| Fases 4 a 7 | — | Não começadas. | — |
 
 ---
 
@@ -579,12 +680,13 @@ baseline do início do branch; o código novo não acrescentou nenhum.
 
 Em ordem de gravidade. São as coisas que eu olharia primeiro.
 
-1. **Peso igual por pacote com amostra desigual.** Na faixa de porte do
-   humanóide 32 entram 400 quadros do Customizable Character Pack, 26 do Kings
-   and Pigs, 2 da DungeonTileset e 1 da Retraissance. Com peso igual por
-   pacote, esse 1 quadro pesa como os 400. `minimo_de_quadros` vale para a
-   parte inteira, não por pacote. Falta um mínimo por pacote (ou peso que
-   cresça com a amostra até um teto). Não corrigido.
+1. ~~Peso igual por pacote com amostra desigual~~ — **resolvido**. Pacote
+   com menos de 30 quadros numa parte sai dela (`minimo_por_pacote`), e a
+   parte com menos de 2 pacotes some da linha e do `ver_referencia`
+   (`minimo_de_pacotes`); o `calibrar` a mostra como insuficiente. Ficou
+   uma limitação: quadros medem mal o que importa, que é personagens
+   distintos — os 26 quadros do Kings and Pigs no porte do humanóide 32 eram
+   todos do King Human (item 19).
 2. ~~Pacote medido com a grade errada~~ — **resolvido**. A Retraissance tem
    quadros de 64×128 e tinha sido importada com 64×64 (comando meu, a partir
    do nome do pacote): os 121 "quadros" eram metades de personagem e caíam na
@@ -596,11 +698,10 @@ Em ordem de gravidade. São as coisas que eu olharia primeiro.
    por fundo), e os 20 `SpriteInHand.png` vinham do padrão de itens. O
    importador ganhou `--excluir PADRAO` (gravado no manifesto e respeitado
    também por `medir`), e o Ninja foi reimportado sem esses 86 arquivos.
-4. **O validador pune detalhe legítimo.** A penalidade de microclusters tira 15
-   a 20 pontos de todo desenho com detalhe, e as referências profissionais
-   ficam com mediana 60 a 79. O laudo pode empurrar o desenho para a
-   simplificação. A calibração (limiares em config, `a_calibrar`, sem mexer nos
-   requisitos duros) está pedida e não foi implementada.
+4. ~~O validador pune detalhe legítimo~~ — **resolvido para blocos pequenos e
+   cor rara** (seção 9): limiares em `config/quality.yaml`, referências com
+   mediana 80 a 100, desenhos da desenhista com 99–100. Os requisitos duros
+   não mudaram. O que sobra está nos itens 17 e 18.
 5. **O caminho MCP por um cliente Claude Code real.** Na máquina de
    desenvolvimento, o servidor da sessão nunca foi reconectado depois da Fase
    3; a revisão confirmou numa máquina limpa que os testes passam e que o
@@ -642,9 +743,24 @@ Em ordem de gravidade. São as coisas que eu olharia primeiro.
     desenhista, que falha sem receita (mensagem clara). Com
     `ASSETFLOW_APP_ENV=production` os mocks somem e só sobra a desenhista. O
     modo Studio está dormente.
-16. **Configuração lida uma vez.** Base de conhecimento e referências carregam
-    no boot: mudar YAML ou a lista de ativos exige reiniciar o backend e
-    reconectar o MCP (`/mcp`). Nada avisa que o processo está desatualizado.
+16. **Configuração lida uma vez.** Base de conhecimento, referências e
+    `quality.yaml` carregam no boot: mudar YAML ou a lista de ativos exige
+    reiniciar o backend e reconectar o MCP (`/mcp`). Nada avisa que o
+    processo está desatualizado.
+17. **Calibração de órfãos — pendência da Fase 5.** É o maior desconto que
+    sobra nas referências: 17 pontos na Retraissance e no Kings and Pigs
+    (fração mediana 5,5% e 6,8%; franquia de 1%, teto 20). Contorno,
+    ocupação e redundância também continuam com os números do plano, no
+    código.
+18. **A nota ficou em 99–100 para os desenhos da desenhista e só detecta
+    ruído**, até a Fase 5 trazer medidas que distinguem qualidade. Ela não
+    pune mais detalhe, mas também não separa um desenho bom de um mediano;
+    o laudo continua útil para os requisitos duros e para ruído.
+19. **Faltam pacotes de personagens vestidos com corpo de 32 a 48 px.** Com
+    os mínimos por parte, o porte do humanóide 32 e do 48 ficou sem dados (só
+    o corpo-base sem roupa do Customizable passa de 30 quadros), e a linha
+    `referências:` desses pedidos traz só o estilo. O humanóide 16 também
+    ficou só com o Ninja no porte.
 
 ---
 
@@ -655,7 +771,8 @@ Só existe na máquina local:
 - **`backend/data/`** inteiro (ignorado): os assets gerados citados aqui, os
   relatórios de validação, o histórico `history/generations.jsonl`, os cinco
   pacotes em `data/referencias/` (~12 MB, arte de terceiros) com seus
-  `manifesto.yaml` e `medidas.json`, e o `calibracao.md`.
+  `manifesto.yaml` e `medidas.json`, e o `calibracao.md` (refeito depois da
+  calibração; transcrito na seção 8).
 - **Os downloads originais** dos pacotes (uma pasta `Downloads\refs` do
   usuário, com os zips e um `LICENCAS.md` com a data e o texto de licença de
   cada página).

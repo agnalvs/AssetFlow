@@ -20,6 +20,7 @@ import logging
 import sys
 from pathlib import Path
 
+from ..pixel import QualityCalibration
 from ..pixel_knowledge import BaseDeConhecimento
 from ..settings import load_settings
 from .calibracao import gerar_relatorio
@@ -129,7 +130,10 @@ def _listar(_a: argparse.Namespace, raiz: Path, settings) -> int:
 def _calibrar(_a: argparse.Namespace, raiz: Path, settings) -> int:
     base = BaseDeConhecimento.do_diretorio(settings.pixel_knowledge_dir)
     colecao = ReferenciasAtivas.carregar(raiz, settings.referencias_config)
-    texto = gerar_relatorio(base, colecao)
+    calibracao = QualityCalibration.from_config(settings.quality_config)
+    for problema in calibracao.problems:
+        print(f"aviso: quality.yaml: {problema}", file=sys.stderr)
+    texto = gerar_relatorio(base, colecao, calibracao)
     raiz.mkdir(parents=True, exist_ok=True)
     destino = raiz / "calibracao.md"
     destino.write_text(texto, encoding="utf-8")

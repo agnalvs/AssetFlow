@@ -23,8 +23,14 @@ __all__ = [
 #: dele, então o conjunto muda junto: um `quality_score` de 1.0.0 e um de
 #: 1.1.0 não são comparáveis, e é exatamente para isso que estes números
 #: viajam em todo relatório.
-PIXEL_PIPELINE_VERSION = "1.1.0"
+#:
+#: 1.2.0 — blocos pequenos e cores raras calibrados pelas referências: os
+#: limiares saíram para `config/quality.yaml`, e cores raras ganharam uma
+#: franquia (as primeiras não avisam nem descontam). Como a calibração agora
+#: mora fora do código, o relatório também grava qual valeu
+#: (`quality.calibration`).
+PIXEL_PIPELINE_VERSION = "1.2.0"
 POSTPROCESSOR_VERSION = "1.0.0"
-VALIDATOR_VERSION = "1.1.0"
+VALIDATOR_VERSION = "1.2.0"
 ACCEPTANCE_POLICY_VERSION = "1.0.0"
 PREVIEW_GENERATOR_VERSION = "1.0.0"

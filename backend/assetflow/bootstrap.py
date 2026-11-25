@@ -42,7 +42,7 @@ from .jobs import (
     RetryPolicy,
 )
 from .llm import ChatClient, ChatConfig, LLMPixelReviewer
-from .pixel import PixelProfileRegistry
+from .pixel import PixelProfileRegistry, PixelValidator, QualityCalibration
 from .pixel.optimizer import AssetFlowPixelOptimizer, PixelReviewer, ReviewLoop
 from .pixel_knowledge import BaseDeConhecimento
 from .referencias import ReferenciasAtivas
@@ -74,6 +74,10 @@ class AppContainer:
     #: Ele não está no ``EngineRegistry`` e nunca estará: não é uma tecnologia
     #: de geração de imagem, é o que corrige a imagem gerada (§79).
     optimizer: AssetFlowPixelOptimizer
+    #: O validador Pixel, com os limiares de `config/quality.yaml`. É o mesmo
+    #: no pipeline e no laço do Optimizer: "otimizar não pode piorar" só vale
+    #: se as duas notas saem da mesma régua.
+    pixel_validator: PixelValidator
     profiles: ProfileRegistry
     pixel_profiles: PixelProfileRegistry
     pipelines: PipelineRegistry
@@ -175,7 +179,8 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     # gavetas. A distinção é a arquitetura inteira do plano: uma gaveta é
     # escolhível e produz imagem; o Optimizer não é escolhível e corrige a
     # imagem produzida. Quem pede um asset escolhe o motor, e só (§25).
-    optimizer = _pixel_optimizer(settings)
+    pixel_validator = _pixel_validator(settings)
+    optimizer = _pixel_optimizer(settings, pixel_validator)
 
     # -- Produto: profiles, pipelines, prompts ---------------------------
     profiles = ProfileRegistry.from_config(settings.profiles_config)
@@ -183,7 +188,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     # paleta, alpha, canvas, preview). Vive em YAML pelo mesmo motivo dos
     # outros — trocar a regra não pode exigir alterar código (plano Pixel §64).
     pixel_profiles = PixelProfileRegistry.from_config(settings.pixel_profiles_config)
-    pipelines = PipelineRegistry.with_defaults(pixel_profiles, optimizer)
+    pipelines = PipelineRegistry.with_defaults(pixel_profiles, optimizer, pixel_validator)
     prompt_builders = PromptBuilderRegistry.with_defaults()
 
     # Taxonomia + resolver de restrições: o caminho do texto até o Final
@@ -274,6 +279,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         engine_policy=engine_policy,
         resolver=resolver,
         optimizer=optimizer,
+        pixel_validator=pixel_validator,
         kernel=kernel,
         profiles=profiles,
         pixel_profiles=pixel_profiles,
@@ -293,7 +299,26 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     )
 
 
-def _pixel_optimizer(settings: Settings) -> AssetFlowPixelOptimizer:
+def _pixel_validator(settings: Settings) -> PixelValidator:
+    """O validador Pixel com a calibração de ``config/quality.yaml``.
+
+    Ausente ou vazio, valem os limiares do plano §60, escritos no código — e o
+    boot avisa, porque com eles o aviso de blocos pequenos aparece em quase
+    todo desenho com detalhe. Número recusado (sem ``a_calibrar`` nem
+    ``fonte``, fora da faixa) fica com o do plano e vira aviso aqui.
+    """
+    if not settings.quality_config:
+        _LOG.warning(
+            "quality.yaml ausente ou vazio: a nota usa os limiares do plano §60, "
+            "sem a calibração pelas referências"
+        )
+    calibration = QualityCalibration.from_config(settings.quality_config)
+    for problem in calibration.problems:
+        _LOG.warning("quality.yaml: %s", problem)
+    return PixelValidator(calibration=calibration)
+
+
+def _pixel_optimizer(settings: Settings, validator: PixelValidator) -> AssetFlowPixelOptimizer:
     """O Pixel Optimizer, montado a partir de ``config/optimizer.yaml`` (§42).
 
     Configuração ausente é o caso normal, não o excepcional: os padrões do
@@ -320,6 +345,7 @@ def _pixel_optimizer(settings: Settings) -> AssetFlowPixelOptimizer:
     return AssetFlowPixelOptimizer(
         loop=ReviewLoop(
             reviewer=_pixel_reviewer(config.get("reviewer") or {}),
+            validator=validator,
             max_iterations=iterations,
         ),
         enabled=enabled,

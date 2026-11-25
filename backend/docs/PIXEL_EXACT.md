@@ -268,9 +268,9 @@ Seis analisadores rodam sempre, produzem métricas e podem emitir avisos.
 | Analisador | Mede | Aviso |
 |---|---|---|
 | `orphan_pixels` | pixels opacos cujos 8 vizinhos têm cor RGB diferente | `PX-WARN-ORPHAN` acima de 2% do sprite |
-| `clusters` | componentes conexos **por cor**; fatia deles com 1, 2 ou 3 pixels | `PX-WARN-MICROCLUSTER` acima de 25% |
+| `clusters` | componentes conexos **por cor**; fatia deles com 1, 2 ou 3 pixels | `PX-WARN-MICROCLUSTER` acima de 84% (`config/quality.yaml`; plano: 25%) |
 | `occupancy` | foreground, caixa do conteúdo e contato com a borda | `PX-WARN-OCCUPANCY-LOW`, `-HIGH`, `PX-WARN-BORDER` |
-| `palette_usage` | quantos pixels cada cor final pinta; quais cores são raras | `PX-WARN-PALETTE-RARE` |
+| `palette_usage` | quantos pixels cada cor final pinta; quais cores são raras | `PX-WARN-PALETTE-RARE` com mais de 3 cores raras (`config/quality.yaml`; plano: a partir da 1ª) |
 | `color_redundancy` | pares de cores a distância RGB < 12 (indistinguíveis) | `PX-WARN-COLOR-REDUNDANCY` |
 | `outline` | tamanho, cores e fragmentação do contorno | `PX-WARN-OUTLINE-FRAGMENTED` acima de 0,15 |
 
@@ -287,11 +287,11 @@ ruim zere sozinho a nota de um asset que acerta todo o resto.
 | Penalidade | Franquia | Taxa | Teto |
 |---|---|---|---|
 | `orphan` | ratio 0,01 | 400 | 20 |
-| `microcluster` | ratio 0,20 | 100 | 20 |
+| `microcluster` | ratio 0,84 (`quality.yaml`; plano: 0,20) | 100 | 20 |
 | `occupancy` | faixa `[min_occupancy, max_occupancy]` do profile | distância normalizada pelo espaço fora da faixa **daquele lado** | 15 |
 | `redundancy` | — | 2 por par | 10 |
 | `outline` | fragmentação 0,20 | 50 | 10 |
-| `rare_colors` | — | 1 por cor rara | 5 |
+| `rare_colors` | 3 cores (`quality.yaml`; plano: nenhuma) | 1 por cor rara além da franquia | 5 |
 
 ```text
 score = max(0, min(100, floor(100 − Σ penalidades arredondadas)))
@@ -325,6 +325,17 @@ nomeadas em um arquivo só (`validation/scoring.py`) exatamente para poderem ser
 recalibrados com o benchmark rodando, sem tocar em nenhum analisador. Por isso
 todo relatório carrega `validator_version` e a lista `analyzers`: duas notas só
 são comparáveis quando saíram da mesma calibração e dos mesmos analisadores.
+
+**Blocos pequenos e cores raras já foram calibrados** (validador 1.2.0),
+medindo os pacotes de referência ativos: com os números do plano, o aviso de
+blocos pequenos saía em 89% a 100% dos quadros de pacotes profissionais, e
+dois deles ficavam com nota mediana 60. Os limiares dessas duas verificações
+moram em `config/quality.yaml`, todos com `a_calibrar: true`, pela regra "p90
+do pacote mais alto, arredondado para cima"; os números do plano ficaram em
+`validation/calibration.py` e valem só sem o arquivo (o boot avisa). Como a
+calibração agora mora fora do código, o relatório grava qual valeu em
+`quality.calibration`. Nada disso toca um hard check. Detalhes e números em
+[RELATORIO_ESTADO.md](RELATORIO_ESTADO.md) §9.
 
 E a regra que o plano §57 e §107 chamam de essencial:
 

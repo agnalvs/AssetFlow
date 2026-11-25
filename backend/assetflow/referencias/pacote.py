@@ -294,6 +294,12 @@ class ConfiguracaoDeReferencias:
     faixa_altura: float | None = None
     #: Menos quadros que isto numa parte da linha, e ela some.
     minimo_de_quadros: int | None = None
+    #: Pacote com menos quadros que isto numa parte sai dela: com peso igual
+    #: por pacote, um quadro solto pesaria como centenas. ``None`` = sem filtro.
+    minimo_por_pacote: int | None = None
+    #: Menos pacotes que isto numa parte (depois do filtro acima), e ela some
+    #: da linha e do ``ver_referencia``; o ``calibrar`` a mostra marcada.
+    minimo_de_pacotes: int | None = None
     problemas: tuple[str, ...] = field(default=())
 
 
@@ -327,6 +333,8 @@ def ler_configuracao(caminho: Path) -> ConfiguracaoDeReferencias:
     porte = dados.get("porte") or {}
     faixa = _numero_a_calibrar(porte.get("faixa_altura"), "porte.faixa_altura", problemas)
     minimo = _numero_a_calibrar(porte.get("minimo_de_quadros"), "porte.minimo_de_quadros", problemas)
+    por_pacote = _inteiro_positivo(porte, "minimo_por_pacote", problemas)
+    de_pacotes = _inteiro_positivo(porte, "minimo_de_pacotes", problemas)
     if faixa is not None and not 0 < faixa < 1:
         problemas.append("porte.faixa_altura: fração entre 0 e 1, como 0.2")
         faixa = None
@@ -334,8 +342,20 @@ def ler_configuracao(caminho: Path) -> ConfiguracaoDeReferencias:
         ativos=tuple(ativos),
         faixa_altura=faixa,
         minimo_de_quadros=int(minimo) if minimo is not None else None,
+        minimo_por_pacote=por_pacote,
+        minimo_de_pacotes=de_pacotes,
         problemas=tuple(problemas),
     )
+
+
+def _inteiro_positivo(porte: Mapping[str, Any], chave: str, problemas: list[str]) -> int | None:
+    valor = _numero_a_calibrar(porte.get(chave), f"porte.{chave}", problemas)
+    if valor is None:
+        return None
+    if valor < 1 or valor != int(valor):
+        problemas.append(f"porte.{chave}: inteiro a partir de 1")
+        return None
+    return int(valor)
 
 
 def _numero_a_calibrar(bruto: Any, onde: str, problemas: list[str]) -> float | None:

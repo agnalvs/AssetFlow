@@ -22,6 +22,7 @@ from assetflow.generation.schemas.resolved_spec import (
     LogicalResolution,
     ResolvedPalette,
 )
+from assetflow.pixel import QualityCalibration
 from assetflow.pixel_knowledge import BaseDeConhecimento, montar_recorte
 from assetflow.referencias import (
     LICENCA_PRINCIPAL,
@@ -110,7 +111,14 @@ def _pacote(raiz: Path, origem: Path, pacote: str, partes: tuple[Parte, ...], **
     )
 
 
-def _config(caminho: Path, ativos: str, *, porte: bool = True) -> Path:
+def _config(
+    caminho: Path,
+    ativos: str,
+    *,
+    porte: bool = True,
+    por_pacote: int | None = None,
+    de_pacotes: int | None = None,
+) -> Path:
     texto = f"ativos: {ativos}\n"
     if porte:
         texto += (
@@ -118,6 +126,9 @@ def _config(caminho: Path, ativos: str, *, porte: bool = True) -> Path:
             "  faixa_altura: {valor: 0.2, classe: style, secao: \"§2\", a_calibrar: true}\n"
             "  minimo_de_quadros: {valor: 1, classe: style, secao: \"§2\", a_calibrar: true}\n"
         )
+        for chave, valor in (("minimo_por_pacote", por_pacote), ("minimo_de_pacotes", de_pacotes)):
+            if valor is not None:
+                texto += f"  {chave}: {{valor: {valor}, classe: style, secao: \"§2\", a_calibrar: true}}\n"
     caminho.write_text(texto, encoding="utf-8")
     return caminho
 
@@ -459,6 +470,54 @@ def test_sem_faixa_configurada_nao_ha_parte_de_porte(tmp_path: Path, colecao: Re
     assert "estilo" in linha and "porte" not in linha
 
 
+def _dois_pacotes(tmp_path: Path, **minimos) -> ReferenciasAtivas:
+    """``grande``: 9 humanoides de 26 a 30 px; ``pequeno``: 2 de 28 px, sem contorno.
+
+    Larguras diferentes em cada um: quadro repetido conta uma vez só.
+    """
+    raiz = tmp_path / "referencias"
+    grande, pequeno = tmp_path / "grande", tmp_path / "pequeno"
+    for i in range(9):
+        _png(_figura(26 + i % 5, 10 + i, (32, 32)), grande / f"g{i}.png")
+    for i in range(2):
+        _png(_figura(28, 8 + i, (32, 32), contorno="nenhum"), pequeno / f"p{i}.png")
+    _pacote(raiz, grande, "grande", (Parte("**", "character", "humanoid"),))
+    _pacote(raiz, pequeno, "pequeno", (Parte("**", "character", "humanoid"),))
+    return ReferenciasAtivas.carregar(raiz, _config(tmp_path / "r.yaml", "[grande, pequeno]", **minimos))
+
+
+def test_pacote_com_poucos_quadros_na_parte_sai_dela(tmp_path: Path):
+    """Com peso igual, 2 quadros pesariam como 9: abaixo do mínimo, o pacote sai."""
+    sem_minimo = _dois_pacotes(tmp_path / "a")
+    assert "estilo de 11 quadros (2 pacotes, peso igual)" in sem_minimo.linha("character", "humanoid", 28)
+
+    com_minimo = _dois_pacotes(tmp_path / "b", por_pacote=3)
+    linha = com_minimo.linha("character", "humanoid", 28)
+
+    assert "estilo de 9 quadros (1 pacote): contorno " in linha and " em 100% " in linha
+    assert "porte de 23–33 px de altura, 9 quadros (1 pacote)" in linha
+    estilo = com_minimo.estilo("character", "humanoid")
+    assert estilo.fora == (("pequeno", 2),) and estilo.suficiente
+
+
+def test_parte_com_menos_pacotes_que_o_minimo_some_e_o_exemplo_cai_para_o_estilo(tmp_path: Path):
+    colecao = _dois_pacotes(tmp_path / "a", por_pacote=1, de_pacotes=2)
+    assert "estilo de 11 quadros (2 pacotes" in colecao.linha("character", "humanoid", 28)
+    assert "porte de 23–33 px de altura, 11 quadros (2 pacotes" in colecao.linha("character", "humanoid", 28)
+
+    # Corpo de 36 px: faixa 29–43, onde só o "grande" tem quadros (29 e 30 px).
+    porte = colecao.porte("character", "humanoid", 36)
+    assert porte.pacotes == 1 and not porte.suficiente and porte.falta == "1 pacote, mínimo 2"
+    linha = colecao.linha("character", "humanoid", 36)
+    assert linha.startswith("referências: estilo de 11 quadros (2 pacotes") and "porte" not in linha
+    png, _legenda = colecao.exemplo("character", "humanoid", 36)
+    assert png.startswith(b"\x89PNG"), "sem porte que baste, o quadro típico vem do estilo"
+
+    um_so = _dois_pacotes(tmp_path / "b", por_pacote=3, de_pacotes=2)
+    assert um_so.linha("character", "humanoid", 28) == "", "um pacote só não é referência"
+    assert um_so.exemplo("character", "humanoid", 28) is None
+
+
 def test_configuracao_recusa_numero_sem_a_calibrar(tmp_path: Path):
     caminho = tmp_path / "r.yaml"
     caminho.write_text("ativos: []\nporte:\n  faixa_altura: {valor: 0.2}\n", encoding="utf-8")
@@ -471,6 +530,7 @@ def test_a_configuracao_real_carrega_sem_problema():
     config = ler_configuracao(CONHECIMENTO / "referencias.yaml")
     assert config.problemas == ()
     assert config.faixa_altura == 0.2 and config.minimo_de_quadros == 3
+    assert config.minimo_por_pacote == 30 and config.minimo_de_pacotes == 2
 
 
 def test_exemplo_e_um_quadro_tipico_ampliado(colecao: ReferenciasAtivas):
@@ -533,3 +593,26 @@ def test_relatorio_propoe_sem_alterar_a_base(colecao: ReferenciasAtivas):
     assert "| chao_y | 46 |" in relatorio
     assert "## O validador atual sobre as referências" in relatorio
     assert "| `grandes` | 7 |" in relatorio
+    assert "`padrão do plano §60`" in relatorio, "sem calibração, o validador do plano"
+    assert "| blocos pequenos (fração) | 0,25 / 0,2 |" in relatorio
+    assert "| cores raras (quantas) | 0 / 0 |" in relatorio
+
+
+def test_relatorio_mostra_a_parte_insuficiente_marcada_e_sem_proposta(tmp_path: Path):
+    base = BaseDeConhecimento.do_diretorio(CONHECIMENTO)
+    colecao = _dois_pacotes(tmp_path, por_pacote=3, de_pacotes=2)
+    calibracao = QualityCalibration.from_config(
+        {"blocos_pequenos": {"aviso": {"valor": 0.84, "a_calibrar": True}}}
+    )
+
+    relatorio = gerar_relatorio(base, colecao, calibracao)
+
+    assert "- estilo: fora por amostra pequena (menos de 3 quadros na parte): `pequeno` (2)." in relatorio
+    assert "- estilo: **insuficiente** (1 pacote, mínimo 2)" in relatorio
+    assert (
+        "| tons_por_material | 3 | 3–3–3 (n=9, 1 pac.; insuficiente: 1 pacote, mínimo 2) "
+        "| — (insuficiente) |"
+    ) in relatorio
+    assert "insuficiente: 1 pacote, mínimo 2) | — | o limite vem do pedido" in relatorio, "cores por quadro"
+    assert "`config/quality.yaml`" in relatorio
+    assert "| blocos pequenos (fração) | 0,84 / 0,2 |" in relatorio

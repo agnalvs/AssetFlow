@@ -16,6 +16,14 @@ referências é outro, e esses números só fazem sentido dentro do mesmo quadro
 Toda soma dá **peso igual a cada pacote**: um pacote de 2.600 quadros de 16 px
 não pode decidir sozinho o estilo de cinco. Cada quadro pesa 1 ÷ (quadros do
 seu pacote no conjunto).
+
+O peso igual tem o defeito simétrico — um quadro solto pesaria como 400 — e
+duas regras de ``referencias.yaml`` o fecham, parte a parte:
+
+- ``minimo_por_pacote``: pacote com menos quadros que isso **na parte** sai
+  dela (um pacote pode estar no estilo e fora do porte);
+- ``minimo_de_pacotes``: parte que fique com menos pacotes que isso some da
+  linha e do ``ver_referencia``. Um pacote só não é estilo, é o estilo dele.
 """
 
 from __future__ import annotations
@@ -41,7 +49,7 @@ from .pacote import (
     ler_manifesto,
 )
 
-__all__ = ["LADO_DA_AMPLIACAO", "QuadroMedido", "ReferenciasAtivas", "quantis"]
+__all__ = ["LADO_DA_AMPLIACAO", "ParteDaLinha", "QuadroMedido", "ReferenciasAtivas", "quantis"]
 
 _LOG = logging.getLogger("assetflow.referencias")
 
@@ -65,6 +73,25 @@ class QuadroMedido:
     tons_por_grupo: float | None
     contorno_tipo: str
     contorno_cor: str
+
+
+@dataclass(frozen=True, slots=True)
+class ParteDaLinha:
+    """Os quadros de uma parte (estilo ou porte), já sem os pacotes pequenos."""
+
+    quadros: tuple[QuadroMedido, ...] = ()
+    #: Pacote -> quadros que ele tinha na parte, abaixo de ``minimo_por_pacote``.
+    fora: tuple[tuple[str, int], ...] = ()
+    #: Vazio quando a parte basta; senão, por que não basta.
+    falta: str = ""
+
+    @property
+    def suficiente(self) -> bool:
+        return not self.falta
+
+    @property
+    def pacotes(self) -> int:
+        return len({q.pacote for q in self.quadros})
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,13 +169,46 @@ class ReferenciasAtivas:
             return []
         return [q for q in quadros if faixa[0] <= q.altura <= faixa[1]]
 
+    def parte(self, quadros: list[QuadroMedido]) -> ParteDaLinha:
+        """Tira os pacotes com amostra pequena e diz se o que sobra basta."""
+        config = self.configuracao
+        por_pacote = Counter(q.pacote for q in quadros)
+        minimo_pacote = config.minimo_por_pacote or 1
+        fora = tuple(
+            sorted(
+                ((p, n) for p, n in por_pacote.items() if n < minimo_pacote),
+                key=lambda item: (-item[1], item[0]),
+            )
+        )
+        excluidos = {p for p, _ in fora}
+        ficam = tuple(q for q in quadros if q.pacote not in excluidos)
+        pacotes = len(por_pacote) - len(fora)
+        minimo_quadros = config.minimo_de_quadros or 1
+        minimo_pacotes = config.minimo_de_pacotes or 1
+        falta = ""
+        if not ficam:
+            falta = "sem quadros"
+        elif len(ficam) < minimo_quadros:
+            falta = f"{len(ficam)} quadros, mínimo {minimo_quadros}"
+        elif pacotes < minimo_pacotes:
+            falta = f"{_pacotes_n(pacotes)}, mínimo {minimo_pacotes}"
+        return ParteDaLinha(quadros=ficam, fora=fora, falta=falta)
+
+    def estilo(self, tipo: str, corpo: str | None) -> ParteDaLinha:
+        """A parte de estilo: quadros do tipo (e corpo), de qualquer tamanho."""
+        return self.parte(self.candidatos(tipo, corpo))
+
+    def porte(self, tipo: str, corpo: str | None, altura: int | None) -> ParteDaLinha:
+        """A parte de porte: só os de altura parecida; o mínimo por pacote conta aqui dentro."""
+        return self.parte(self.do_mesmo_porte(self.candidatos(tipo, corpo), altura))
+
     def linha(self, tipo: str, corpo: str | None, altura: int | None) -> str:
-        """``referências: estilo …; porte …`` — cada parte some sem dados."""
-        minimo = self.configuracao.minimo_de_quadros or 1
-        candidatos = self.candidatos(tipo, corpo)
+        """``referências: estilo …; porte …`` — cada parte some se não bastar."""
+        estilo = self.estilo(tipo, corpo)
         partes = []
 
-        if len(candidatos) >= minimo:
+        if estilo.suficiente:
+            candidatos = list(estilo.quadros)
             pesos = _pesos(candidatos)
             tipos: Counter = Counter()
             for q, peso in zip(candidatos, pesos):
@@ -168,8 +228,9 @@ class ReferenciasAtivas:
                 texto += f" · {_num(tons[1])} tons por grupo de matiz (mediana)"
             partes.append(texto)
 
-        porte = self.do_mesmo_porte(candidatos, altura)
-        if len(porte) >= minimo:
+        parte_porte = self.porte(tipo, corpo, altura)
+        if parte_porte.suficiente:
+            porte = list(parte_porte.quadros)
             faixa = self.faixa(altura)
             cores = quantis(porte, lambda q: q.cores)
             razao = quantis(porte, lambda q: q.largura / q.altura)[1]
@@ -186,14 +247,16 @@ class ReferenciasAtivas:
     def exemplo(self, tipo: str, corpo: str | None, altura: int | None) -> tuple[bytes, str] | None:
         """UM quadro típico, ampliado, e a legenda com origem e licença.
 
-        Típico é o mais perto das medianas do conjunto (de preferência do
-        mesmo porte). A escolha é determinística.
+        Típico é o mais perto das medianas do conjunto. O conjunto segue a
+        regra da linha: o porte, se ele bastar; senão o estilo, de qualquer
+        tamanho; senão nenhum. A escolha é determinística.
         """
-        candidatos = self.do_mesmo_porte(self.candidatos(tipo, corpo), altura) or self.candidatos(
-            tipo, corpo
-        )
-        if not candidatos or self.raiz is None:
+        parte = self.porte(tipo, corpo, altura)
+        if not parte.suficiente:
+            parte = self.estilo(tipo, corpo)
+        if not parte.suficiente or self.raiz is None:
             return None
+        candidatos = list(parte.quadros)
         alvo = (
             quantis(candidatos, lambda q: q.altura)[1],
             quantis(candidatos, lambda q: q.cores)[1],
@@ -289,6 +352,10 @@ def quantis(quadros: list[QuadroMedido], valor) -> tuple[float, float, float] | 
 def _pacotes(quadros: list[QuadroMedido]) -> str:
     n = len({q.pacote for q in quadros})
     return "1 pacote" if n == 1 else f"{n} pacotes, peso igual"
+
+
+def _pacotes_n(n: int) -> str:
+    return "1 pacote" if n == 1 else f"{n} pacotes"
 
 
 def _pct(fracao: float) -> str:

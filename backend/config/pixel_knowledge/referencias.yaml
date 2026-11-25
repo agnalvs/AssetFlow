@@ -32,3 +32,15 @@ porte:
   faixa_altura:      {valor: 0.2, classe: style, secao: "§2", a_calibrar: true}
   # Menos quadros que isto numa parte da linha `referências:`, e ela some.
   minimo_de_quadros: {valor: 3,   classe: style, secao: "§2", a_calibrar: true}
+  # Pacote com menos quadros que isto NUMA PARTE (estilo ou porte) sai dela.
+  # Com peso igual por pacote, 1 quadro pesava como os 400 de outro pacote.
+  # 30 é um proxy de "mais que as animações de um personagem": os 26 quadros
+  # do kings-and-pigs no porte do humanóide 32 são todos do King Human (com
+  # martelo) e levavam a largura de 0,57× para 1,04× a altura.
+  minimo_por_pacote: {valor: 30,  classe: style, secao: "§2", a_calibrar: true}
+  # Menos pacotes que isto numa parte, depois do filtro acima, e ela some da
+  # linha e do `ver_referencia` (que cai para o estilo, de qualquer tamanho).
+  # Um pacote só é o estilo dele, não uma referência: o porte do humanóide 32
+  # viria só do corpo-base sem roupa do customizable-character-pack. O
+  # `calibrar` continua mostrando a parte, marcada como insuficiente.
+  minimo_de_pacotes: {valor: 2,   classe: style, secao: "§2", a_calibrar: true}

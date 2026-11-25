@@ -28,7 +28,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import Field
 
 from ...generation.schemas import AssetFlowModel
-from ...pixel import PixelAssetProcessor, PixelValidator
+from ...pixel import PixelAssetProcessor
 from ...pixel.contracts import PixelOutputSpec
 from ...pixel.imaging import decode
 from ..deps import ContainerDep
@@ -81,7 +81,12 @@ async def analyze(payload: PixelAnalyzeRequest, container: ContainerDep) -> Pixe
     image = _decode_image(payload.image_base64)
 
     if payload.process:
-        outcome = PixelAssetProcessor().run(image, spec, export=False)
+        # O mesmo validador e o mesmo Optimizer do pipeline: a nota daqui tem
+        # de ser a que um job daria.
+        processor = PixelAssetProcessor(
+            validator=container.pixel_validator, optimizer=container.optimizer
+        )
+        outcome = processor.run(image, spec, export=False)
         return PixelAnalyzeResponse(
             spec_id=spec.id,
             pixel_exact=outcome.pixel_exact,
@@ -93,7 +98,7 @@ async def analyze(payload: PixelAnalyzeRequest, container: ContainerDep) -> Pixe
             metrics=outcome.metrics,
         )
 
-    report = PixelValidator().validate(image, spec)
+    report = container.pixel_validator.validate(image, spec)
     return PixelAnalyzeResponse(
         spec_id=spec.id,
         pixel_exact=report.pixel_exact,

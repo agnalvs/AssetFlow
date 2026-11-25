@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------------------
+# AssetFlow — calibração da nota de qualidade (plano Pixel §60)
+# ---------------------------------------------------------------------------
+# Limiares de duas verificações da nota de ESTILO: blocos pequenos e cores
+# raras. Nada aqui toca um requisito hard — dimensão, alpha binário e limite
+# de paleta continuam decididos pelos checks do PixelValidator e pelo spec, e
+# um asset fora deles nunca é Pixel Exact, com nota alta ou não.
+#
+# Por que saíram do código: com os valores do plano, o aviso de blocos
+# pequenos aparecia em 89% a 100% dos quadros de cinco pacotes profissionais,
+# dois deles com nota mediana 60 (abaixo do mínimo 70), e o laudo do
+# desenhista podia levar o desenho a ser simplificado para subir a nota.
+#
+# Regra que deu os números (2026-11-25, pacotes ativos em
+# pixel_knowledge/referencias.yaml, cada quadro no próprio tamanho):
+#
+#   limiar = p90 do pacote mais alto, arredondado para cima
+#
+# Assim nenhum pacote recebe o aviso em mais de 10% dos seus quadros. O aviso
+# e o desconto começam no mesmo ponto e só ACIMA dele. Para refazer a conta
+# com outros pacotes: `python -m assetflow.referencias calibrar` (seção do
+# validador), que propõe e não altera este arquivo.
+#
+# Sem este arquivo valem os números do plano, escritos no código
+# (`assetflow/pixel/validation/calibration.py`), e o boot avisa. Número sem
+# `fonte` precisa de `a_calibrar: true`; o que vier sem nenhum dos dois é
+# recusado e fica o do plano. Mudou algo aqui? Reinicie o backend e reconecte
+# o MCP: a configuração é lida uma vez, no boot.
+# ---------------------------------------------------------------------------
+
+# PX-WARN-MICROCLUSTER e a penalidade `microcluster`. A métrica é a fração dos
+# blocos de cor (componentes 8-conectados da mesma cor) com 1 a 3 pixels.
+# p90 por pacote: customizable 0,71 · retraissance 0,67 · dungeontileset 0,69 ·
+# kings-and-pigs 0,83 · ninja 0,57. Plano: aviso > 0,25, desconto > 0,20.
+blocos_pequenos:
+  aviso:    {valor: 0.84, a_calibrar: true, nota: "p90 do kings-and-pigs (0,831), arredondado para cima"}
+  franquia: {valor: 0.84, a_calibrar: true, nota: "o mesmo do aviso"}
+  taxa:     {valor: 100,  a_calibrar: true, nota: "pontos por unidade acima da franquia; do plano"}
+  teto:     {valor: 20,   a_calibrar: true, nota: "do plano"}
+
+# PX-WARN-PALETTE-RARE e a penalidade `rare_colors`. Uma cor é rara quando
+# pinta no máximo max(piso_px, fracao_do_sprite × pixels opacos) pixels — em
+# sprite de até 999 pixels opacos, é a cor de 1 pixel.
+# p90 de cores raras por quadro: customizable 3 · retraissance 1 ·
+# dungeontileset 0 · kings-and-pigs 1 · ninja 1. Plano: aviso e desconto
+# desde a 1ª.
+cores_raras:
+  fracao_do_sprite: {valor: 0.002, a_calibrar: true, nota: "do plano"}
+  piso_px:          {valor: 1,     a_calibrar: true, nota: "do plano"}
+  aviso:            {valor: 3,     a_calibrar: true, nota: "avisa com mais que isto; p90 do customizable-character-pack"}
+  franquia:         {valor: 3,     a_calibrar: true, nota: "desconta só as cores além destas; o mesmo do aviso"}
+  por_cor:          {valor: 1,     a_calibrar: true, nota: "do plano"}
+  teto:             {valor: 5,     a_calibrar: true, nota: "do plano"}

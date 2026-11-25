@@ -15,22 +15,25 @@ O ``microcluster_ratio`` é indicador, não verdade artística.
 from __future__ import annotations
 
 from ...imaging import color_clusters
+from ..calibration import MICROCLUSTER_WARNING_RATIO
 from .base import AnalysisResult, QualityAnalyzer, ValidationContext
 
 __all__ = ["ClusterAnalyzer"]
 
-#: Um cluster é "micro" até este tamanho (plano Pixel §50).
+#: Um cluster é "micro" até este tamanho (plano Pixel §50). É a definição da
+#: métrica e dos três campos do relatório, não um limiar de aviso.
 _MICRO_SIZES = (1, 2, 3)
-
-#: Acima desta proporção de microclusters o relatório avisa. Valor
-#: experimental, calibrado junto com as penalidades do QualityScorer.
-_WARNING_RATIO = 0.25
 
 
 class ClusterAnalyzer(QualityAnalyzer):
     """Conta componentes conexos por cor e a fatia deles que é minúscula."""
 
     name = "clusters"
+
+    def __init__(self, warning_ratio: float = MICROCLUSTER_WARNING_RATIO) -> None:
+        # Acima desta fração de microclusters o relatório avisa. O padrão é o
+        # do plano; a instalação o troca por `config/quality.yaml`.
+        self._warning_ratio = warning_ratio
 
     def analyze(self, context: ValidationContext) -> AnalysisResult:
         clusters = color_clusters(context.array)
@@ -50,14 +53,14 @@ class ClusterAnalyzer(QualityAnalyzer):
                 "microcluster_ratio": ratio,
             }
         )
-        if ratio > _WARNING_RATIO:
+        if ratio > self._warning_ratio:
             return result.with_warning(
                 "PX-WARN-MICROCLUSTER",
                 f"{micro} de {total} blocos de cor têm 3 pixels ou menos "
                 f"({ratio:.2%}) — a imagem pode não ter superfícies sólidas",
                 count=micro,
                 ratio=ratio,
-                threshold=_WARNING_RATIO,
+                threshold=self._warning_ratio,
                 cluster_total=total,
             )
         return result

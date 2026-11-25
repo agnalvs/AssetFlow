@@ -43,6 +43,7 @@ from .analyzers import (
     SpriteOccupancyAnalyzer,
 )
 from .analyzers.base import QualityAnalyzer
+from .calibration import QualityCalibration
 from .checks import (
     AlphaCheck,
     BoundaryCheck,
@@ -71,13 +72,23 @@ def default_checks() -> tuple[HardCheck, ...]:
     )
 
 
-def default_analyzers() -> tuple[QualityAnalyzer, ...]:
-    """Os indicadores estruturais do plano Pixel §48 a §55."""
+def default_analyzers(
+    calibration: QualityCalibration | None = None,
+) -> tuple[QualityAnalyzer, ...]:
+    """Os indicadores estruturais do plano Pixel §48 a §55.
+
+    ``calibration`` traz os limiares de aviso de blocos pequenos e cores
+    raras (``config/quality.yaml``); sem ela, os do plano.
+    """
+    calibration = calibration or QualityCalibration()
+    rare = calibration.rare_colors
     return (
         OrphanPixelAnalyzer(),
-        ClusterAnalyzer(),
+        ClusterAnalyzer(warning_ratio=calibration.microcluster.warning_ratio),
         SpriteOccupancyAnalyzer(),
-        PaletteUsageAnalyzer(),
+        PaletteUsageAnalyzer(
+            ratio=rare.ratio, floor_px=rare.floor_px, warning_count=rare.warning_count
+        ),
         ColorRedundancyAnalyzer(),
         OutlineAnalyzer(),
     )
@@ -93,14 +104,20 @@ class PixelValidator:
         checks: Sequence[HardCheck] | None = None,
         analyzers: Sequence[QualityAnalyzer] | None = None,
         scorer: QualityScorer | None = None,
+        *,
+        calibration: QualityCalibration | None = None,
     ) -> None:
+        # A calibração só alcança analisadores e scorer montados aqui: quem
+        # injeta os seus responde pelos limiares deles. Os hard checks não a
+        # recebem — ela é da nota de estilo, nunca do Pixel Exact.
+        self._calibration = calibration or (scorer.calibration if scorer else QualityCalibration())
         self._checks: tuple[HardCheck, ...] = tuple(
             checks if checks is not None else default_checks()
         )
         self._analyzers: tuple[QualityAnalyzer, ...] = tuple(
-            analyzers if analyzers is not None else default_analyzers()
+            analyzers if analyzers is not None else default_analyzers(self._calibration)
         )
-        self._scorer = scorer or QualityScorer()
+        self._scorer = scorer or QualityScorer(self._calibration)
 
     @property
     def checks(self) -> tuple[HardCheck, ...]:
@@ -109,6 +126,10 @@ class PixelValidator:
     @property
     def analyzers(self) -> tuple[QualityAnalyzer, ...]:
         return self._analyzers
+
+    @property
+    def calibration(self) -> QualityCalibration:
+        return self._calibration
 
     # ------------------------------------------------------------------
     def validate(
@@ -194,6 +215,7 @@ class PixelValidator:
             warnings=tuple(warnings),
             analyzers=tuple(applied),
             penalties=penalties,
+            calibration=self._scorer.calibration.describe(),
         )
 
 

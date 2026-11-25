@@ -130,6 +130,10 @@ class Settings(AssetFlowModel):
     #: iterações, revisor e o interruptor de instalação (plano Optimizer §33,
     #: §42 e §46). Ausente, valem os padrões do próprio Optimizer.
     optimizer_config: dict[str, Any] = Field(default_factory=dict)
+    #: `quality.yaml` — limiares de blocos pequenos e cores raras da nota de
+    #: qualidade (plano Pixel §60), calibrados pelas referências. Ausente,
+    #: valem os do plano, escritos no código.
+    quality_config: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def show_mock_engines(self) -> bool:
@@ -251,6 +255,7 @@ def load_settings(
     pixel_profiles_config = _read_yaml(configs / "pixel_profiles.yaml")
     engine_policy_config = _read_yaml(configs / "engine_policy.yaml")
     optimizer_config = _read_yaml(configs / "optimizer.yaml")
+    quality_config = _read_yaml(configs / "quality.yaml")
 
     storage = StorageSettings(
         root=_env("STORAGE_ROOT") or str(data / "assets"),
@@ -286,6 +291,7 @@ def load_settings(
         pixel_profiles_config=pixel_profiles_config,
         engine_policy_config=engine_policy_config,
         optimizer_config=optimizer_config,
+        quality_config=quality_config,
     )
 
 

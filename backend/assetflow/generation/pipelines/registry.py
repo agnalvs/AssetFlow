@@ -20,7 +20,7 @@ class PipelineRegistry:
 
     @classmethod
     def with_defaults(
-        cls, pixel_profiles: Any = None, optimizer: Any = None
+        cls, pixel_profiles: Any = None, optimizer: Any = None, validator: Any = None
     ) -> "PipelineRegistry":
         """Registro padrão do produto.
 
@@ -32,6 +32,9 @@ class PipelineRegistry:
             optimizer: o :class:`AssetFlowPixelOptimizer` configurado. Também
                 opcional, e pelo mesmo motivo — sem ele vale o padrão, que já
                 é a otimização ligada (plano Optimizer §46).
+            validator: o :class:`~assetflow.pixel.PixelValidator` com a
+                calibração de ``config/quality.yaml``. Opcional: sem ele, os
+                limiares do plano.
         """
         from .pixel import PixelCharacterPipeline
         from .raw import RawImagePipeline
@@ -39,7 +42,7 @@ class PipelineRegistry:
 
         return cls(
             (
-                PixelCharacterPipeline(pixel_profiles, optimizer),
+                PixelCharacterPipeline(pixel_profiles, optimizer, validator),
                 StudioCharacterPipeline(),
                 RawImagePipeline(),
             )

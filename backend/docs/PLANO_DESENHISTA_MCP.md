@@ -163,6 +163,8 @@ Novos analisadores em `pixel/validation/`, com limiares em `pixel_knowledge/vali
 
 **Calibração pendente, anotada na Fase 3 (não mexer antes desta fase).** O validador hoje tira nota por blocos de cor pequenos ("N de M blocos de cor têm 3 pixels ou menos") e por cor usada em 1 pixel ("cores pintam 1 pixel(s) ou menos"), mesmo quando esses pixels são brilho especular ou detalhe essencial — exceções válidas pelo `PIXEL_KNOWLEDGE.md` §8 (brilho especular forte; olho, botão ou estrela em sprite pequeno; pixel de transição encostado num cluster). Casos reais que motivaram a nota: o cavaleiro 32×32 desenhado sem base de conhecimento saiu legível e aprovado com 79/100, com 44% de blocos pequenos vindos da fenda do visor, da fivela e da cruz do escudo; a poção 16×16 perdeu nota pelo brilho de 1 px da rolha; o molde de prop, pelo brilho de 1 px da fechadura. Calibrar aqui, com os limiares em `validacao.yaml` e os exemplos reais da trilha.
 
+**Feito em parte antes desta fase, a pedido da autora (2026-11-25):** blocos pequenos e cor rara foram calibrados pelos pacotes de referência, com os limiares em `config/quality.yaml` (não em `pixel_knowledge/`: valem para todo pipeline Pixel, não só para o MCP), todos `a_calibrar`. Efeito: os desenhos da desenhista ficam em 99–100 e a nota só detecta ruído — até esta fase trazer medidas que distinguem qualidade. **Continua pendente aqui:** a calibração de órfãos (tira ~17 pontos de dois pacotes profissionais; fração mediana 5,5% e 6,8% contra franquia de 1%). Ver [RELATORIO_ESTADO.md](RELATORIO_ESTADO.md) §9 e §12.
+
 ### Fase 6: animação
 
 - Modelo de animação: lista de frames com `duracao_ms` e `modo_loop`.

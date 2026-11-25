@@ -45,6 +45,7 @@ from PIL import Image
 from ...generation.schemas import Stopwatch
 from ..contracts.output_spec import PixelOutputSpec
 from ..contracts.validation_report import PixelValidationReport
+from ..validation.service import PixelValidator
 from .canvas import PixelCanvas
 from .contracts import OptimizationReport, OptimizationStatus
 from .executor import ToolCallLog
@@ -102,6 +103,11 @@ class AssetFlowPixelOptimizer:
     @property
     def enabled(self) -> bool:
         return self._enabled
+
+    @property
+    def validator(self) -> PixelValidator | None:
+        """O validador do laço; ``None`` quando o laço é o padrão, montado por otimização."""
+        return self._loop.validator if self._loop is not None else None
 
     # ------------------------------------------------------------------
     def optimize(

@@ -18,7 +18,7 @@ o conhecimento Pixel Exact é do AssetFlow.
 
 from __future__ import annotations
 
-from ....pixel import PixelProfileRegistry
+from ....pixel import PixelProfileRegistry, PixelValidator
 from ....pixel.optimizer import AssetFlowPixelOptimizer
 from ...postprocessing import PostProcessingChain, build_pixel_chain
 from ..base import ImageAssetPipeline, PipelineContext
@@ -36,6 +36,7 @@ class PixelCharacterPipeline(ImageAssetPipeline):
         self,
         pixel_profiles: PixelProfileRegistry | None = None,
         optimizer: "AssetFlowPixelOptimizer | None" = None,
+        validator: PixelValidator | None = None,
     ) -> None:
         # Os profiles Pixel entram por injeção porque são configuração
         # (`config/pixel_profiles.yaml`), não código: nenhum 64, 16 ou 128
@@ -45,6 +46,8 @@ class PixelCharacterPipeline(ImageAssetPipeline):
         # `config/optimizer.yaml` (plano Optimizer §42). Sem instância, a
         # cadeia monta a padrão — a otimização não é opcional (§46).
         self._optimizer = optimizer
+        # E o validador: os limiares da nota moram em `config/quality.yaml`.
+        self._validator = validator
 
     @property
     def pixel_profiles(self) -> PixelProfileRegistry | None:
@@ -53,4 +56,4 @@ class PixelCharacterPipeline(ImageAssetPipeline):
     def build_postprocessing_chain(self, context: PipelineContext) -> PostProcessingChain:
         # Toda a inteligência de Pixel Art do AssetFlow vive nesta cadeia,
         # e não dentro de um checkpoint (plano §24 e §58).
-        return build_pixel_chain(self._pixel_profiles, self._optimizer)
+        return build_pixel_chain(self._pixel_profiles, self._optimizer, self._validator)

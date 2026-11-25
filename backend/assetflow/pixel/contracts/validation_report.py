@@ -129,6 +129,10 @@ class QualityReport(AssetFlowModel):
     analyzers: tuple[str, ...] = ()
     #: Quanto cada penalidade tirou da nota, para depurar o próprio score.
     penalties: dict[str, float] = Field(default_factory=dict)
+    #: Limiares de blocos pequenos e cores raras que valeram (de onde vieram e
+    #: quais). Eles moram em `config/quality.yaml`, fora do código: sem isto,
+    #: duas notas da mesma `validator_version` pareceriam comparáveis sem ser.
+    calibration: str = ""
 
 
 class TechnicalSummary(AssetFlowModel):

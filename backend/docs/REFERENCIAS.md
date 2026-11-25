@@ -104,7 +104,12 @@ ativos:
 porte:
   faixa_altura:      {valor: 0.2, ..., a_calibrar: true}
   minimo_de_quadros: {valor: 3,   ..., a_calibrar: true}
+  minimo_por_pacote: {valor: 30,  ..., a_calibrar: true}
+  minimo_de_pacotes: {valor: 2,   ..., a_calibrar: true}
 ```
+
+`minimo_por_pacote` e `minimo_de_pacotes` valem **parte a parte** (estilo e
+porte), na linha, no `ver_referencia` e no `calibrar` (§5 e §6).
 
 Pacote ativo que não está na pasta vira aviso no `listar` e no log, e fica de
 fora. Lista vazia ou pasta ausente: tudo funciona como antes, e a linha some.
@@ -113,10 +118,18 @@ Reinicie o backend e o servidor MCP depois de mudar a lista (`/mcp`).
 ## 5. Como chega ao Claude
 
 **A linha `referências:`**, a última seção do recorte — a primeira a sair
-quando o teto aperta. Ela tem duas partes, e cada uma some sozinha:
+quando o teto aperta. Ela tem duas partes, e cada uma some sozinha. Com os
+cinco pacotes ativos em 2026-11-25, o humanóide 32 só tem a de estilo (o porte
+ficou com um pacote só; ver abaixo):
 
 ```text
-referências: estilo de 2807 quadros (5 pacotes, peso igual): contorno escuro único em 75% (cor mais comum #222222) · 3 tons por grupo de matiz (mediana); porte de 23–33 px de altura, 518 quadros (4 pacotes, peso igual): 6–20 cores (mediana 11) · largura 0,79× a altura · preenchimento 63% da caixa
+referências: estilo de 2751 quadros (5 pacotes, peso igual): contorno escuro único em 75% (cor mais comum #222222) · 3 tons por grupo de matiz (mediana)
+```
+
+Com as duas partes, ela segue assim (exemplo de formato):
+
+```text
+referências: estilo de … quadros (N pacotes, peso igual): contorno … · 3 tons por grupo de matiz (mediana); porte de 23–33 px de altura, … quadros (N pacotes, peso igual): 6–20 cores (mediana 11) · largura 0,79× a altura · preenchimento 63% da caixa
 ```
 
 - **estilo** vale de qualquer tamanho: quadros do mesmo tipo (e do mesmo
@@ -126,12 +139,21 @@ referências: estilo de 2807 quadros (5 pacotes, peso igual): contorno escuro ú
   do corpo sai de `proporcoes.yaml` (`tamanhos` ou `quadros`), lida do spec
   como o resto do recorte — num quadro 48×48 vale o corpo de 32;
 - linha de chão, margem e ocupação não entram: o quadro é outro;
-- **cada pacote pesa igual**: um pacote de 2.600 quadros não decide sozinho.
+- **cada pacote pesa igual**: um pacote de 2.600 quadros não decide sozinho;
+- **e por isso um pacote precisa de amostra**: com menos de
+  `minimo_por_pacote` quadros **naquela parte**, ele sai dela (um pacote pode
+  estar no estilo e fora do porte). Sem isso, 1 quadro pesava como 400;
+- **uma parte com menos de `minimo_de_pacotes` some**: um pacote só é o
+  estilo dele, não uma referência. Foi o caso do porte do humanóide 32: depois
+  do mínimo por pacote, sobrava só o corpo-base sem roupa do
+  `customizable-character-pack` (6 a 8 cores, largura 0,57×), que não
+  representa personagens vestidos.
 
 **`ver_referencia(pedido, perfil?)`** resolve o spec como `consultar_pedido` e
-devolve o quadro mais típico (mais perto das medianas, de preferência do mesmo
-porte), ampliado para uns 256 px, com pacote, autor, licença e arquivo na
-legenda. Sem referência para o tipo, o erro diz como importar.
+devolve o quadro mais típico (mais perto das medianas), ampliado para uns
+256 px, com pacote, autor, licença e arquivo na legenda. O conjunto segue a
+regra da linha: o porte, se ele bastar; senão o estilo, de qualquer tamanho;
+senão nenhum, e o erro diz como importar.
 
 ## 6. Calibrar
 
@@ -145,6 +167,15 @@ nenhum YAML é alterado. Cada medida sai como uma de quatro:
 - **não medida** — cabeças, partes e larguras (a de tronco ganha a largura do
   conteúdo do mesmo porte como nota).
 
-A última seção roda o validador atual sobre as referências: quantas levariam os
-avisos de blocos pequenos e de cor de 1 pixel. É o insumo da calibração da
-Fase 5.
+Cada parte segue as regras da linha: o pacote abaixo de `minimo_por_pacote`
+sai, com nome e contagem ("fora por amostra pequena"); a parte com menos de
+`minimo_de_pacotes` **continua no relatório**, com os números, marcada
+**insuficiente** e sem proposta — ela só não chega ao Claude.
+
+A última seção roda o validador sobre as referências, com os limiares de
+`config/quality.yaml` (até 300 quadros por pacote, espaçados por igual), e
+mostra por pacote a nota mediana, quantos quadros levariam os avisos de blocos
+pequenos e de cor rara, e o p90 das duas medidas. Fecha com a proposta desses
+limiares pela regra escrita no `quality.yaml` — o p90 do pacote mais alto,
+arredondado para cima, para nenhum pacote receber o aviso em mais de 10% dos
+quadros — ao lado do valor configurado. Como o resto, só propõe.

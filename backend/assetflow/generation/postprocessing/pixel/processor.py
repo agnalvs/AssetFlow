@@ -14,7 +14,7 @@ exatamente o diferencial que o plano §24 manda proteger.
 
 from __future__ import annotations
 
-from ....pixel import PixelAssetProcessor, PixelProfileRegistry
+from ....pixel import PixelAssetProcessor, PixelProfileRegistry, PixelValidator
 from ....pixel.optimizer import AssetFlowPixelOptimizer
 from ..base import PostProcessingChain
 from .exact import PixelExactProcessor
@@ -25,6 +25,7 @@ __all__ = ["build_pixel_chain"]
 def build_pixel_chain(
     registry: PixelProfileRegistry | None = None,
     optimizer: AssetFlowPixelOptimizer | None = None,
+    validator: PixelValidator | None = None,
 ) -> PostProcessingChain:
     """Monta a cadeia padrão de Pixel Art.
 
@@ -38,13 +39,17 @@ def build_pixel_chain(
             :class:`PixelAssetProcessor` monta a padrão. Para desligá-la de
             verdade é preciso passar um ``AssetFlowPixelOptimizer(enabled=False)``,
             e aí o job registra o status ``disabled``.
+        validator: o validador com a calibração de ``config/quality.yaml``.
+            ``None`` vale os limiares do plano. O Optimizer recebe o seu pelo
+            ``bootstrap``, e os dois têm de ser o mesmo.
     """
-    if optimizer is None:
+    if optimizer is None and validator is None:
         return PostProcessingChain((PixelExactProcessor(registry),))
     return PostProcessingChain(
         (
             PixelExactProcessor(
-                registry, processor=PixelAssetProcessor(optimizer=optimizer)
+                registry,
+                processor=PixelAssetProcessor(optimizer=optimizer, validator=validator),
             ),
         )
     )

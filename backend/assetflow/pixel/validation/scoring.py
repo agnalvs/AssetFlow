@@ -22,6 +22,10 @@ Os pesos abaixo são **experimentais** por decisão do próprio plano (§60):
 eles nasceram de estimativa, não de medição, e a expectativa é ajustá-los com
 o benchmark rodando. Por isso moram todos aqui em cima, nomeados e isolados —
 mexer na calibração não pode exigir tocar em analisador nenhum.
+
+Blocos pequenos e cores raras já foram calibrados pelas referências: os
+limiares deles vêm de :class:`~.calibration.QualityCalibration`
+(``config/quality.yaml``), e os padrões do plano moram em ``calibration.py``.
 """
 
 from __future__ import annotations
@@ -30,6 +34,14 @@ import math
 
 from ..contracts.output_spec import PixelOutputSpec, ValidationSpec
 from ..contracts.validation_report import QualityMetrics, QualityWarning
+from .calibration import (
+    MICROCLUSTER_FREE_RATIO,
+    MICROCLUSTER_PENALTY_MAX,
+    MICROCLUSTER_PENALTY_RATE,
+    RARE_COLOR_PENALTY_MAX,
+    RARE_COLOR_PENALTY_PER_COLOR,
+    QualityCalibration,
+)
 
 __all__ = [
     "MICROCLUSTER_FREE_RATIO",
@@ -61,10 +73,8 @@ ORPHAN_FREE_RATIO = 0.01
 ORPHAN_PENALTY_RATE = 400.0
 ORPHAN_PENALTY_MAX = 20.0
 
-#: Microclusters: um quinto dos blocos com 3 pixels ou menos ainda é detalhe.
-MICROCLUSTER_FREE_RATIO = 0.20
-MICROCLUSTER_PENALTY_RATE = 100.0
-MICROCLUSTER_PENALTY_MAX = 20.0
+#: Microclusters e cores raras: os padrões do plano estão em `calibration.py`
+#: (reexportados aqui), e a instalação os troca por `config/quality.yaml`.
 
 #: Ocupação: a franquia é a faixa saudável do próprio profile (§53), e o teto
 #: vale para o pior desvio que aquele profile permite existir — ver
@@ -80,13 +90,16 @@ OUTLINE_FREE_FRAGMENTATION = 0.20
 OUTLINE_PENALTY_RATE = 50.0
 OUTLINE_PENALTY_MAX = 10.0
 
-#: Cores raras: sintoma leve, teto baixo — várias delas são intencionais.
-RARE_COLOR_PENALTY_PER_COLOR = 1.0
-RARE_COLOR_PENALTY_MAX = 5.0
-
 
 class QualityScorer:
     """Converte as métricas estruturais em uma nota de 0 a 100."""
+
+    def __init__(self, calibration: QualityCalibration | None = None) -> None:
+        self._calibration = calibration or QualityCalibration()
+
+    @property
+    def calibration(self) -> QualityCalibration:
+        return self._calibration
 
     def score(
         self,
@@ -102,6 +115,8 @@ class QualityScorer:
         somar os dois puniria o mesmo defeito duas vezes.
         """
         limits = spec.validation
+        micro = self._calibration.microcluster
+        rare = self._calibration.rare_colors
 
         # A ordem desta tupla é a ordem em que as penalidades aparecem no
         # relatório: fixa, para que dois `validation.json` sejam comparáveis
@@ -120,9 +135,9 @@ class QualityScorer:
                 "microcluster",
                 _threshold_penalty(
                     metrics.microcluster_ratio,
-                    free=MICROCLUSTER_FREE_RATIO,
-                    rate=MICROCLUSTER_PENALTY_RATE,
-                    ceiling=MICROCLUSTER_PENALTY_MAX,
+                    free=micro.free_ratio,
+                    rate=micro.rate,
+                    ceiling=micro.ceiling,
                 ),
             ),
             (
@@ -147,9 +162,11 @@ class QualityScorer:
             ),
             (
                 "rare_colors",
+                # Só as cores raras além da franquia descontam: algumas são o
+                # brilho do olho ou o reflexo da lâmina (plano Pixel §54).
                 min(
-                    RARE_COLOR_PENALTY_MAX,
-                    RARE_COLOR_PENALTY_PER_COLOR * len(metrics.rare_colors),
+                    rare.ceiling,
+                    rare.per_color * max(0, len(metrics.rare_colors) - rare.free_count),
                 ),
             ),
         )

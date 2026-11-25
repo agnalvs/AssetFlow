@@ -39,7 +39,7 @@ from .contracts.output_spec import PixelOutputSpec
 from .contracts.processing_report import ProcessingReport
 from .contracts.validation_report import AcceptanceDecision, PixelValidationReport
 from .imaging import decode, ensure_rgba
-from .optimizer import AssetFlowPixelOptimizer, OptimizationOutcome
+from .optimizer import AssetFlowPixelOptimizer, OptimizationOutcome, ReviewLoop
 from .preview import PreviewGenerator
 from .processing.service import PixelPostProcessor
 from .processing.stages.exporter import PixelExporter
@@ -110,7 +110,12 @@ class PixelAssetProcessor:
         # ``AssetFlowPixelOptimizer(enabled=False)`` — e o status `disabled`
         # fica registrado no relatório, que é a diferença entre uma decisão e
         # um sumiço.
-        self._optimizer = optimizer or AssetFlowPixelOptimizer()
+        #
+        # O Optimizer padrão revisa com o mesmo validador desta cadeia: "otimizar
+        # não pode piorar" compara duas notas, e elas têm de sair da mesma régua.
+        self._optimizer = optimizer or AssetFlowPixelOptimizer(
+            loop=ReviewLoop(validator=self._validator)
+        )
 
     # ------------------------------------------------------------------
     def run(

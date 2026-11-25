@@ -29,7 +29,7 @@ from .preview import PreviewGenerator
 from .processing import PixelPostProcessor
 from .profiles import PixelProfileRegistry
 from .service import PixelAssetOutcome, PixelAssetProcessor
-from .validation import PixelValidator
+from .validation import PixelValidator, QualityCalibration
 from .version import (
     ACCEPTANCE_POLICY_VERSION,
     PIXEL_PIPELINE_VERSION,
@@ -56,4 +56,5 @@ __all__ = [
     "PixelValidator",
     "PreviewGenerator",
     "ProcessingReport",
+    "QualityCalibration",
 ]

@@ -14,17 +14,10 @@ decide se aquela entrada de paleta compensa ou se é sobra de quantização.
 from __future__ import annotations
 
 from ...imaging import color_counts
+from ..calibration import RARE_COLOR_FLOOR, RARE_COLOR_RATIO, RARE_COLOR_WARNING_COUNT
 from .base import AnalysisResult, QualityAnalyzer, ValidationContext
 
 __all__ = ["PaletteUsageAnalyzer"]
-
-#: Uma cor é "rara" quando pinta no máximo esta fração do foreground.
-#: Experimental, como todos os limiares de qualidade (plano Pixel §60).
-_RARE_COLOR_RATIO = 0.002
-
-#: Piso do limiar: em um sprite minúsculo, 0,2% arredonda para zero e nenhuma
-#: cor seria rara. Uma cor de um pixel único sempre merece ser listada.
-_RARE_COLOR_FLOOR = 1
 
 
 class PaletteUsageAnalyzer(QualityAnalyzer):
@@ -32,13 +25,28 @@ class PaletteUsageAnalyzer(QualityAnalyzer):
 
     name = "palette_usage"
 
+    def __init__(
+        self,
+        ratio: float = RARE_COLOR_RATIO,
+        floor_px: int = RARE_COLOR_FLOOR,
+        warning_count: int = RARE_COLOR_WARNING_COUNT,
+    ) -> None:
+        # Uma cor é "rara" quando pinta no máximo `ratio` do foreground, com
+        # piso de `floor_px`: num sprite minúsculo, 0,2% arredonda para zero, e
+        # uma cor de um pixel único sempre merece ser listada. O aviso sai com
+        # mais de `warning_count` cores raras. Padrões do plano; a instalação
+        # os troca por `config/quality.yaml`.
+        self._ratio = ratio
+        self._floor_px = floor_px
+        self._warning_count = warning_count
+
     def analyze(self, context: ValidationContext) -> AnalysisResult:
         # `color_counts` já devolve ordenado por frequência decrescente e,
         # em caso de empate, pelo hexadecimal — a ordem do dicionário é o
         # próprio ranking e não depende da varredura da imagem.
         usage = color_counts(context.array)
         foreground = int(context.mask.sum())
-        threshold = max(_RARE_COLOR_FLOOR, int(foreground * _RARE_COLOR_RATIO))
+        threshold = max(self._floor_px, int(foreground * self._ratio))
 
         rare = tuple(
             color
@@ -51,7 +59,9 @@ class PaletteUsageAnalyzer(QualityAnalyzer):
         result = AnalysisResult(
             metrics={"palette_usage": usage, "rare_colors": rare}
         )
-        if rare:
+        # A lista vai inteira para as métricas; o aviso só sai acima do que as
+        # referências mostram como normal.
+        if len(rare) > self._warning_count:
             return result.with_warning(
                 "PX-WARN-PALETTE-RARE",
                 f"{len(rare)} cores pintam {threshold} pixel(s) ou menos: "
@@ -60,5 +70,6 @@ class PaletteUsageAnalyzer(QualityAnalyzer):
                 count=len(rare),
                 colors=list(rare),
                 threshold=threshold,
+                tolerated=self._warning_count,
             )
         return result

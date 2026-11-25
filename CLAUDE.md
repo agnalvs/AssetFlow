@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1411 passed, 1 skipped)
+pytest -q                                # suíte completa (1440 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -158,11 +158,15 @@ Adiantado antes da Fase 4: a **biblioteca de referências**
 (`assetflow/referencias/`), que importa e mede pacotes de pixel art livres e
 entrega ao Claude uma linha `referências:` no recorte e a ferramenta
 `ver_referencia`. Detalhes: [backend/docs/REFERENCIAS.md](backend/docs/REFERENCIAS.md).
-Quatro regras ao mexer ali:
+Cinco regras ao mexer ali:
   - **só CC0 entra direto**; outra licença exige `aceitar_atribuicao: true`
     na lista de ativos;
   - **referência mede estilo, não vira receita**: o recorte só traz números
     somados, com **peso igual por pacote**, e `ver_referencia` só imagem;
+  - **peso igual exige amostra**: pacote com menos de `minimo_por_pacote`
+    quadros numa parte (estilo ou porte) sai dela, e a parte com menos de
+    `minimo_de_pacotes` some da linha e do `ver_referencia` (que cai para o
+    estilo). O `calibrar` a mostra marcada como insuficiente;
   - **porte compara pelo corpo, não pelo quadro**: a altura do corpo vem de
     `proporcoes.yaml`; chão, margem e ocupação não se comparam entre pacotes;
   - **o módulo não importa gaveta, kernel, pipeline, job, API, storage nem
@@ -418,6 +422,14 @@ peça que conhece as duas pontas. Detalhes em
   Optimizer §33 e §42): teto de iterações, revisor e o interruptor de
   instalação. Não há aqui uma chave por pedido: a otimização não é opção de
   quem pede. `enabled: false` é para diagnóstico, e o job registra `disabled`.
+- `quality.yaml` — os limiares da nota de **estilo** para blocos pequenos e
+  cores raras, calibrados pelas referências (p90 do pacote mais alto), todos
+  `a_calibrar`. Nada ali toca um hard check. O `bootstrap` monta **um**
+  validador com eles e o entrega ao pipeline, ao laço do Optimizer e à rota
+  de dev; o relatório grava qual calibração valeu (`quality.calibration`).
+  Ausente, valem os números do plano §60, em `validation/calibration.py`, e o
+  boot avisa. Os outros indicadores (órfãos, contorno, ocupação, redundância)
+  continuam no código: órfãos é a próxima calibração, na Fase 5.
 - `asset_taxonomy/*.yaml` — vocabulário semântico por tipo de asset, em
   português e inglês. Um arquivo por tipo; o nome do arquivo não importa, o
   campo `type:` sim. Diretório ausente não quebra o boot: o classificador
@@ -521,3 +533,9 @@ os imports são bare specifiers que só o Vite resolve.
   (`GET /api/generation/profiles`). O que vale é o bloco correspondente em
   `pixel_profiles.yaml`; mude os dois juntos (existe teste para essa
   coerência).
+- **`PixelValidator()` sem argumento é o validador do plano, não o da
+  instalação.** Os limiares de blocos pequenos e cores raras vêm de
+  `config/quality.yaml` só quando alguém passa a calibração: o `bootstrap`
+  (`container.pixel_validator`) e o `calibrar` passam. Um validador montado à
+  mão em código de produto devolve outra nota para o mesmo sprite. Nos testes
+  isso é de propósito: eles fixam o mecanismo com os números do plano.

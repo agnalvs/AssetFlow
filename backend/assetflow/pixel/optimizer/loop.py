@@ -87,6 +87,11 @@ class ReviewLoop:
         self._validator = validator or PixelValidator()
         self._max_iterations = max(1, max_iterations)
 
+    @property
+    def validator(self) -> PixelValidator:
+        """O validador que dá as notas de antes e depois de cada correção."""
+        return self._validator
+
     def run(
         self,
         canvas: PixelCanvas,
