@@ -14,6 +14,11 @@ Estrutura de cada arquivo::
     keywords:   { en: [tree, rock],   pt: [árvore, pedra] }
     categories: { vegetation: [tree, árvore], mineral: [rock, pedra] }
 
+Num personagem, mais duas seções: ``body_types`` (a forma do corpo que um
+termo nomeia) e ``category_body_types`` (o corpo que uma categoria implica,
+para quando nenhum termo o nomeou). Qualquer lista aceita sublistas, e o
+``character.yaml`` usa uma por palavra, com todas as formas dela.
+
 A distinção entre ``markers`` e ``keywords`` é o que resolve os casos que uma
 lista única erra:
 
@@ -84,6 +89,10 @@ class TaxonomyEntry:
     asset_type: AssetType
     priority: int = 0
     terms: tuple[TaxonomyTerm, ...] = ()
+    #: Corpo que uma categoria implica (``{"humanoid": "humanoid"}``): só a
+    #: categoria em que todo membro tem o mesmo corpo. Quem consulta é o
+    #: resolvedor do spec, quando nenhum termo do pedido disse a forma.
+    category_body_types: Mapping[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_config(cls, payload: Mapping[str, Any], *, origin: str = "") -> "TaxonomyEntry":
@@ -101,6 +110,12 @@ class TaxonomyEntry:
         # goblin é `creature` de corpo humanoide. Ver o comentário no
         # `config/asset_taxonomy/character.yaml`.
         body_types = _category_index(payload.get("body_types") or {})
+        category_body_types = _category_body_types(
+            payload.get("category_body_types") or {},
+            categorias=set(categories.values()),
+            corpos=set(body_types.values()),
+            tipo=raw_type,
+        )
 
         # Um termo que aparece só em `body_types` também é um sujeito deste
         # tipo — se dá para nomear a topologia do corpo dele, é um personagem.
@@ -135,7 +150,12 @@ class TaxonomyEntry:
         ordered = tuple(
             sorted(unique.values(), key=lambda term: (-term.words, -len(term.text)))
         )
-        return cls(asset_type=asset_type, priority=priority, terms=ordered)
+        return cls(
+            asset_type=asset_type,
+            priority=priority,
+            terms=ordered,
+            category_body_types=category_body_types,
+        )
 
 
 def _flatten_languages(payload: Any) -> Iterable[str]:
@@ -170,6 +190,43 @@ def _category_index(payload: Mapping[str, Any]) -> dict[str, str]:
     return index
 
 
+def _category_body_types(
+    payload: Any, *, categorias: set[str], corpos: set[str], tipo: str
+) -> dict[str, str]:
+    """``{humanoid: humanoid}`` conferido contra o próprio arquivo.
+
+    Uma linha torta da tabela sai com aviso e o resto do vocabulário segue:
+    perder a classificação inteira de personagens por um erro de digitação
+    aqui seria trocar uma dedução que falta por uma que nunca acontece.
+    """
+    if not isinstance(payload, Mapping):
+        _LOG.warning(
+            "taxonomia '%s': category_body_types ignorado (não é um mapeamento)", tipo
+        )
+        return {}
+    tabela: dict[str, str] = {}
+    for categoria, corpo in payload.items():
+        categoria, corpo = str(categoria).strip(), str(corpo or "").strip()
+        if categoria not in categorias:
+            _LOG.warning(
+                "taxonomia '%s': category_body_types cita a categoria '%s', que não "
+                "está em categories; linha ignorada",
+                tipo,
+                categoria,
+            )
+        elif corpo not in corpos:
+            _LOG.warning(
+                "taxonomia '%s': category_body_types dá à categoria '%s' o corpo "
+                "'%s', que não está em body_types; linha ignorada",
+                tipo,
+                categoria,
+                corpo,
+            )
+        else:
+            tabela[categoria] = corpo
+    return tabela
+
+
 @dataclass(slots=True)
 class AssetTaxonomy:
     """Todos os vocabulários carregados, prontos para consulta."""
@@ -196,6 +253,17 @@ class AssetTaxonomy:
 
     def types(self) -> tuple[AssetType, ...]:
         return tuple(entry.asset_type for entry in self.entries)
+
+    def body_type_for_category(self, asset_type: AssetType, category: str) -> str | None:
+        """O corpo que ``category`` implica no vocabulário de ``asset_type``.
+
+        ``None`` quando a categoria não implica corpo nenhum — uma categoria
+        mista, como ``creature``, ou uma que a tabela não lista.
+        """
+        for entry in self.entries:
+            if entry.asset_type is asset_type and category in entry.category_body_types:
+                return entry.category_body_types[category]
+        return None
 
     @classmethod
     def empty(cls) -> "AssetTaxonomy":

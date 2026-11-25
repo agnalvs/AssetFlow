@@ -79,6 +79,11 @@ class SpecSource(str, Enum):
     UI_SELECTION = "ui_selection"
     #: Leitura do AssetFlow — classificador semântico e prompt builder.
     INFERENCE = "inference"
+    #: Deduzido de outro campo já resolvido, não do texto: o corpo que a
+    #: categoria implica (``category_body_types`` na taxonomia), quando nenhum
+    #: termo do pedido disse a forma. Fica abaixo de ``INFERENCE`` porque é
+    #: uma leitura de segunda mão.
+    CATEGORY_INFERENCE = "category_inference"
     #: Valor que veio do Generation Profile.
     PROFILE_DEFAULT = "profile_default"
     #: Padrão do próprio contrato, quando nenhuma fonte acima disse nada.
@@ -146,6 +151,7 @@ SPEC_CONSTRAINTS: dict[str, ConstraintClass] = {
 SPEC_PRECEDENCE: tuple[SpecSource, ...] = (
     SpecSource.GLOBAL_DEFAULT,
     SpecSource.PROFILE_DEFAULT,
+    SpecSource.CATEGORY_INFERENCE,
     SpecSource.INFERENCE,
     SpecSource.UI_SELECTION,
     SpecSource.EXPLICIT_PROMPT,

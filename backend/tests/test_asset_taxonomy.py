@@ -81,6 +81,34 @@ def test_a_broken_file_does_not_take_the_others_down(tmp_path: Path):
     assert carregada.types() == (AssetType.PROP,)
 
 
+def test_a_broken_line_of_the_category_body_table_is_dropped_alone(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
+    """Categoria ou corpo que o arquivo não conhece sai com aviso; o resto do
+    vocabulário — e as outras linhas da tabela — seguem valendo."""
+    (tmp_path / "character.yaml").write_text(
+        "type: character\n"
+        "keywords:\n  pt: [astronauta, monstro]\n"
+        "categories:\n  humanoid: [astronauta]\n  creature: [monstro]\n"
+        "body_types:\n  humanoid: [cavaleiro]\n"
+        "category_body_types:\n"
+        "  humanoid: humanoid\n"
+        "  creature: quadrupede\n"
+        "  inexistente: humanoid\n",
+        encoding="utf-8",
+    )
+
+    with caplog.at_level("WARNING"):
+        carregada = AssetTaxonomy.from_directory(tmp_path)
+
+    assert carregada.body_type_for_category(AssetType.CHARACTER, "humanoid") == "humanoid"
+    assert carregada.body_type_for_category(AssetType.CHARACTER, "creature") is None
+    assert carregada.body_type_for_category(AssetType.PROP, "humanoid") is None
+    assert "'quadrupede', que não está em body_types" in caplog.text
+    assert "'inexistente', que não está em categories" in caplog.text
+    assert AssetTypeClassifier(carregada).classify("astronauta").decided
+
+
 # ---------------------------------------------------------------------------
 # Classificador
 # ---------------------------------------------------------------------------

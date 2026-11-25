@@ -20,6 +20,7 @@ from .base import (
     luminancia,
 )
 from .recorte import (
+    SEM_CORPO,
     TETO_CARACTERES,
     USO_DO_MOLDE,
     FonteDeReferencias,
@@ -30,6 +31,7 @@ from .recorte import (
 
 __all__ = [
     "CLASSES",
+    "SEM_CORPO",
     "TETO_CARACTERES",
     "USO_DO_MOLDE",
     "BaseDeConhecimento",

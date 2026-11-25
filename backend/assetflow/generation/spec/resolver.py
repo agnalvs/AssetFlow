@@ -8,7 +8,8 @@ por último porque era quem estava mais perto na hora de perguntar.
 A ordem passa a ser explícita, e é única (plano T→J §9)::
 
     manual override  >  restrição no prompt  >  seleção da interface
-                     >  leitura do AssetFlow  >  profile  >  padrão global
+                     >  leitura do AssetFlow  >  dedução pela categoria
+                     >  profile  >  padrão global
 
 Cada campo é resolvido por um :class:`_Slot`, que guarda valor **e** origem.
 Aplicar as camadas de baixo para cima é o algoritmo inteiro: quem chega
@@ -295,6 +296,25 @@ class ConstraintResolver:
             and subject.source is SpecSource.MANUAL_OVERRIDE
         ):
             body_type = _Slot()
+
+        # Corpo implícito na categoria: quando nenhuma camada disse a forma do
+        # corpo, a categoria resolvida responde — se a tabela do vocabulário
+        # (`category_body_types`) diz que todo membro dela tem o mesmo corpo.
+        # É aqui, uma vez, e não no recorte nem no prompt: eles só leem o
+        # spec. A categoria inferida do texto antigo não deduz nada quando o
+        # sujeito foi trocado à mão — a mesma defasagem que descartou o corpo
+        # logo acima. E um `unknown` escolhido por alguém não é vazio.
+        categoria_defasada = (
+            category.source is SpecSource.INFERENCE
+            and subject.source is SpecSource.MANUAL_OVERRIDE
+        )
+        if body_type.value is None and category.value is not None and not categoria_defasada:
+            body_type.set(
+                self._classifier.taxonomy.body_type_for_category(
+                    resolved_type, category.value
+                ),
+                SpecSource.CATEGORY_INFERENCE,
+            )
 
         sources: dict[str, SpecSource] = {
             "asset.type": asset_type.source,

@@ -226,6 +226,7 @@ export type SpecSource =
   | "explicit_prompt"
   | "ui_selection"
   | "inference"
+  | "category_inference"
   | "profile_default"
   | "global_default";
 

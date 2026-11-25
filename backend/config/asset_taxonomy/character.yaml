@@ -9,268 +9,232 @@
 # `priority` só desempata entre matches da mesma classe e do mesmo tamanho.
 # Character vem primeiro de propósito: "guerreiro na floresta" é um
 # personagem em pé numa floresta, não uma floresta com um guerreiro dentro.
+#
+# Uma linha por palavra, com todas as formas dela: masculino, feminino e
+# plural. O classificador casa a palavra inteira e não flexiona — "arqueiras"
+# não casa "arqueira" —, então forma que não está escrita aqui não existe
+# para ele. Agrupar por palavra é o que deixa a forma que falta visível.
+# Acento não precisa ser repetido sem acento: a carga normaliza os dois.
+#
+# `tests/test_taxonomia_flexoes.py` confere que toda forma masculina tem a
+# feminina na mesma lista (quando ela existe) e que todo termo de
+# `categories` é um sujeito que o classificador enxerga.
 # ---------------------------------------------------------------------------
 type: character
 priority: 100
 
 markers:
   en: [character, npc, playable character, player character, hero unit, sprite character]
-  pt: [personagem, protagonista, herói, heroi, npc]
+  pt: [personagem, protagonista, herói, npc]
 
 keywords:
   en:
-    - warrior
-    - knight
-    - mage
-    - wizard
-    - witch
-    - sorcerer
-    - archer
-    - ranger
-    - rogue
-    - thief
-    - assassin
-    - paladin
-    - druid
-    - bard
-    - monk
-    - berserker
-    - samurai
-    - ninja
-    - pirate
-    - viking
-    - soldier
-    - guard
-    - king
-    - queen
-    - princess
-    - prince
-    - villager
-    - merchant
-    - blacksmith
-    - farmer
-    - man
-    - woman
-    - boy
-    - girl
-    - person
-    - enemy
-    - boss
-    - monster
-    - goblin
-    - orc
-    - troll
-    - skeleton
-    - zombie
-    - dragon
-    - slime
-    - ghost
-    - demon
-    - elf
-    - dwarf
-    - fairy
-    - robot
-    - android
-    - astronaut
-    - cat
-    - dog
-    - wolf
-    - bird
-    - horse
+    - [warrior, warriors]
+    - [knight, knights]
+    - [mage, mages]
+    - [wizard, wizards]
+    - [witch, witches]
+    - [sorcerer, sorcerers, sorceress, sorceresses]
+    - [archer, archers]
+    - [ranger, rangers]
+    - [rogue, rogues]
+    - [thief, thieves]
+    - [assassin, assassins]
+    - [paladin, paladins]
+    - [druid, druids]
+    - [bard, bards]
+    - [monk, monks]
+    - [berserker, berserkers]
+    - [samurai, samurais]
+    - [ninja, ninjas]
+    - [pirate, pirates]
+    - [viking, vikings]
+    - [soldier, soldiers]
+    - [guard, guards]
+    - [king, kings, queen, queens]
+    - [prince, princes, princess, princesses]
+    - [villager, villagers]
+    - [merchant, merchants]
+    - [blacksmith, blacksmiths]
+    - [farmer, farmers]
+    - [man, men, woman, women]
+    - [boy, boys, girl, girls]
+    - [person, people]
+    - [enemy, enemies]
+    - [boss, bosses]
+    - [monster, monsters]
+    - [goblin, goblins]
+    - [orc, orcs]
+    - [troll, trolls]
+    - [skeleton, skeletons]
+    - [zombie, zombies]
+    - [dragon, dragons]
+    - [slime, slimes]
+    - [ghost, ghosts]
+    - [demon, demons]
+    - [elf, elves]
+    - [dwarf, dwarves, dwarfs]
+    - [fairy, fairies]
+    - [robot, robots]
+    - [android, androids]
+    - [astronaut, astronauts]
+    - [cat, cats]
+    - [dog, dogs]
+    - [wolf, wolves]
+    - [bird, birds]
+    - [horse, horses]
   pt:
-    - guerreiro
-    - guerreira
-    - cavaleiro
-    - cavaleira
-    - mago
-    - maga
-    - bruxa
-    - bruxo
-    - feiticeiro
-    - feiticeira
-    - arqueiro
-    - arqueira
-    - ladino
-    - ladrao
-    - ladrão
-    - assassino
-    - paladino
-    - druida
-    - bardo
-    - monge
-    - samurai
-    - pirata
-    - viking
-    - soldado
-    - guarda
-    - rei
-    - rainha
-    - princesa
-    - principe
-    - príncipe
-    - aldeao
-    - aldeão
-    - mercador
-    - ferreiro
-    - fazendeiro
-    - homem
-    - mulher
-    - menino
-    - menina
-    - pessoa
-    - inimigo
-    - chefao
-    - chefão
-    - monstro
-    - goblin
-    - orc
-    - ogro
-    - esqueleto
-    - zumbi
-    - dragao
-    - dragão
-    - fantasma
-    - demonio
-    - demônio
-    - elfo
-    - anao
-    - anão
-    - fada
-    - robo
-    - robô
-    - astronauta
-    - gato
-    - cachorro
-    - lobo
-    - passaro
-    - pássaro
-    - cavalo
+    - [guerreiro, guerreira, guerreiros, guerreiras]
+    - [cavaleiro, cavaleira, cavaleiros, cavaleiras]
+    - [mago, maga, magos, magas]
+    - [bruxo, bruxa, bruxos, bruxas]
+    - [feiticeiro, feiticeira, feiticeiros, feiticeiras]
+    - [arqueiro, arqueira, arqueiros, arqueiras]
+    - [ladino, ladina, ladinos, ladinas]
+    - [ladrão, ladra, ladrões, ladras]
+    - [assassino, assassina, assassinos, assassinas]
+    - [paladino, paladina, paladinos, paladinas]
+    - [druida, druidas]
+    - [bardo, barda, bardos, bardas]
+    - [monge, monja, monges, monjas]
+    - [samurai, samurais]
+    - [pirata, piratas]
+    - [viking, vikings]
+    - [soldado, soldados]
+    - [guarda, guardas]
+    - [rei, rainha, reis, rainhas]
+    - [príncipe, princesa, príncipes, princesas]
+    - [aldeão, aldeã, aldeões, aldeãs]
+    - [mercador, mercadora, mercadores, mercadoras]
+    - [ferreiro, ferreira, ferreiros, ferreiras]
+    - [fazendeiro, fazendeira, fazendeiros, fazendeiras]
+    - [homem, mulher, homens, mulheres]
+    - [menino, menina, meninos, meninas]
+    - [pessoa, pessoas]
+    - [inimigo, inimiga, inimigos, inimigas]
+    - [chefão, chefões]
+    - [monstro, monstros]
+    - [goblin, goblins]
+    - [orc, orcs]
+    - [ogro, ogra, ogros, ogras]
+    - [esqueleto, esqueletos]
+    - [zumbi, zumbis]
+    - [dragão, dragoa, dragões, dragoas]
+    - [fantasma, fantasmas]
+    - [demônio, demônia, demônios, demônias]
+    - [elfo, elfa, elfos, elfas]
+    - [anão, anões]
+    - [fada, fadas]
+    - [robô, robôs]
+    - [astronauta, astronautas]
+    - [gato, gata, gatos, gatas]
+    - [cachorro, cachorra, cachorros, cachorras]
+    - [lobo, loba, lobos, lobas]
+    - [pássaro, pássaros]
+    - [cavalo, égua, cavalos, éguas]
 
 categories:
   humanoid:
-    - warrior
-    - knight
-    - mage
-    - wizard
-    - witch
-    - sorcerer
-    - archer
-    - ranger
-    - rogue
-    - thief
-    - assassin
-    - paladin
-    - druid
-    - bard
-    - monk
-    - berserker
-    - samurai
-    - ninja
-    - pirate
-    - viking
-    - soldier
-    - guard
-    - king
-    - queen
-    - princess
-    - prince
-    - villager
-    - merchant
-    - blacksmith
-    - farmer
-    - man
-    - woman
-    - boy
-    - girl
-    - person
-    - elf
-    - dwarf
-    - fairy
-    - astronaut
-    - guerreiro
-    - guerreira
-    - cavaleiro
-    - cavaleira
-    - mago
-    - maga
-    - bruxa
-    - bruxo
-    - feiticeiro
-    - feiticeira
-    - arqueiro
-    - arqueira
-    - ladino
-    - ladrao
-    - ladrão
-    - assassino
-    - paladino
-    - druida
-    - bardo
-    - monge
-    - pirata
-    - soldado
-    - guarda
-    - rei
-    - rainha
-    - princesa
-    - principe
-    - príncipe
-    - aldeao
-    - aldeão
-    - mercador
-    - ferreiro
-    - fazendeiro
-    - homem
-    - mulher
-    - menino
-    - menina
-    - pessoa
-    - elfo
-    - anao
-    - anão
-    - fada
-    - astronauta
+    - [warrior, warriors]
+    - [knight, knights]
+    - [mage, mages]
+    - [wizard, wizards]
+    - [witch, witches]
+    - [sorcerer, sorcerers, sorceress, sorceresses]
+    - [archer, archers]
+    - [ranger, rangers]
+    - [rogue, rogues]
+    - [thief, thieves]
+    - [assassin, assassins]
+    - [paladin, paladins]
+    - [druid, druids]
+    - [bard, bards]
+    - [monk, monks]
+    - [berserker, berserkers]
+    - [samurai, samurais]
+    - [ninja, ninjas]
+    - [pirate, pirates]
+    - [viking, vikings]
+    - [soldier, soldiers]
+    - [guard, guards]
+    - [king, kings, queen, queens]
+    - [prince, princes, princess, princesses]
+    - [villager, villagers]
+    - [merchant, merchants]
+    - [blacksmith, blacksmiths]
+    - [farmer, farmers]
+    - [man, men, woman, women]
+    - [boy, boys, girl, girls]
+    - [person, people]
+    - [elf, elves]
+    - [dwarf, dwarves, dwarfs]
+    - [fairy, fairies]
+    - [astronaut, astronauts]
+    - [guerreiro, guerreira, guerreiros, guerreiras]
+    - [cavaleiro, cavaleira, cavaleiros, cavaleiras]
+    - [mago, maga, magos, magas]
+    - [bruxo, bruxa, bruxos, bruxas]
+    - [feiticeiro, feiticeira, feiticeiros, feiticeiras]
+    - [arqueiro, arqueira, arqueiros, arqueiras]
+    - [ladino, ladina, ladinos, ladinas]
+    - [ladrão, ladra, ladrões, ladras]
+    - [assassino, assassina, assassinos, assassinas]
+    - [paladino, paladina, paladinos, paladinas]
+    - [druida, druidas]
+    - [bardo, barda, bardos, bardas]
+    - [monge, monja, monges, monjas]
+    - [pirata, piratas]
+    - [soldado, soldados]
+    - [guarda, guardas]
+    - [rei, rainha, reis, rainhas]
+    - [príncipe, princesa, príncipes, princesas]
+    - [aldeão, aldeã, aldeões, aldeãs]
+    - [mercador, mercadora, mercadores, mercadoras]
+    - [ferreiro, ferreira, ferreiros, ferreiras]
+    - [fazendeiro, fazendeira, fazendeiros, fazendeiras]
+    - [homem, mulher, homens, mulheres]
+    - [menino, menina, meninos, meninas]
+    - [pessoa, pessoas]
+    - [elfo, elfa, elfos, elfas]
+    - [anão, anões]
+    - [fada, fadas]
+    - [astronauta, astronautas]
   creature:
-    - monster
-    - goblin
-    - orc
-    - troll
-    - skeleton
-    - zombie
-    - dragon
-    - slime
-    - ghost
-    - demon
-    - cat
-    - dog
-    - wolf
-    - bird
-    - horse
-    - enemy
-    - boss
-    - monstro
-    - ogro
-    - esqueleto
-    - zumbi
-    - dragao
-    - dragão
-    - fantasma
-    - demonio
-    - demônio
-    - gato
-    - cachorro
-    - lobo
-    - passaro
-    - pássaro
-    - cavalo
-    - inimigo
-    - chefao
-    - chefão
+    - [monster, monsters]
+    - [goblin, goblins]
+    - [orc, orcs]
+    - [troll, trolls]
+    - [skeleton, skeletons]
+    - [zombie, zombies]
+    - [dragon, dragons]
+    - [slime, slimes]
+    - [ghost, ghosts]
+    - [demon, demons]
+    - [cat, cats]
+    - [dog, dogs]
+    - [wolf, wolves]
+    - [bird, birds]
+    - [horse, horses]
+    - [enemy, enemies]
+    - [boss, bosses]
+    - [monstro, monstros]
+    - [ogro, ogra, ogros, ogras]
+    - [esqueleto, esqueletos]
+    - [zumbi, zumbis]
+    - [dragão, dragoa, dragões, dragoas]
+    - [fantasma, fantasmas]
+    - [demônio, demônia, demônios, demônias]
+    - [gato, gata, gatos, gatas]
+    - [cachorro, cachorra, cachorros, cachorras]
+    - [lobo, loba, lobos, lobas]
+    - [pássaro, pássaros]
+    - [cavalo, égua, cavalos, éguas]
+    - [inimigo, inimiga, inimigos, inimigas]
+    - [chefão, chefões]
   mechanical:
-    - robot
-    - android
-    - robo
-    - robô
+    - [robot, robots]
+    - [android, androids]
+    - [robô, robôs]
 
 # ---------------------------------------------------------------------------
 # Topologia corporal (pesquisa PixelLab — `character.body_type`)
@@ -285,139 +249,156 @@ categories:
 #
 # Termo ausente vira `unknown`, e `unknown` não entra no prompt: é silêncio
 # honesto, não palpite. Acrescentar um bicho aqui é editar este arquivo,
-# nunca um `.py`.
+# nunca um `.py`. Cada forma também se reconhece pelo próprio nome
+# ("humanoide", "quadrúpede"): é o que o recorte do MCP pede quando o corpo
+# fica `unknown`.
 # ---------------------------------------------------------------------------
 body_types:
   humanoid:
-    - warrior
-    - knight
-    - mage
-    - wizard
-    - witch
-    - archer
-    - ranger
-    - rogue
-    - thief
-    - paladin
-    - bard
-    - monk
-    - samurai
-    - ninja
-    - pirate
-    - king
-    - queen
-    - villager
-    - blacksmith
-    - goblin
-    - orc
-    - troll
-    - elf
-    - dwarf
-    - skeleton
-    - zombie
-    - vampire
-    - robot
-    - android
-    - cavaleiro
-    - guerreiro
-    - mago
-    - bruxa
-    - arqueiro
-    - ladino
-    - aldeão
-    - aldeao
-    - ferreiro
-    - rei
-    - rainha
-    - esqueleto
-    - zumbi
-    - vampiro
-    - anão
-    - anao
-    - elfo
-    - robô
-    - robo
+    - [humanoid, humanoids, humanoide, humanoides]
+    - [warrior, warriors]
+    - [knight, knights]
+    - [mage, mages]
+    - [wizard, wizards]
+    - [witch, witches]
+    - [archer, archers]
+    - [ranger, rangers]
+    - [rogue, rogues]
+    - [thief, thieves]
+    - [paladin, paladins]
+    - [bard, bards]
+    - [monk, monks]
+    - [samurai, samurais]
+    - [ninja, ninjas]
+    - [pirate, pirates]
+    - [king, kings, queen, queens]
+    - [villager, villagers]
+    - [blacksmith, blacksmiths]
+    - [goblin, goblins]
+    - [orc, orcs]
+    - [troll, trolls]
+    - [elf, elves]
+    - [dwarf, dwarves, dwarfs]
+    - [skeleton, skeletons]
+    - [zombie, zombies]
+    - [vampire, vampires]
+    - [robot, robots]
+    - [android, androids]
+    - [cavaleiro, cavaleira, cavaleiros, cavaleiras]
+    - [guerreiro, guerreira, guerreiros, guerreiras]
+    - [mago, maga, magos, magas]
+    - [bruxo, bruxa, bruxos, bruxas]
+    - [feiticeiro, feiticeira, feiticeiros, feiticeiras]
+    - [arqueiro, arqueira, arqueiros, arqueiras]
+    - [ladino, ladina, ladinos, ladinas]
+    - [aldeão, aldeã, aldeões, aldeãs]
+    - [ferreiro, ferreira, ferreiros, ferreiras]
+    - [rei, rainha, reis, rainhas]
+    - [esqueleto, esqueletos]
+    - [zumbi, zumbis]
+    - [vampiro, vampira, vampiros, vampiras]
+    - [anão, anões]
+    - [elfo, elfa, elfos, elfas]
+    - [robô, robôs]
   quadruped:
-    - wolf
-    - dog
-    - cat
-    - horse
-    - bear
-    - lion
-    - tiger
-    - fox
-    - deer
-    - cow
-    - pig
-    - sheep
-    - goat
-    - rat
-    - boar
-    - lobo
-    - cachorro
-    - cão
-    - cao
-    - gato
-    - cavalo
-    - urso
-    - leão
-    - leao
-    - tigre
-    - raposa
-    - veado
-    - cervo
-    - vaca
-    - porco
-    - ovelha
-    - cabra
-    - rato
-    - javali
+    - [quadruped, quadrupeds, quadrúpede, quadrúpedes]
+    - [wolf, wolves]
+    - [dog, dogs]
+    - [cat, cats]
+    - [horse, horses]
+    - [bear, bears]
+    - [lion, lions]
+    - [tiger, tigers]
+    - [fox, foxes]
+    - [deer]
+    - [cow, cows]
+    - [pig, pigs]
+    - [sheep]
+    - [goat, goats]
+    - [rat, rats]
+    - [boar, boars]
+    - [lobo, loba, lobos, lobas]
+    - [cachorro, cachorra, cachorros, cachorras]
+    - [cão, cadela, cães, cadelas]
+    - [gato, gata, gatos, gatas]
+    - [cavalo, égua, cavalos, éguas]
+    - [urso, ursa, ursos, ursas]
+    - [leão, leoa, leões, leoas]
+    - [tigre, tigresa, tigres, tigresas]
+    - [raposa, raposas]
+    - [veado, veados]
+    - [cervo, corça, cervos, corças]
+    - [vaca, vacas]
+    - [porco, porcos]
+    - [ovelha, ovelhas]
+    - [cabra, cabras]
+    - [rato, rata, ratos, ratas]
+    - [javali, javalis]
   avian:
-    - bird
-    - eagle
-    - owl
-    - crow
-    - raven
-    - chicken
-    - duck
-    - bat
-    - pássaro
-    - passaro
-    - ave
-    - águia
-    - aguia
-    - coruja
-    - corvo
-    - galinha
-    - pato
-    - morcego
+    - [avian]
+    - [bird, birds]
+    - [eagle, eagles]
+    - [owl, owls]
+    - [crow, crows]
+    - [raven, ravens]
+    - [chicken, chickens]
+    - [duck, ducks]
+    - [bat, bats]
+    - [ave, aves]
+    - [pássaro, pássaros]
+    - [águia, águias]
+    - [coruja, corujas]
+    - [corvo, corvos]
+    - [galinha, galinhas]
+    - [pato, patos]
+    - [morcego, morcegos]
   aquatic:
-    - fish
-    - shark
-    - octopus
-    - crab
-    - peixe
-    - tubarão
-    - tubarao
-    - polvo
-    - caranguejo
+    - [aquatic, aquático, aquática, aquáticos, aquáticas]
+    - [fish, fishes]
+    - [shark, sharks]
+    - [octopus, octopuses]
+    - [crab, crabs]
+    - [peixe, peixes]
+    - [tubarão, tubarões]
+    - [polvo, polvos]
+    - [caranguejo, caranguejos]
   serpentine:
-    - snake
-    - serpent
-    - dragon
-    - worm
-    - cobra
-    - serpente
-    - dragão
-    - dragao
-    - verme
+    - [serpentine, serpentino, serpentinos]
+    - [snake, snakes]
+    - [serpent, serpents]
+    - [dragon, dragons]
+    - [worm, worms]
+    - [cobra, cobras]
+    - [serpente, serpentes]
+    - [dragão, dragoa, dragões, dragoas]
+    - [verme, vermes]
   amorphous:
-    - slime
-    - blob
-    - ghost
-    - spirit
-    - cloud
-    - gosma
-    - fantasma
-    - espírito
-    - espirito
+    - [amorphous, amorfo, amorfa, amorfos, amorfas]
+    - [slime, slimes]
+    - [blob, blobs]
+    - [ghost, ghosts]
+    - [spirit, spirits]
+    - [cloud]
+    - [gosma, gosmas]
+    - [fantasma, fantasmas]
+    - [espírito, espíritos]
+
+# ---------------------------------------------------------------------------
+# Corpo implícito na categoria (`character.body_type`, origem
+# `category_inference`)
+# ---------------------------------------------------------------------------
+# Quando nenhum termo do pedido nomeia a forma do corpo, a categoria resolvida
+# responde — mas só a categoria em que TODO membro tem o mesmo corpo. O
+# resolvedor do spec faz isso uma vez; o recorte e o prompt só leem o
+# resultado. Categoria mista fica de fora, e o corpo continua `unknown`:
+#
+#   creature   — goblin é humanoide, lobo quadrúpede, slime amorfo, dragão
+#                serpentino
+#   mechanical — robô e androide já são humanoid em `body_types`; um drone ou
+#                um tanque não seriam
+#
+# A chave é uma categoria de `categories` e o valor, uma forma de
+# `body_types`; o que não existir nos dois é ignorado com aviso na carga.
+# ---------------------------------------------------------------------------
+category_body_types:
+  humanoid: humanoid

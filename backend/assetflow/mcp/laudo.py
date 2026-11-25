@@ -37,6 +37,7 @@ _ORIGENS = {
     "explicit_prompt": "do texto",
     "ui_selection": "da interface",
     "inference": "inferido",
+    "category_inference": "inferido da categoria",
     "profile_default": "do perfil",
     "global_default": "padrão",
 }
@@ -71,7 +72,13 @@ def formatar_consulta(pedido: str, perfil: str, spec: Any, *, conhecimento: str 
         partes_tipo.append(f"categoria {_valor(asset.category)}")
     corpo = _valor(spec.character.body_type) if spec.character else "unknown"
     if corpo != "unknown":
-        partes_tipo.append(f"corpo {corpo}")
+        # A origem no fim da linha é a do tipo; o corpo só diz a dele quando
+        # ela é outra — o caso do corpo deduzido da categoria.
+        origem_do_corpo = _origem(spec, "character.body_type")
+        if origem_do_corpo != _origem(spec, "asset.type"):
+            partes_tipo.append(f"corpo {corpo} ({origem_do_corpo})")
+        else:
+            partes_tipo.append(f"corpo {corpo}")
 
     logica = spec.logical_resolution
     grade = (

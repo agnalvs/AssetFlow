@@ -25,6 +25,7 @@ import pytest
 from assetflow.bootstrap import AppContainer
 from assetflow.generation.schemas import (
     SPEC_CONSTRAINTS,
+    SPEC_PRECEDENCE,
     AssetGenerationRequest,
     BodyType,
     ConstraintClass,
@@ -47,7 +48,10 @@ def _spec(container: AppContainer, prompt: str, **kwargs):
     ("prompt", "esperado"),
     [
         ("um cavaleiro de armadura", BodyType.HUMANOID),
+        ("arqueiras de capuz", BodyType.HUMANOID),
         ("um lobo cinzento", BodyType.QUADRUPED),
+        ("uma loba cinzenta", BodyType.QUADRUPED),
+        ("uma criatura quadrúpede", BodyType.QUADRUPED),
         ("uma águia", BodyType.AVIAN),
         ("a shark", BodyType.AQUATIC),
         ("um dragão vermelho", BodyType.SERPENTINE),
@@ -120,6 +124,73 @@ def test_the_body_shape_survives_a_type_change_but_not_a_subject_change(
         container, "um lobo", spec_overrides={"subject": "uma espada"}
     )
     assert trocou_sujeito.character.body_type is BodyType.UNKNOWN
+
+
+# ---------------------------------------------------------------------------
+# O corpo que a categoria implica (`category_body_types`)
+# ---------------------------------------------------------------------------
+def test_a_humanoid_category_implies_a_humanoid_body(container: AppContainer):
+    """"astronauta" é `humanoid` na categoria e não está em `body_types`.
+
+    Sem a dedução, o corpo saía `unknown`, e o recorte do MCP vinha sem
+    medidas — o que aconteceu com "arqueira" antes de ela entrar em
+    `body_types`. A origem diz que o corpo veio da categoria, e não do texto.
+    """
+    spec = _spec(container, "uma astronauta de traje branco")
+
+    assert spec.asset.category == "humanoid"
+    assert spec.character.body_type is BodyType.HUMANOID
+    assert spec.source_of("character.body_type") is SpecSource.CATEGORY_INFERENCE
+
+
+def test_a_term_that_names_the_body_wins_over_the_category(container: AppContainer):
+    """"arqueira" nomeia o corpo direto: a dedução nem é consultada."""
+    spec = _spec(container, "arqueira de capuz verde")
+
+    assert spec.character.body_type is BodyType.HUMANOID
+    assert spec.source_of("character.body_type") is SpecSource.INFERENCE
+
+
+def test_a_mixed_category_implies_nothing(container: AppContainer):
+    """`creature` mistura goblin, lobo e slime: sem termo de corpo, `unknown`."""
+    spec = _spec(container, "um monstro")
+
+    assert spec.asset.category == "creature"
+    assert spec.character.body_type is BodyType.UNKNOWN
+    assert "character.body_type" not in spec.sources
+
+
+def test_the_screen_wins_over_the_category(container: AppContainer):
+    spec = _spec(container, "uma astronauta", output={"body_type": "quadruped"})
+
+    assert spec.character.body_type is BodyType.QUADRUPED
+    assert spec.source_of("character.body_type") is SpecSource.UI_SELECTION
+
+
+def test_a_manual_category_also_implies_the_body(container: AppContainer):
+    """A regra lê a categoria **resolvida**, venha ela de onde vier."""
+    spec = _spec(container, "uma figura estranha", spec_overrides={"category": "humanoid"})
+
+    assert spec.character.body_type is BodyType.HUMANOID
+    assert spec.source_of("character.body_type") is SpecSource.CATEGORY_INFERENCE
+
+
+def test_a_stale_category_does_not_imply_a_body(container: AppContainer):
+    """Sujeito trocado à mão: a categoria lida no texto antigo descreve o
+    sujeito que saiu, e não deduz corpo — a mesma defasagem que já descartava
+    o corpo inferido."""
+    spec = _spec(container, "uma astronauta", spec_overrides={"subject": "uma espada"})
+
+    assert spec.character.body_type is BodyType.UNKNOWN
+
+
+def test_the_category_deduction_sits_just_below_the_inference():
+    assert SPEC_PRECEDENCE.index(SpecSource.CATEGORY_INFERENCE) == (
+        SPEC_PRECEDENCE.index(SpecSource.INFERENCE) - 1
+    )
+    assert SPEC_PRECEDENCE.index(SpecSource.CATEGORY_INFERENCE) > (
+        SPEC_PRECEDENCE.index(SpecSource.PROFILE_DEFAULT)
+    )
 
 
 def test_the_vocabulary_is_configuration(container: AppContainer):

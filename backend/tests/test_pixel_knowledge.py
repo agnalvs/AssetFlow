@@ -31,6 +31,7 @@ from assetflow.generation.schemas.resolved_spec import (
 )
 from assetflow.pixel_knowledge import (
     CLASSES,
+    SEM_CORPO,
     TETO_CARACTERES,
     USO_DO_MOLDE,
     BaseDeConhecimento,
@@ -486,9 +487,21 @@ def test_recorte_de_objeto_usa_as_medidas_e_o_molde_de_prop(base: BaseDeConhecim
 
 def test_corpo_desconhecido_nao_vira_humanoide(base: BaseDeConhecimento):
     recorte = montar_recorte(_spec(corpo=BodyType.UNKNOWN), base)
+    linhas = recorte.splitlines()
 
     assert "humanóide" not in recorte and "molde" not in recorte
-    assert recorte.startswith("luz: "), "paleta e luz valem para qualquer forma"
+    # A falta de medidas é dita, não omitida: quem desenha sabe o que pedir.
+    assert linhas[0] == SEM_CORPO
+    assert linhas[1].startswith("luz: "), "paleta e luz valem para qualquer forma"
+
+
+def test_corpo_conhecido_sem_tabela_nao_finge_que_e_desconhecido(base: BaseDeConhecimento):
+    """Quadrúpede não tem medidas na base, mas o corpo foi identificado: a
+    linha de corpo `unknown` diria uma coisa falsa."""
+    recorte = montar_recorte(_spec(corpo=BodyType.QUADRUPED), base)
+
+    assert SEM_CORPO not in recorte
+    assert recorte.startswith("luz: ")
 
 
 def test_tamanho_sem_tabela_fica_sem_proporcao_e_sem_molde(base: BaseDeConhecimento):

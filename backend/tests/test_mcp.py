@@ -19,7 +19,7 @@ from assetflow.bootstrap import AppContainer
 from assetflow.mcp.laudo import FORMATO_RECEITA, MAX_POSICOES, _onde, formatar_laudo
 from assetflow.mcp.remendo import RemendoInvalido, aplicar_remendo
 from assetflow.mcp.servico import MOTOR, ErroDoPedido, ServicoDesenhista
-from assetflow.pixel_knowledge import USO_DO_MOLDE, BaseDeConhecimento
+from assetflow.pixel_knowledge import SEM_CORPO, USO_DO_MOLDE, BaseDeConhecimento
 from tests.conftest import BACKEND_ROOT, run
 
 POCAO = BACKEND_ROOT / "assetflow" / "generation" / "engines" / "desenhista" / "exemplos" / "pocao_16x16.json"
@@ -273,6 +273,48 @@ def test_perfil_de_48_poe_o_corpo_de_32_no_quadro(servico: ServicoDesenhista):
 
     assert "grade: 48×48 (do perfil)" in texto
     assert "humanóide, corpo 32×32 num quadro 48×48: cabeça y19–28 (10 px)" in texto
+
+
+def test_arqueira_no_quadro_de_48_traz_proporcoes_quadro_e_silhueta(servico: ServicoDesenhista):
+    """O pedido real em que o recorte saiu sem medidas: "arqueira" não estava
+    em `body_types`, e o corpo ficava `unknown`."""
+    texto = servico.consultar("arqueira de capuz verde", "pixel_character_48")
+    linhas = texto.split("\nconhecimento:\n", 1)[1].splitlines()
+
+    assert "tipo: character · arqueira de capuz verde · categoria humanoid · corpo humanoid (inferido)" in texto
+    assert linhas[0].startswith(
+        "humanóide, corpo 32×32 num quadro 48×48: cabeça y19–28 (10 px) · tronco y29–36 (8 px)"
+    )
+    assert any(linha.startswith("quadro: corpo centrado entre x=23 e x=24") for linha in linhas)
+    assert any(linha.startswith("silhueta: arma e escudo fora do corpo") for linha in linhas)
+    assert SEM_CORPO not in texto
+
+
+def test_corpo_deduzido_da_categoria_diz_a_origem(servico: ServicoDesenhista):
+    texto = servico.consultar("astronauta de traje branco", "pixel_character_48")
+
+    assert (
+        "tipo: character · astronauta de traje branco · categoria humanoid · "
+        "corpo humanoid (inferido da categoria) (inferido)"
+    ) in texto
+    assert "humanóide, corpo 32×32 num quadro 48×48" in texto
+
+
+def test_lobo_continua_quadrupede(servico: ServicoDesenhista):
+    texto = servico.consultar("lobo cinzento", "pixel_character_48")
+
+    assert "categoria creature · corpo quadruped (inferido)" in texto
+    assert "humanóide" not in texto and SEM_CORPO not in texto
+
+
+def test_corpo_nao_identificado_e_dito_no_recorte(servico: ServicoDesenhista):
+    """`creature` não implica corpo: sem termo que o nomeie, o recorte diz o
+    que falta em vez de sair sem medidas em silêncio."""
+    texto = servico.consultar("um monstro", "pixel_character_48")
+    recorte = texto.split("\nconhecimento:\n", 1)[1]
+
+    assert "corpo " not in texto.splitlines()[1]
+    assert recorte.splitlines()[0] == SEM_CORPO
 
 
 def test_consultar_sem_tamanho_usa_o_perfil(servico: ServicoDesenhista):

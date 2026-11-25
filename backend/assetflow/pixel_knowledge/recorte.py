@@ -44,6 +44,7 @@ from ..generation.schemas import AssetType
 from .base import BaseDeConhecimento, Forma, Luz, Medida, Molde, Paleta
 
 __all__ = [
+    "SEM_CORPO",
     "TETO_CARACTERES",
     "USO_DO_MOLDE",
     "FonteDeReferencias",
@@ -146,7 +147,7 @@ def montar_recorte(
     molde_base = estilo.molde(forma.id, *encaixe.corpo) if forma and encaixe else None
 
     secoes = [
-        ("proporções", _proporcoes(forma, encaixe, largura, altura)),
+        ("proporções", _proporcoes(forma, encaixe, largura, altura) or _sem_corpo(resolved)),
         ("luz", _luz(resolved, estilo.luz)),
         ("cores", _cores(resolved, estilo.paleta)),
         ("silhueta", _silhueta(forma)),
@@ -206,12 +207,33 @@ def _forma(resolved: Any) -> str:
     """Num personagem, a forma é o corpo; nos demais, o tipo de asset.
 
     Corpo ``unknown`` não vira ``humanoid``: sem forma conhecida, o recorte
-    fica sem proporções e sem molde, em vez de chutar.
+    fica sem proporções e sem molde, em vez de chutar — e diz isso na linha
+    :data:`SEM_CORPO`. A dedução pela categoria já aconteceu antes, no
+    resolvedor do spec; aqui só se lê o resultado.
     """
     tipo = resolved.asset.type
     if tipo == AssetType.CHARACTER:
         return _valor(resolved.character.body_type)
     return _valor(tipo)
+
+
+#: O que o recorte diz no lugar das medidas quando o corpo do personagem ficou
+#: ``unknown``: as formas se reconhecem pelo nome no texto (``body_types`` em
+#: ``config/asset_taxonomy/character.yaml``).
+SEM_CORPO = (
+    "corpo não identificado: sem medidas; informe humanoide, quadrúpede etc. no pedido"
+)
+
+
+def _sem_corpo(resolved: Any) -> str:
+    """A linha de corpo ``unknown`` num personagem; ``""`` em qualquer outro caso.
+
+    Sem ela a falta de medidas era silenciosa: o recorte simplesmente não
+    trazia proporções, e quem desenha não tinha como saber por quê.
+    """
+    if resolved.asset.type == AssetType.CHARACTER and _forma(resolved) == "unknown":
+        return SEM_CORPO
+    return ""
 
 
 def _proporcoes(forma: Forma | None, encaixe: _Encaixe | None, largura: int, altura: int) -> str:

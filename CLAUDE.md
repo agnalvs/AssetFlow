@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1440 passed, 1 skipped)
+pytest -q                                # suíte completa (1461 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -300,6 +300,20 @@ Um goblin é `creature` de corpo humanoide; um lobo, `creature` quadrúpede. Sem
 o terceiro, o motor desenha o lobo em pé — o mesmo erro que fazia uma árvore
 virar `character`, um nível abaixo. O vocabulário está em
 `config/asset_taxonomy/character.yaml`, seção `body_types`.
+
+Duas regras ao mexer nesse vocabulário:
+
+- **o classificador não flexiona**: forma que não está escrita não casa. O
+  arquivo traz uma linha por palavra, com masculino, feminino e plurais, e
+  `tests/test_taxonomia_flexoes.py` falha se faltar uma delas ou se entrar
+  masculino em -o/-ão sem decisão de feminino. "anã" fica de fora de
+  propósito: sem acento vira "ana", o nome;
+- **o corpo que a categoria implica** (`category_body_types`, hoje só
+  `humanoid -> humanoid`) é deduzido no resolvedor do spec, quando nenhuma
+  camada disse a forma, com origem `category_inference` ("inferido da
+  categoria"), logo abaixo de `inference`. Categoria mista, como `creature`,
+  não entra na tabela. Corpo que continua `unknown` aparece no recorte do MCP
+  como `corpo não identificado: …`, e não como silêncio.
 
 E cada campo declara **o que o AssetFlow promete sobre ele** (`SPEC_CONSTRAINTS`,
 ao lado de `SPEC_PRECEDENCE`): `hard` é garantido e reprova; `semantic` é medido;

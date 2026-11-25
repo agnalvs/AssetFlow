@@ -215,8 +215,13 @@ Quatro regras:
 - **O seletor só lê o spec**: `logical_resolution`, `asset.type`,
   `character.body_type`, `palette` e `style.shading.light_direction`. Paleta
   travada tira as rampas; luz do pedido ganha do padrão; corpo `unknown` fica
-  sem proporções e sem camadas, em vez de virar humanoide. A linha `estilo:` da
-  consulta continua dizendo o que o spec resolveu.
+  sem proporções e sem camadas, em vez de virar humanoide, e o recorte diz
+  isso na primeira linha: `corpo não identificado: sem medidas; informe
+  humanoide, quadrúpede etc. no pedido` (`SEM_CORPO`). A dedução do corpo pela
+  categoria acontece antes, no resolvedor do spec (`RESOLVED_SPEC.md`, "O
+  corpo que a categoria implica"); quando é ela que responde, a linha `tipo:`
+  diz `corpo humanoid (inferido da categoria)`. A linha `estilo:` da consulta
+  continua dizendo o que o spec resolveu.
 - **Paleta-mestra e luz vêm da configuração**, por um ponto só:
   `BaseDeConhecimento.estilo()`. O código não tem paleta nem direção próprias;
   sem `mestra` ou sem `luz.yaml`, a linha some. Uma fase futura de estilos

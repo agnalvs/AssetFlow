@@ -85,6 +85,7 @@ para a maior prioridade:
 ```text
 GLOBAL_DEFAULT      padrão do próprio contrato
 PROFILE_DEFAULT     Generation Profile (config/profiles.yaml)
+CATEGORY_INFERENCE  deduzido de outro campo resolvido (o corpo pela categoria)
 INFERENCE           classificador semântico e prompt builder
 UI_SELECTION        controles da tela (campo `output` do pedido)
 EXPLICIT_PROMPT     restrição escrita na descrição ("32x32", "8 cores")
@@ -371,6 +372,33 @@ do tipo — acrescentar uma ave é uma edição, não duas.
 uma árvore mandaria "humanoid character" junto da palavra "árvore", e o modelo
 tentaria conciliar as duas coisas.
 
+O classificador casa a palavra inteira e não flexiona: "arqueiras" não casa
+"arqueira", que não casa "arqueiro". Por isso o `character.yaml` traz uma linha
+por palavra, com masculino, feminino e plurais, e
+`tests/test_taxonomia_flexoes.py` confere que nenhuma forma ficou de fora numa
+lista em que as outras estão. Foi assim que o recorte do MCP saiu sem medidas
+para uma arqueira: "arqueiro" estava em `body_types`, e ela não.
+
+### O corpo que a categoria implica
+
+Quando nenhuma camada disse a forma, o resolvedor pergunta à categoria
+resolvida — **uma vez, no resolvedor**, e nunca no recorte ou no prompt, que só
+leem o spec. A tabela é configuração, na seção `category_body_types` do
+`character.yaml`, e só lista categoria em que **todo** membro tem o mesmo
+corpo:
+
+```
+humanoid    -> humanoid        (cavaleiro, fada, astronauta, pessoa…)
+creature    -> (nada)          goblin humanoide, lobo quadrúpede, slime amorfo
+mechanical  -> (nada)          robô é humanoide; um drone não seria
+```
+
+O corpo deduzido leva a origem `category_inference` ("inferido da categoria"),
+logo abaixo de `inference` na precedência: um termo do texto que nomeie o
+corpo, a tela e a correção manual ganham dela. Uma linha da tabela que cite
+categoria ou corpo inexistente sai com aviso na carga, sem levar o resto do
+vocabulário junto.
+
 ### A regra de sobrevivência
 
 A categoria inferida morre quando outra camada troca o **tipo**. A topologia
@@ -381,6 +409,10 @@ Não é a mesma regra:
 "sprite sheet de um lobo"        -> tipo virou spritesheet, corpo continua quadruped
 subject corrigido para "espada"  -> corpo volta a unknown
 ```
+
+A dedução pela categoria segue a mesma regra: com o sujeito trocado à mão, a
+categoria lida no texto antigo descreve o sujeito que saiu e não deduz corpo
+nenhum.
 
 ---
 

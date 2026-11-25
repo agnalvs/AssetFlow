@@ -90,6 +90,7 @@ const SOURCES: Record<SpecSource, string> = {
   explicit_prompt: "pedido na descrição",
   ui_selection: "escolhido nos controles",
   inference: "leitura do AssetFlow",
+  category_inference: "inferido da categoria",
   profile_default: "padrão do estilo",
   global_default: "padrão do sistema",
 };
