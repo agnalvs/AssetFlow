@@ -9,9 +9,9 @@ de sprites do que com um modelo de difusão de 1024 px.
 A política preenche essa lacuna com **regras declaradas em configuração**,
 não em código::
 
-    prop 32×32 com 16 cores  ->  pixel-forge-v1
-    character 64×64          ->  flux-pixel-v1
-    qualidade máxima + lento ->  sdpixl-v1
+    prop 32×32 com 16 cores  ->  um motor que desenha na grade
+    character 64×64          ->  um motor que lê melhor o pedido
+    qualidade máxima + lento ->  o motor mais caro, só quando pedido
 
 Três propriedades que valem mais do que a esperteza das regras:
 

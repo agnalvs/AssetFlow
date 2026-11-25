@@ -31,7 +31,7 @@ def _manifest(engine_id: str) -> EngineManifest:
 
 def test_discovery_finds_engines_by_manifest():
     ids = {entry.manifest.id for entry in discover_manifests([ENGINES_ROOT])}
-    assert {"mock-image-v1", "mock-pixel-alt-v1", "diffusers-sdxl-v1"} <= ids
+    assert {"mock-image-v1", "mock-pixel-alt-v1"} <= ids
 
 
 def test_discovery_allowlist_blocks_unlisted_engines():

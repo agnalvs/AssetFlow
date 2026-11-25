@@ -126,8 +126,6 @@ class Settings(AssetFlowModel):
     #: `engine_policy.yaml` — o que o modo "Auto" prefere (plano de motores §16). Ausente,
     #: `auto` volta a ser só o roteamento por capacidade, como antes dele.
     engine_policy_config: dict[str, Any] = Field(default_factory=dict)
-    #: `benchmark_suite.yaml` — a suíte comparativa entre motores (plano de motores §19).
-    benchmark_config: dict[str, Any] = Field(default_factory=dict)
     #: `optimizer.yaml` — o estágio que toda geração Pixel atravessa: teto de
     #: iterações, revisor e o interruptor de instalação (plano Optimizer §33,
     #: §42 e §46). Ausente, valem os padrões do próprio Optimizer.
@@ -228,7 +226,6 @@ def load_settings(
     profiles_config = _read_yaml(configs / "profiles.yaml")
     pixel_profiles_config = _read_yaml(configs / "pixel_profiles.yaml")
     engine_policy_config = _read_yaml(configs / "engine_policy.yaml")
-    benchmark_config = _read_yaml(configs / "benchmark_suite.yaml")
     optimizer_config = _read_yaml(configs / "optimizer.yaml")
 
     storage = StorageSettings(
@@ -264,7 +261,6 @@ def load_settings(
         profiles_config=profiles_config,
         pixel_profiles_config=pixel_profiles_config,
         engine_policy_config=engine_policy_config,
-        benchmark_config=benchmark_config,
         optimizer_config=optimizer_config,
     )
 
@@ -309,27 +305,26 @@ def engine_runtime_configs(settings: Settings) -> dict[str, EngineRuntimeConfig]
 
     A habilitação pode vir do ambiente::
 
-        ASSETFLOW_ENGINES_ENABLED="mock-image-v1,diffusers-sdxl-v1"
-        ASSETFLOW_ENGINES_DISABLED="mock-pixel-alt-v1"
+        ASSETFLOW_ENGINES_ENABLED="mock-pixel-alt-v1"
+        ASSETFLOW_ENGINES_DISABLED="mock-image-v1"
 
     E as **opções** da gaveta também, como um objeto JSON por motor::
 
-        ASSETFLOW_ENGINE_PIXEL_FORGE_V1_OPTIONS={"binary": "D:/pf/pf.exe"}
-        ASSETFLOW_ENGINE_SDPIXL_V1_OPTIONS={"working_dir": "D:/sd-pixl"}
+        ASSETFLOW_ENGINE_MOCK_IMAGE_V1_OPTIONS={"simulated_latency_ms": 0}
 
     O nome sai do id da gaveta em maiúsculas, com ``-`` e ``.`` virando ``_``.
 
-    Isto não é conveniência: é o que torna possível ligar o Pixel Forge ou o
-    SD-πXL **sem editar `engines.yaml`**. Esses dois motores são pontes para
-    executáveis externos, e o caminho do executável é diferente em cada
-    máquina — mas `engines.yaml` é versionado e compartilhado. Sem esta porta,
-    ligar uma ponte exigia escrever um caminho absoluto em um arquivo que vai
-    para o repositório, e todo `git pull` viraria um conflito (ou, pior, o
-    caminho de outra pessoa entraria no seu ambiente).
+    Isto não é conveniência: é o que torna possível ajustar uma gaveta à
+    máquina **sem editar `engines.yaml`**. Caminhos de executável, pastas e
+    limites mudam de máquina para máquina — mas `engines.yaml` é versionado e
+    compartilhado. Sem esta porta, cada ajuste exigiria escrever um caminho
+    absoluto em um arquivo que vai para o repositório, e todo `git pull`
+    viraria um conflito (ou, pior, o caminho de outra pessoa entraria no seu
+    ambiente).
 
     O merge é **raso e por chave**: o que o ambiente disser substitui aquela
     chave, e o resto do bloco do YAML continua valendo. É o que permite
-    apontar só o `binary` sem ter de repetir `args`, `output_glob` e timeout.
+    mudar uma opção sem ter de repetir as outras.
     """
     forced_enabled = {
         item.strip() for item in (_env("ENGINES_ENABLED") or "").split(",") if item.strip()

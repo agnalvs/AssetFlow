@@ -13,6 +13,47 @@ from fastapi.testclient import TestClient
 
 from assetflow.api import create_app
 from assetflow.bootstrap import AppContainer
+from assetflow.generation.kernel import build_factory
+from assetflow.generation.schemas import EngineFamily, EngineRuntimeConfig
+
+
+def _registrar_na_vitrine(
+    container: AppContainer,
+    engine_id: str,
+    *,
+    enabled: bool,
+    badges: tuple[str, ...] = (),
+) -> None:
+    """Registra uma gaveta **visível no catálogo**, só para o teste.
+
+    As duas gavetas entregues hoje são de referência e ficam fora da vitrine
+    (``catalog.hidden``). Para cobrar o catálogo sem amarrar o teste a qual
+    motor o projeto entrega, o teste registra a sua — do jeito que uma gaveta
+    de terceiro entraria (ver ``test_third_party_engine.py``). O manifesto é o
+    do mock com outro id e outra vitrine; o motor por trás é o próprio mock.
+    """
+    base = container.registry.get("mock-image-v1").manifest
+    manifest = base.model_copy(
+        update={
+            "id": engine_id,
+            "name": "Motor de Vitrine",
+            "catalog": base.catalog.model_copy(
+                update={
+                    "family": EngineFamily.AGENTIC,
+                    "summary": "Motor registrado pelo teste para exercitar a vitrine.",
+                    "highlights": ("aparece no seletor", "não usa GPU"),
+                    "badges": badges,
+                    "hidden": False,
+                    "dev_only": False,
+                }
+            ),
+        }
+    )
+    container.registry.register(
+        manifest,
+        build_factory(manifest),
+        EngineRuntimeConfig(engine_id=engine_id, enabled=enabled),
+    )
 
 
 @pytest.fixture
@@ -45,7 +86,7 @@ def test_health(client: TestClient):
 def test_list_engines(client: TestClient):
     payload = client.get("/api/generation/engines").json()
     ids = {item["id"] for item in payload["items"]}
-    assert {"mock-image-v1", "mock-pixel-alt-v1", "diffusers-sdxl-v1"} <= ids
+    assert {"mock-image-v1", "mock-pixel-alt-v1"} <= ids
     assert payload["engine_api_version"] == "1"
 
     mock = next(item for item in payload["items"] if item["id"] == "mock-image-v1")
@@ -65,47 +106,62 @@ def test_engine_catalog_is_what_the_selector_draws(
     conta própria — e para isso teria de conhecer os motores pelo nome, que é
     justamente o que o §24 proíbe.
     """
-    # A suíte roda com as gavetas de referência; habilitar esta é o que faz o
-    # caso exercitar também o caminho "motor disponível".
-    container.registry.enable("flux-pixel-v1")
+    _registrar_na_vitrine(container, "vitrine-v1", enabled=True)
 
     payload = client.get("/api/generation/engines/catalog").json()
     ids = {item["engine_id"] for item in payload["items"]}
 
-    # Os motores do §4.1 aparecem na vitrine...
-    assert {"flux-pixel-v1", "sdpixl-v1", "pixel-forge-v1"} <= ids
+    # A gaveta com vitrine aparece...
+    assert "vitrine-v1" in ids
     # ...e as gavetas de referência, não: elas continuam resolvendo por
     # capacidade, só não são oferecidas.
     assert "mock-image-v1" not in ids
 
-    flux = next(item for item in payload["items"] if item["engine_id"] == "flux-pixel-v1")
-    assert flux["display_name"] == "FLUX Pixel"
-    assert flux["engine_family"] == "diffusion"
-    assert flux["summary"], "sem resumo, o seletor não tem o que mostrar (§4.2)"
-    assert flux["highlights"], "o §4.2 pede os pontos fortes em tópicos"
-    assert flux["available"] is True
+    entrada = next(item for item in payload["items"] if item["engine_id"] == "vitrine-v1")
+    assert entrada["display_name"] == "Motor de Vitrine"
+    # O catálogo transmite o que o manifesto declara — não deduz nada.
+    assert entrada["engine_family"] == "agentic"
+    assert entrada["summary"], "sem resumo, o seletor não tem o que mostrar (§4.2)"
+    assert entrada["highlights"], "o §4.2 pede os pontos fortes em tópicos"
+    assert entrada["available"] is True
 
 
-def test_engine_catalog_explains_an_unavailable_engine(client: TestClient):
+def test_engine_catalog_explains_an_unavailable_engine(
+    container: AppContainer, client: TestClient
+):
     """Motor indisponível continua listado, com o motivo — não some da lista.
 
-    Quem procura o SD-πXL precisa descobrir que ele existe e não está ligado,
+    Quem procura um motor precisa descobrir que ele existe e não está ligado,
     e não concluir que o AssetFlow não o tem.
     """
+    _registrar_na_vitrine(
+        container, "vitrine-desligada-v1", enabled=False, badges=("experimental",)
+    )
+
     payload = client.get("/api/generation/engines/catalog").json()
-    sdpixl = next(item for item in payload["items"] if item["engine_id"] == "sdpixl-v1")
+    desligada = next(
+        item for item in payload["items"] if item["engine_id"] == "vitrine-desligada-v1"
+    )
 
-    assert sdpixl["available"] is False
-    assert sdpixl["unavailable_reason"]
-    assert "experimental" in sdpixl["badges"]
+    assert desligada["available"] is False
+    assert desligada["unavailable_reason"]
+    # Os selos viajam com o motor mesmo quando ele não pode ser usado.
+    assert "experimental" in desligada["badges"]
 
 
-def test_engine_catalog_filters_by_capability(client: TestClient):
+def test_engine_catalog_filters_by_capability(
+    container: AppContainer, client: TestClient
+):
+    # Sem uma gaveta visível, a lista viria vazia e o laço abaixo passaria sem
+    # verificar nada.
+    _registrar_na_vitrine(container, "vitrine-v1", enabled=True)
+
     payload = client.get(
         "/api/generation/engines/catalog", params={"capability": "text_to_image.general"}
     ).json()
 
     assert payload["capability"] == "text_to_image.general"
+    assert payload["items"], "o filtro precisa ter o que filtrar"
     for item in payload["items"]:
         assert "text_to_image.general" in item["capabilities"]
 

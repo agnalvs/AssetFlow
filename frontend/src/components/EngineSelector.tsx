@@ -31,9 +31,8 @@ interface EngineSelectorProps {
  *     antes                              depois
  *     MÉTODO DE CRIAÇÃO                  MOTOR
  *     ├─ Automático                      ├─ Automático
- *     ├─ Modelo de imagem ─> MOTOR       ├─ FLUX Pixel
- *     └─ Agente Pixel ─> AGENTE          ├─ SD-πXL
- *                                        └─ Pixel Forge
+ *     ├─ Modelo de imagem ─> MOTOR       └─ cada gaveta visível no catálogo
+ *     └─ Agente Pixel ─> AGENTE
  *
  * O seletor de método perguntava qual das duas metades do pipeline usar. Não
  * são alternativas: o motor produz a imagem, e o AssetFlow Pixel Optimizer

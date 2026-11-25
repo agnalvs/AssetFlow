@@ -14,7 +14,7 @@ interface EngineCreditProps {
  *
  * Duas linhas, e o §30 é explícito sobre quais:
  *
- *     Motor        FLUX Pixel
+ *     Motor        <nome vindo do catálogo>
  *     Otimização   14 pixels corrigidos · qualidade 68 → 81
  *
  * A segunda linha existe porque a primeira, sozinha, credita ao motor um

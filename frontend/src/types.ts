@@ -12,7 +12,7 @@
  *
  * Existe **uma** pergunta de tecnologia, e é essa (plano Optimizer §25 e §26):
  *
- *     Com qual motor?   Automático | FLUX | SD-πXL | Pixel Forge | ...
+ *     Com qual motor?   Automático | <cada gaveta visível no catálogo>
  *
  * Não há um seletor de "método de criação", e a ausência é deliberada. Ele já
  * existiu, oferecendo "Modelo de imagem" e "Agente Pixel" como se fossem
@@ -25,7 +25,7 @@
  * Ele aparece no resultado, contando o que fez.
  *
  * A diferença importa. Se amanhã entrar uma gaveta nova, ela aparece no
- * seletor sozinha; se `flux-pixel-v1` estivesse escrito aqui, cada motor novo
+ * seletor sozinha; se um id de motor estivesse escrito aqui, cada motor novo
  * exigiria uma alteração no frontend — o "hardcode de nomes de modelos em
  * múltiplos lugares" que o §24 lista entre as coisas a não fazer.
  */

@@ -64,8 +64,8 @@ def _missing_requirements(manifest: EngineManifest) -> list[str]:
 def _unconfigured_reason(manifest: EngineManifest) -> str | None:
     """A gaveta se declara indisponível nesta máquina?
 
-    Vale para as pontes (SD-πXL, Pixel Forge): a dependência delas não é um
-    pacote Python, é um projeto externo instalado e apontado no
+    Vale para gavetas que são pontes para projetos externos: a dependência
+    delas não é um pacote Python, é um projeto externo instalado e apontado no
     ``engines.yaml``. Sem ele, ``health_check()`` responde ``unavailable`` — e
     pular é o tratamento certo, o mesmo que já se dá a uma dependência que não
     está instalada. Falhar aqui cobraria da máquina de quem roda a suíte um

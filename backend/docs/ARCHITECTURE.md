@@ -41,7 +41,7 @@ Pergunta que guiou cada decisão (plano §73):
                             │  Engine Contract (única interface)
 ┌───────────────────────────▼──────────────────────────────────┐
 │ GAVETAS                              generation/engines/     │
-│ mock-image-v1 · mock-pixel-alt-v1 · diffusers-sdxl-v1 · …    │
+│ mock-image-v1 · mock-pixel-alt-v1 · (desenhista-v1)          │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -129,7 +129,7 @@ conceitos de uma família de modelos. Ele tem um knob abstrato
 `quality: draft|standard|high`, e **cada gaveta traduz**:
 
 ```python
-# engines/diffusers_sdxl/config.py
+# engines/<gaveta>/config.py — exemplo de um motor de difusão
 quality_steps = {"draft": 18, "standard": 30, "high": 45}
 ```
 
@@ -185,7 +185,7 @@ Pedido humano → PromptBuilder → SemanticPrompt → Request → Engine
 O `SemanticPrompt` (§28) é estruturado e independente de tecnologia — é ali que
 mora o que o AssetFlow aprendeu sobre personagens, props e Pixel Art. O
 adapter que traduz isso para o dialeto de um modelo vive **dentro da gaveta**
-(`engines/diffusers_sdxl/prompt_adapter.py`) e some junto com ela.
+(`engines/<gaveta>/prompt_adapter.py`) e some junto com ela.
 
 Quem **aplica** o adapter é o Kernel, imediatamente antes de despachar
 (`_apply_prompt_adapter`). Isso concentra a tradução em um ponto só, evita que
@@ -282,7 +282,7 @@ asset tecnicamente válido**. Detalhes em [PIXEL_EXACT.md](PIXEL_EXACT.md).
 | §10 Engine API Version | `schemas/engine.py` (`SUPPORTED_ENGINE_API_VERSIONS`) |
 | §11 Engine Registry | `kernel/registry.py` |
 | §12–14 Resolver, prioridade, seleção manual | `kernel/resolver.py`, `config/capabilities.yaml` |
-| §15–16 Primeiro motor real | `engines/diffusers_sdxl/` |
+| §15–16 Primeiro motor real | removido na Fase 0 do plano desenhista ([PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md)); o próximo é `engines/desenhista/` |
 | §17 Estrutura de diretórios | `assetflow/generation/` |
 | §18 Proibição arquitetural | `tests/test_architecture_boundaries.py` |
 | §19–21 Request/Result universais | `schemas/request.py`, `schemas/result.py` |
@@ -292,7 +292,7 @@ asset tecnicamente válido**. Detalhes em [PIXEL_EXACT.md](PIXEL_EXACT.md).
 | §26–28 Prompt Builder, adapters, SemanticPrompt | `generation/prompting/`, `schemas/semantic_prompt.py` |
 | §29–31 LoRA, IP-Adapter, ControlNet | `EngineSupports`, `ReferenceImage`, `StructuralControl` (previstos) |
 | §32–34 Job Queue e workers | `assetflow/jobs/` |
-| §35–38 Lifecycle, lazy load, memória | `kernel/lifecycle.py`, `engines/*/loader.py` |
+| §35–38 Lifecycle, lazy load, memória | `kernel/lifecycle.py` (e o `loader.py` de cada gaveta que carregue modelo) |
 | §39–42 Storage e persistência | `assetflow/storage/` |
 | §43–47 Health, fallback, retry, cancel, timeout | `kernel/resolver.py`, `kernel/service.py`, `jobs/` |
 | §48 Observabilidade | `schemas/common.py` (`StageTimings`), `storage/records.py` |
@@ -332,8 +332,8 @@ Nenhum desses itens exigirá mudar o Engine Contract.
 
 ## 8. Próximos passos naturais
 
-1. **Motor real em produção** — instalar `[diffusers]`, habilitar
-   `diffusers-sdxl-v1` e comparar com o mock usando o histórico já persistido.
+1. **Motor real** — a gaveta `desenhista-v1`, que recebe o desenho do Claude
+   por MCP ([PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md), Fases 1 a 3).
 2. **Broker distribuído** — implementar `JobQueue` sobre Redis/Celery e um
    `JobStore` compartilhado (roteiro em `jobs/celery_adapter.py`).
 3. **Persistência real** — trocar os repositórios em memória por banco,

@@ -4,7 +4,7 @@ O resolver é o motivo pelo qual trocar de modelo é uma alteração de
 configuração, e não de código. Ele recebe uma **capacidade** e devolve uma
 **cadeia ordenada de candidatos**:
 
-    text_to_image.pixel  ->  [pixel-specialist-v2, diffusers-sdxl-v1]
+    text_to_image.pixel  ->  [mock-pixel-alt-v1, mock-image-v1]
 
 O primeiro candidato é o preferido; os demais existem para o fallback
 automático quando o preferido falha ou está indisponível.

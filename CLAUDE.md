@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (~1217 passed, 42 skipped)
+pytest -q                                # suíte completa (1112 passed)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -22,7 +22,7 @@ ruff check .                             # lint (sem config própria: defaults d
     --reload --reload-dir assetflow --reload-dir config
 ```
 
-`ruff check .` tem **190 achados pré-existentes** (nenhuma config própria, então
+`ruff check .` tem **154 achados pré-existentes** (nenhuma config própria, então
 valem os defaults, bem mais rígidos que o estilo do projeto). Compare com esse
 baseline antes de concluir que uma alteração sua introduziu lint novo — e, se
 mexer nele, atualize o número aqui: o baseline só serve enquanto estiver certo.
@@ -45,25 +45,12 @@ python scripts/preview_engine.py --engine mock-image-v1 -n 2
 python scripts/preview_engine.py --engine mock-image-v1 --profile studio_character
 ```
 
-Sempre nomeie a gaveta. `--engine all` e `--engine config` (o padrão) alcançam
-`diffusers-sdxl-v1`, que está `enabled: true` — e a primeira execução baixa
-~7GB do HuggingFace. Use-os só quando essa for a intenção.
+Sempre nomeie a gaveta. Hoje `--engine all` e `--engine config` (o padrão) só
+alcançam as gavetas de referência, mas o hábito vale para quando houver uma
+gaveta real: o script liga a gaveta nomeada e gera de verdade.
 
-Para **comparar** motores na mesma suíte de pedidos (plano de motores §19):
-
-```bash
-python scripts/benchmark_engines.py --list          # casos e motores
-python scripts/benchmark_engines.py --targets mock-image-v1
-python scripts/benchmark_engines.py --targets flux-pixel-v1,mock-image-v1
-```
-
-O alvo é **um motor**. Todos passam pelo mesmo Pixel Optimizer, então a
-diferença entre duas linhas é a diferença entre os motores — e as colunas de
-otimização dizem quanta correção a saída de cada um exigiu. Vale o mesmo
-cuidado do `preview_engine.py`, e mais um: sem `--targets`, o benchmark roda
-em **tudo**
-que estiver disponível. Com `sdpixl-v1` habilitado e configurado, o próprio
-projeto declara execuções de horas por imagem.
+O benchmark entre motores (`scripts/benchmark_engines.py`) saiu na Fase 0 do
+plano desenhista; as métricas de otimização continuam gravadas em todo job.
 
 Frontend (a partir de `frontend/`):
 
@@ -74,8 +61,25 @@ npm run build   # tsc -b && vite build
 npm run typecheck
 ```
 
-Instalação completa, incluindo a armadilha do torch CPU-only no Windows: veja
-[SETUP.md](SETUP.md).
+Instalação completa: veja [SETUP.md](SETUP.md). Não há modelo para baixar nem
+GPU para configurar — `pip install -e ".[dev]"` basta.
+
+## Plano em andamento
+
+O projeto está executando o plano
+[backend/docs/PLANO_DESENHISTA_MCP.md](backend/docs/PLANO_DESENHISTA_MCP.md),
+uma fase por vez, um commit por fase, no branch `desenhista-mcp`. O motor passa
+a ser o Claude, por um servidor MCP: a gaveta `desenhista-v1` recebe uma
+receita curta e a transforma em sprite na grade lógica. A base de práticas que
+vira `config/pixel_knowledge/` está em
+[backend/docs/PIXEL_KNOWLEDGE.md](backend/docs/PIXEL_KNOWLEDGE.md). Leia os dois
+antes de mexer numa fase.
+
+Feito: **Fase 0** (limpeza) — saíram as gavetas de difusão (`diffusers-sdxl-v1`,
+`flux-pixel-v1`), as pontes externas (`sdpixl-v1`, `pixel-forge-v1`), a de API
+paga (`gpt-image-v1`), o benchmark entre motores e o extra `diffusers` do
+`pyproject.toml`. O modo Studio (2D Normal) ficou, dormente: nenhum motor real
+o atende.
 
 ## Arquitetura
 
@@ -219,7 +223,7 @@ o documento que as docstrings citam como `plano T→J §N`.
 ### Seleção de motor
 
 A tela pergunta **uma** coisa de tecnologia: com qual motor. A pessoa escolhe —
-**Automático**, FLUX Pixel, SD-πXL, Pixel Forge ou SDXL — e a escolha é
+**Automático** ou uma das gavetas visíveis no catálogo — e a escolha é
 respeitada. Quatro regras organizam isso:
 
 1. **motor escolhido é motor usado.** Não podendo atender, o job falha dizendo
@@ -237,24 +241,20 @@ regras por tipo de asset, tamanho lógico, paleta e qualidade, cada uma com um
 obriga: um motor preferido que caia é substituído pelo fallback, porque em
 `auto` ninguém tinha escolhido.
 
-As gavetas de produção local nascem desabilitadas: cada uma exige GPU, um
-clone de projeto externo ou um binário Rust. A exceção é **`gpt-image-v1`**,
-que só precisa de rede e de uma credencial em `OPENAI_API_KEY` — é o caminho
-mais curto para gerar Pixel Art de verdade em uma máquina sem GPU.
-
-Ela não desenha na grade, e isso é o ponto: o provedor exige no mínimo 655.360
-pixels por imagem (um sprite 32×32 tem 1.024), então ela entrega a **proposta
-visual** em ~832×832 e o Pixel Exact entrega o sprite. O adapter traduz o grid
-lógico para um render que é **múltiplo inteiro** dele — a redução seguinte é
-por blocos, e blocos precisam fechar.
+**Estado atual (depois da Fase 0):** as únicas gavetas são as de referência,
+`mock-image-v1` (habilitada) e `mock-pixel-alt-v1` (desabilitada). As duas são
+`catalog.hidden`, então o catálogo da tela vem **vazio** e o seletor só mostra
+"Automático". O `engine_policy.yaml` está com `rules: []` de propósito: a regra
+geral que prefere `desenhista-v1` entra na Fase 1, junto com a gaveta. Até lá,
+"Automático" cai no roteamento por capacidade de `capabilities.yaml`.
 
 **O frontend continua sem conhecer motor**: a lista vem de
 `GET /api/generation/engines/catalog`, com nome, resumo, selos e
 disponibilidade. Nenhum id está escrito no React — é o que faz uma gaveta nova
 aparecer no seletor sozinha.
 
-Detalhes, incluindo como acrescentar a próxima gaveta e como rodar o
-benchmark: [backend/docs/ENGINES.md](backend/docs/ENGINES.md).
+Detalhes, incluindo como acrescentar a próxima gaveta:
+[backend/docs/ENGINES.md](backend/docs/ENGINES.md).
 
 ### Pixel Optimizer (`backend/assetflow/pixel/optimizer/`)
 
@@ -298,8 +298,8 @@ peça que conhece as duas pontas. Detalhes em
 
 ### Configuração (`backend/config/`)
 
-- `engines.yaml` — quais gavetas existem, modelo, device, precisão, offload.
-  Um profile de hardware ativo + alternativas comentadas.
+- `engines.yaml` — quais gavetas existem (allowlist) e como cada uma é
+  configurada. Hoje só as duas de referência.
 - `profiles.yaml` — Generation Profiles: descrevem **o que** produzir
   (resolução lógica, paleta, variações), nunca **com qual motor**.
 - `pixel_profiles.yaml` — contratos Pixel Exact (`PixelOutputSpec`): fonte dos
@@ -311,13 +311,13 @@ peça que conhece as duas pontas. Detalhes em
   "Automático", ele é o **último recurso**: quem responde primeiro é
   `engine_policy.yaml`.
 - `engine_policy.yaml` — as regras do motor no modo "Automático" (plano de
-  motores §16): tipo + tamanho + paleta → motor preferido + motivo. Ausente,
-  `auto` volta a ser só o roteamento por capacidade.
+  motores §16): tipo + tamanho + paleta → motor preferido + motivo. Ausente
+  ou sem regras (o caso atual, até a Fase 1), `auto` volta a ser só o
+  roteamento por capacidade.
 - `optimizer.yaml` — o estágio que **toda** geração Pixel atravessa (plano
   Optimizer §33 e §42): teto de iterações, revisor e o interruptor de
   instalação. Não há aqui uma chave por pedido: a otimização não é opção de
   quem pede. `enabled: false` é para diagnóstico, e o job registra `disabled`.
-- `benchmark_suite.yaml` — os casos fixos da comparação entre motores.
 - `asset_taxonomy/*.yaml` — vocabulário semântico por tipo de asset, em
   português e inglês. Um arquivo por tipo; o nome do arquivo não importa, o
   campo `type:` sim. Diretório ausente não quebra o boot: o classificador
@@ -374,27 +374,27 @@ os imports são bare specifiers que só o Vite resolve.
   teto do worker for menor, ele mata antes e os valores do YAML nunca são
   atingidos. Ao alargar um, alargue o outro (`ASSETFLOW_JOB_TIMEOUT_S`).
 - **`backend/data/` é volátil e ignorado pelo git** — assets gerados, histórico
-  e o cache do modelo (vários GB) moram lá. Nunca faça `rmtree` na pasta toda.
+  e, em instalações anteriores à Fase 0, o cache de modelos (vários GB) moram
+  lá. Nunca faça `rmtree` na pasta toda.
 - **Diferenças de hardware vão em env var, não no YAML.** `engines.yaml` é
   versionado e compartilhado; editar direto gera conflito de merge a cada pull.
   Além de `ASSETFLOW_ENGINES_ENABLED`/`_DISABLED`, as **opções** de cada gaveta
   entram por `ASSETFLOW_ENGINE_<ID>_OPTIONS` como JSON (id em maiúsculas, `-`
-  vira `_`), com merge por chave sobre o YAML. É assim que se liga o Pixel
-  Forge ou o SD-πXL, cujos caminhos de executável são diferentes em cada
-  máquina:
+  vira `_`), com merge por chave sobre o YAML. É assim que entra tudo o que
+  muda de máquina para máquina (caminhos, limites):
 
   ```bash
-  ASSETFLOW_ENGINE_PIXEL_FORGE_V1_OPTIONS='{"binary": "D:/pf/pf.exe", "args": [...]}'
+  ASSETFLOW_ENGINE_MOCK_IMAGE_V1_OPTIONS='{"simulated_latency_ms": 0}'
   ```
-- **Credencial de API nunca vai no YAML.** `gpt-image-v1` lê a chave de
-  `OPENAI_API_KEY`; o `engines.yaml` guarda apenas o **nome** da variável. E
-  cada imagem dele é cobrada — `output.variations` vira `n` na chamada.
+- **Credencial nunca vai no YAML.** Uma gaveta que precise de chave lê do
+  ambiente, e o `engines.yaml` guarda no máximo o **nome** da variável. O
+  caminho do desenhista não usa chave nenhuma.
 - **`ASSETFLOW_APP_ENV=production` remove as gavetas de referência.** Os
   mocks declaram `catalog.dev_only` e deixam de ser **registrados** fora de
-  desenvolvimento — não são apenas escondidos. Em uma máquina sem GPU e sem
-  projetos externos, isso deixa a geração **sem nenhum motor utilizável**, e
-  não existe mais um caminho alternativo que desenhe sozinho: o Pixel Optimizer
-  corrige o que um motor produziu. O padrão é `development`.
+  desenvolvimento — não são apenas escondidos. Até a gaveta desenhista existir
+  (Fase 1), isso deixa a geração **sem nenhum motor utilizável**, e não existe
+  um caminho alternativo que desenhe sozinho: o Pixel Optimizer corrige o que
+  um motor produziu. O padrão é `development`.
 - **A suíte roda com as gavetas de referência, não com as entregues.** O
   `container` de teste desabilita tudo fora de `REFERENCE_ENGINES`
   (`tests/conftest.py`). A maior parte dos testes exercita *mecanismo* —

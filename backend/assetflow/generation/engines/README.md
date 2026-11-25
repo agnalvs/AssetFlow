@@ -58,7 +58,11 @@ ou do frontend.
 |---|---|---|
 | `mock-image-v1` | Gaveta de referência sem IA. Valida toda a arquitetura sem GPU. | habilitada |
 | `mock-pixel-alt-v1` | Segunda gaveta, existe para provar a substituição (§67). | desabilitada |
-| `diffusers-sdxl-v1` | Primeira gaveta real (Diffusers/SDXL). Exige GPU e extras. | desabilitada |
+
+As gavetas de difusão, as pontes para projetos externos e a de API paga
+saíram na Fase 0 do plano desenhista
+([PLANO_DESENHISTA_MCP.md](../../../docs/PLANO_DESENHISTA_MCP.md)). A próxima
+é a `desenhista-v1`, da Fase 1.
 
 ## O que a gaveta **não** deve fazer
 

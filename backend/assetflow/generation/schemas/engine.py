@@ -65,9 +65,9 @@ class EngineFamily(str, Enum):
     """
 
     DIFFUSION = "diffusion"
-    #: Modelo nativo de sprites em resolução baixa (Pixel Forge).
+    #: Modelo treinado só em sprites, que gera direto em resolução baixa.
     NATIVE_SPRITE = "native_sprite"
-    #: Otimização iterativa por imagem (SD-πXL): lento e caro por natureza.
+    #: Otimização iterativa por imagem: lento e caro por natureza.
     OPTIMIZATION = "optimization"
     #: Motor que gera usando ferramentas em vez de uma passada de inferência.
     #:
@@ -209,7 +209,7 @@ class EngineCatalogInfo(AssetFlowModel):
     #: Avisos que precisam viajar com o motor: ``experimental``, ``lento``.
     badges: tuple[str, ...] = ()
 
-    #: O motor entrega a resolução lógica exata sozinho (SD-πXL, Pixel Forge).
+    #: O motor entrega a resolução lógica exata sozinho (desenha na grade).
     #: Falso não é defeito: o Pixel Exact é quem garante isso no fim (§8.1).
     exact_resolution: bool = False
     #: O motor aceita um limite de cores como entrada, e não só no pós.

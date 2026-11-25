@@ -11,7 +11,7 @@ O AssetFlow já tinha duas visões de motor, e nenhuma servia para a tela:
 
 Falta a terceira pergunta, que é a da pessoa na frente do seletor: *por que
 eu escolheria este?* Nenhum dos dois responde, e responder isso com um
-``if engine_id == "flux-pixel-v1"`` em algum componente é exatamente o que o
+``if engine_id == "..."`` em algum componente é exatamente o que o
 plano de motores §24 proíbe.
 
 Este módulo resolve a lacuna somando as três fontes em uma entrada só:

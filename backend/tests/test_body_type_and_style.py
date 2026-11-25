@@ -23,7 +23,6 @@ from __future__ import annotations
 import pytest
 
 from assetflow.bootstrap import AppContainer
-from assetflow.generation.engines.gpt_image.prompting import compile_prompt
 from assetflow.generation.schemas import (
     SPEC_CONSTRAINTS,
     AssetGenerationRequest,
@@ -221,101 +220,3 @@ def test_the_classification_reaches_the_interface(container: AppContainer):
     assert preview.constraints["style.outline"] == "style"
     assert preview.constraints["character.body_type"] == "semantic"
 
-
-# ---------------------------------------------------------------------------
-# O compilador de prompt usa tudo isso
-# ---------------------------------------------------------------------------
-def _prompt(**overrides) -> str:
-    base = {
-        "positive": "um lobo",
-        "negative": None,
-        "subject": "lobo cinzento",
-        "asset_type": "character",
-        "is_pixel": True,
-        "logical": (32, 32),
-        "max_colors": 8,
-        "transparent": True,
-        "view": None,
-        "seed_requested": False,
-        "body_type": "unknown",
-        "detail": "auto",
-        "outline": "auto",
-        "shading": "auto",
-        "light_direction": None,
-        "reference_count": 0,
-    }
-    base.update(overrides)
-    return compile_prompt(**base).text
-
-
-def test_the_body_shape_reaches_the_model():
-    texto = _prompt(body_type="quadruped")
-
-    assert "four-legged" in texto
-    assert "on all fours" in texto
-
-
-def test_an_unknown_body_shape_says_nothing():
-    """Sem informação, o compilador cala — e o modelo decide."""
-    texto = _prompt(body_type="unknown")
-
-    assert "four-legged" not in texto
-    assert "humanoid" not in texto
-
-
-def test_the_camera_is_stated_exactly_once():
-    """A versão anterior pedia "straight-on orthographic" e, três linhas
-    depois, "low top-down, 20 degrees" — duas ordens opostas no mesmo prompt.
-    """
-    com_vista = _prompt(view="low_top_down")
-    sem_vista = _prompt()
-
-    assert com_vista.count("Camera:") == 1
-    assert "20 degrees" in com_vista
-    assert "straight-on orthographic" not in com_vista
-
-    assert sem_vista.count("Camera:") == 1
-    assert "straight-on orthographic" in sem_vista
-
-
-def test_style_in_auto_adds_nothing_to_the_prompt():
-    """Um prompt que sempre pede "contorno seletivo" tira do modelo uma
-    decisão que ninguém pediu para tirar."""
-    texto = _prompt()
-
-    assert "outlin" not in texto.lower()
-    assert "two-tone" not in texto
-
-
-def test_the_light_direction_only_matters_with_shading():
-    """Direção de luz com sombreamento chapado é instrução contraditória."""
-    com_sombra = _prompt(shading="basic", light_direction="upper_left")
-    chapado = _prompt(shading="flat", light_direction="upper_left")
-
-    assert "upper left" in com_sombra
-    assert "upper left" not in chapado
-
-
-def test_ignored_references_produce_a_warning():
-    """Referências chegavam ao motor e eram descartadas **em silêncio**.
-
-    O campo `role` existe no pedido desde sempre e nenhuma camada o lia — uma
-    promessa que o sistema não cumpria. Enquanto o endpoint de edição não
-    estiver ligado, o mínimo é dizer que foram ignoradas.
-    """
-    compilado = compile_prompt(
-        positive="um lobo",
-        negative=None,
-        subject="lobo",
-        asset_type="character",
-        is_pixel=True,
-        logical=(32, 32),
-        max_colors=8,
-        transparent=True,
-        view=None,
-        seed_requested=False,
-        reference_count=2,
-    )
-
-    assert any("referência" in aviso for aviso in compilado.warnings)
-    assert any("2" in aviso for aviso in compilado.warnings)

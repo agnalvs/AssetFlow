@@ -103,21 +103,40 @@ def test_catalog_filters_by_capability(container: AppContainer):
 # ---------------------------------------------------------------------------
 # O campo `engine` no Final Resolved Spec (plano de motores §5)
 # ---------------------------------------------------------------------------
-def test_spec_carries_the_engine_decision(container: AppContainer):
-    """Em `auto`, a política do projeto responde — e sempre explica.
+def _uma_regra_para(container: AppContainer, engine_id: str) -> None:
+    """Dá à política do container uma regra geral que prefere ``engine_id``.
 
-    O teste habilita `flux-pixel-v1` porque a suíte roda com as gavetas de
-    referência, e as regras de `engine_policy.yaml` falam dos motores de
-    produção. Habilitar um deles é o que faz este caso exercitar a
-    configuração **entregue**, e não uma política montada no teste.
+    O ``engine_policy.yaml`` entregue está sem regras: as antigas preferiam
+    motores que saíram, e a regra da gaveta desenhista só entra junto com
+    ela. O que estes testes cobram é o **mecanismo** — uma regra que casa vira
+    o campo ``engine`` do spec, com motivo e origem —, e mecanismo se testa
+    com uma política montada no teste e um motor de referência.
+
+    A troca é feita no próprio objeto que o resolver de restrições consulta:
+    o container entrega a mesma instância como conselheiro do resolver.
     """
-    container.registry.enable("flux-pixel-v1")
+    container.engine_policy.rules = (
+        EngineRule.from_config(
+            {
+                "id": "regra_de_teste",
+                "when": {"mode": ["pixel"]},
+                "prefer": [engine_id],
+                "reason": "regra montada no teste para exercitar o modo automático",
+            },
+            index=0,
+        ),
+    )
+
+
+def test_spec_carries_the_engine_decision(container: AppContainer):
+    """Em `auto`, a política do projeto responde — e sempre explica."""
+    _uma_regra_para(container, "mock-image-v1")
     spec = container.service.resolve_spec(_request(container))
 
     assert spec.engine.selection_mode == "auto"
-    assert spec.engine.engine_id == "flux-pixel-v1"
+    assert spec.engine.engine_id == "mock-image-v1"
     # O motivo não é enfeite: é o que a tela mostra no "Motor resolvido" (§17).
-    assert spec.engine.reason
+    assert spec.engine.reason == "regra montada no teste para exercitar o modo automático"
     assert spec.source_of("engine") is SpecSource.INFERENCE
 
 
@@ -130,7 +149,7 @@ def test_choosing_automatic_is_not_choosing_an_engine(container: AppContainer):
     ninguém escolheu — e a origem existe justamente para separar essas duas
     coisas (plano T→J §16).
     """
-    container.registry.enable("flux-pixel-v1")
+    _uma_regra_para(container, "mock-image-v1")
     spec = container.service.resolve_spec(
         _request(container, engine=EngineSelector(mode="auto"))
     )

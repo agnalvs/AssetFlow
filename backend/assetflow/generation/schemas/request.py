@@ -119,8 +119,8 @@ class OutputSpec(AssetFlowModel):
     #: sendo do pós-processamento, e é ele quem garante o resultado (§8.1).
     logical_width: int | None = Field(default=None, ge=8, le=1024)
     logical_height: int | None = Field(default=None, ge=8, le=1024)
-    #: Limite de cores do asset, para motores com controle de paleta nativo
-    #: (SD-πXL, Pixel Forge). Os demais ignoram e o Pixel Exact quantiza.
+    #: Limite de cores do asset, para motores com controle de paleta nativo.
+    #: Os demais ignoram e o Pixel Exact quantiza.
     max_colors: int | None = Field(default=None, ge=2, le=256)
 
     @property

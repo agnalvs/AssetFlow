@@ -247,19 +247,18 @@ Nas métricas do job (§68): `optimizer_status`, `optimizer_iterations`,
 `optimizer_tool_calls`, `optimizer_pixels_changed`, `optimizer_reverted`,
 `quality_score_before_optimizer` e `quality_improvement`.
 
-## 11. O benchmark (§69)
+## 11. Comparar motores (§69)
 
-Todos os motores atravessam o **mesmo** Optimizer, então a diferença entre duas
-linhas da tabela é a diferença entre os motores — não entre pipelines. As
-colunas novas respondem à pergunta que interessa de verdade: *quanta correção a
-saída deste motor exigiu?*
+Todos os motores atravessam o **mesmo** Optimizer, então a diferença entre dois
+assets é a diferença entre os motores — não entre pipelines. As métricas acima
+respondem à pergunta que interessa de verdade: *quanta correção a saída deste
+motor exigiu?* Um motor que entrega sprites já limpos aparece com zero pixels
+corrigidos — e é essa a informação que a nota final, sozinha, esconderia.
 
-```bash
-python scripts/benchmark_engines.py --targets flux-pixel-v1,mock-image-v1
-```
-
-Um motor que entrega sprites já limpos aparece com zero pixels corrigidos — e é
-essa a informação que a tabela de notas finais, sozinha, esconderia.
+O script de benchmark entre motores (`scripts/benchmark_engines.py`) saiu na
+Fase 0 do plano desenhista ([PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md)):
+com uma gaveta real só, não havia o que comparar. As métricas continuam
+gravadas em todo job e no histórico.
 
 ## 12. Os testes
 

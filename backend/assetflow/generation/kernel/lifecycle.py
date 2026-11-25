@@ -292,8 +292,8 @@ class EngineHandle:
             # essa resposta virar FAILED trancava o motor para sempre: o
             # resolver recusa FAILED, então `initialize()` nunca rodava, então
             # a configuração nunca chegava, então o health check nunca podia
-            # melhorar. Foi exatamente o que manteve o Pixel Forge e o SD-πXL
-            # inutilizáveis mesmo depois de configurados.
+            # melhorar. Foi exatamente o que manteve as antigas pontes para
+            # executáveis externos inutilizáveis mesmo depois de configuradas.
             #
             # Um "indisponível" aqui significa "ainda não perguntei direito",
             # e não "quebrado". O veredito que vale é o de depois da

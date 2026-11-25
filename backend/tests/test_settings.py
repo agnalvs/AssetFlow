@@ -126,6 +126,6 @@ def test_real_project_config_is_valid():
     settings = load_settings(base_dir=BACKEND_ROOT)
     configs = engine_runtime_configs(settings)
 
-    assert "diffusers-sdxl-v1" in configs
-    assert configs["diffusers-sdxl-v1"].model.id.startswith("stabilityai/")
+    assert {"mock-image-v1", "mock-pixel-alt-v1"} <= set(configs)
     assert configs["mock-image-v1"].enabled is True
+    assert configs["mock-pixel-alt-v1"].enabled is False
