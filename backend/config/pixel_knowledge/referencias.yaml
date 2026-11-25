@@ -18,7 +18,12 @@
 # Pacote listado aqui e ausente da pasta vira aviso, e a linha do recorte sai
 # sem ele. Lista vazia: nada muda em relação a não ter referências.
 
-ativos: []
+ativos:
+  - customizable-character-pack
+  - pixel-character-base-64
+  - dungeontileset-ii
+  - kings-and-pigs
+  - ninja-adventure
 
 porte:
   # Referências de "porte parecido": altura do conteúdo dentro de
