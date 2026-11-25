@@ -200,6 +200,10 @@ class DesenhistaEngine(ImageGenerationEngine):
                 "grade": [largura, altura],
                 "camadas": len(receita.camadas),
                 "device": "cpu",
+                # Os avisos desta gaveta, separados dos que o kernel acrescenta
+                # (recurso não suportado, fallback): é daqui que o laudo do
+                # MCP lê o que a receita teve de recortado.
+                "avisos_receita": list(desenho.avisos),
             },
         )
 
@@ -208,7 +212,7 @@ def _impressao(bruta: Any) -> str:
     """Identidade da receita, estável à ordem das chaves.
 
     Permite dizer, no histórico, que dois assets saíram da mesma receita — e é
-    o que o remendo da Fase 2 (``base: <id>``) vai precisar para achar a
+    o que ajuda o remendo do MCP (``base: <id>``) a conferir a
     receita de origem.
     """
     texto = json.dumps(bruta, sort_keys=True, ensure_ascii=False, separators=(",", ":"))

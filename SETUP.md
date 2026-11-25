@@ -33,7 +33,7 @@ não exige GPU nem baixa nada.
 - **Git**
 
 A gaveta desenhista só gera a partir de uma receita, que chega pelo servidor
-MCP (Fase 2 do plano) ou, para testar, por arquivo (passo 6). As gavetas de
+MCP (passo 10) ou, para testar, por arquivo (passo 6). As gavetas de
 referência rodam o fluxo inteiro (job, fila, Pixel Exact, Pixel Optimizer,
 histórico, UI), mas o que sai delas é um padrão determinístico, não arte.
 
@@ -49,8 +49,11 @@ python -m venv .venv
 .venv\Scripts\activate          # Windows
 # source .venv/bin/activate     # Linux/macOS
 
-pip install -e ".[dev]"
+pip install -e ".[dev,mcp]"
 ```
+
+O extra `mcp` é o SDK do servidor MCP (passo 10). Sem ele, tudo funciona menos
+o desenho pela conversa, e os testes do protocolo MCP são pulados.
 
 ### 3.1 Sanidade
 
@@ -58,7 +61,7 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
-Hoje: **`1186 passed, 1 skipped`**. O número muda a cada recurso — o que
+Hoje: **`1254 passed, 1 skipped`**. O número muda a cada recurso — o que
 importa é não haver `failed`. Os testes não usam GPU nem rede.
 
 O pulado é deliberado: o caso de seed do contrato de gavetas, que a
@@ -143,7 +146,7 @@ A desenhista precisa de receita, e o botão de gerar não manda uma. Escolhida
 no seletor, ela falha com uma mensagem dizendo isso. Em Automático, ela recusa
 e o motor de referência gera no lugar, com o aviso de fallback — em
 desenvolvimento; em produção não há motor de referência, e a mensagem aparece.
-O desenho de verdade vem pela conversa com o Claude (Fase 2 do plano).
+O desenho de verdade vem pela conversa com o Claude (passo 10).
 
 Entre a descrição e o botão fica o painel **"O que o AssetFlow entendeu"**,
 fechado por padrão. Ele mostra a estrutura que o sistema montou da sua frase —
@@ -299,7 +302,73 @@ Nada disso é usado mais. Para liberar espaço, apague só a subpasta de cache �
 
 ---
 
-## 10. Onde ler mais
+## 10. Desenhar pela conversa (servidor MCP)
+
+O servidor MCP do AssetFlow deixa o Claude Code desenhar: ele consulta o
+pedido, manda a receita, recebe o laudo e corrige com remendos. Detalhes das
+ferramentas, do laudo e do remendo: [backend/docs/MCP.md](backend/docs/MCP.md).
+
+**1. Instale o SDK** (se não instalou no passo 3), com a venv ativa:
+
+```bash
+cd backend
+pip install -e ".[mcp]"
+```
+
+**2. Confira que o servidor sobe.** O comando abaixo fica parado, esperando
+mensagens — é o esperado; saia com `Ctrl+C`. Se faltar o SDK, ele diz como
+instalar e sai.
+
+```bash
+.venv\Scripts\python.exe -m assetflow.mcp
+pytest tests/test_mcp.py tests/test_mcp_servidor.py -q
+```
+
+**3. Registre no Claude Code**, num terminal aberto na **raiz do clone**, com o
+caminho absoluto do Python da venv:
+
+```bash
+claude mcp add --scope local assetflow -- <caminho-do-clone>\backend\.venv\Scripts\python.exe -m assetflow.mcp
+```
+
+- As opções vêm **antes** do nome; tudo depois de `--` é o comando do servidor.
+- `--scope local` vale só para este projeto e fica no seu `~/.claude.json`. É o
+  escopo certo porque o caminho da venv é desta máquina. Para usar em qualquer
+  pasta, use `--scope user`. Não ponha num `.mcp.json` versionado.
+- Não precisa de variável de ambiente nem de diretório de trabalho: o pacote
+  está instalado em modo editável e acha o `backend/` sozinho.
+
+**4. Verifique:**
+
+```bash
+claude mcp list            # assetflow ... ✔ Connected
+claude mcp get assetflow   # escopo e comando registrados
+```
+
+Dentro de uma sessão do Claude Code, `/mcp` mostra o `assetflow` com as três
+ferramentas: `consultar_pedido`, `desenhar` e `ver_asset`.
+
+**5. Teste na conversa.** Peça, por exemplo:
+
+> Usando o AssetFlow, desenhe uma poção vermelha 16x16 com contorno escuro e
+> me mostre o laudo. Depois troque o líquido para verde com um remendo.
+
+O Claude deve chamar `consultar_pedido`, depois `desenhar` com a receita, e
+`desenhar` de novo com `base`. Os PNGs ficam em
+`backend/data/assets/projects/mcp/jobs/<job>/000.png`, e o laudo traz o caminho.
+
+**Depois de mudar código ou `config/*.yaml`**, reinicie a sessão do Claude
+Code (ou reconecte o servidor pelo `/mcp`): o processo do servidor carrega
+tudo uma vez, quando sobe.
+
+**Se aparecer `✘ Failed to connect`**, rode o comando registrado à mão (passo
+2): o erro de verdade aparece no terminal.
+
+**Para remover:** `claude mcp remove assetflow`.
+
+---
+
+## 11. Onde ler mais
 
 | Arquivo | Assunto |
 |---|---|
@@ -309,6 +378,7 @@ Nada disso é usado mais. Para liberar espaço, apague só a subpasta de cache �
 | [backend/docs/ARCHITECTURE.md](backend/docs/ARCHITECTURE.md) | A infraestrutura de geração: trocar o motor sem tocar no produto. |
 | [backend/docs/ENGINES.md](backend/docs/ENGINES.md) | Catálogo, modo Automático e como acrescentar uma gaveta. |
 | [backend/docs/DESENHISTA.md](backend/docs/DESENHISTA.md) | O formato da receita de desenho da gaveta `desenhista-v1`. |
+| [backend/docs/MCP.md](backend/docs/MCP.md) | O servidor MCP: ferramentas, laudo e remendo. |
 | [backend/docs/PIXEL_EXACT.md](backend/docs/PIXEL_EXACT.md) | A tecnologia de Pixel Art: por que "parecer Pixel Art" não basta. |
 | [CLAUDE.md](CLAUDE.md) | Mapa curto do repositório e as armadilhas conhecidas. |
 | `backend/config/*.yaml` | Gavetas, Generation Profiles, contratos Pixel Exact e capacidades — cada arquivo comentado. |

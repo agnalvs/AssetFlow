@@ -14,7 +14,7 @@ como para qualquer motor.
 
 Em `engine_options["desenhista-v1"]["receita"]`, um campo que o pedido já
 levava da API até a gaveta (`AssetGenerationRequest.engine_options`). Quem
-manda é o servidor MCP (Fase 2). O botão **Gerar** da tela não manda receita,
+manda é o servidor MCP ([MCP.md](MCP.md)). O botão **Gerar** da tela não manda receita,
 e a gaveta recusa com uma mensagem em português dizendo isso.
 
 O **tamanho da grade não vem da receita**. Ele vem do `FinalResolvedSpec`, como
@@ -89,7 +89,7 @@ mora na estante, não na gaveta.
 
 Grupos de operações **com nome**, aplicados em ordem sobre a mesma grade — a
 camada seguinte pinta por cima. O nome é único na receita: é por ele que o
-remendo da Fase 2 (`base: <id>`) troca só a camada `"brilho"` sem reenviar o
+remendo do MCP (`base: <id>`, [MCP.md](MCP.md) §3) troca só a camada `"brilho"` sem reenviar o
 resto. Sem `nome`, a camada se chama `"camada N"`.
 
 ### Espelho
@@ -125,9 +125,11 @@ Origem no canto superior esquerdo, x para a direita, y para baixo — como no
 | `px` | `["..kk..", …]` | `em: [x, y]` | uma string por linha a partir de `em`; `.` mantém o que está embaixo, `-` apaga |
 
 O `balde` enxerga tudo o que já foi pintado — pelas camadas anteriores e pelas
-operações anteriores da mesma camada. Numa camada espelhada, a cópia só
-acontece no fim: um `balde` ali enxerga o desenho **antes** do espelho. Por
-isso a poção pinta a superfície numa camada espelhada e o líquido em outra.
+operações anteriores da mesma camada. **Ele não pode ficar em camada com
+`espelho`**: ali a cópia só acontece no fim, o `balde` enxergaria o desenho
+antes dela e vazaria pelo lado ainda vazio. A receita é recusada com erro, e
+o caminho é o da poção: a superfície numa camada espelhada, o `balde` do
+líquido na camada seguinte, sem espelho.
 
 ## 3. O que a gaveta entrega
 
@@ -157,7 +159,8 @@ Quem lê a mensagem é o Claude, que corrige e manda de novo. Toda mensagem diz
   formato `"#rrggbb"`;
 - cor que não está na paleta, operação sem forma ou com duas, números errados;
 - `px` com caractere fora da paleta, ou que só tem `.`;
-- nome de camada repetido, `espelho` desconhecido;
+- nome de camada repetido, `espelho` desconhecido, `balde` em camada com
+  `espelho`;
 - operação **inteira** fora da grade, `balde` fora dela, `grade` diferente do
   pedido;
 - mais cores usadas do que o `max_colors` do spec;

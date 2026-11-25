@@ -26,6 +26,12 @@ dev = [
     "pytest>=8.0",
     "httpx>=0.27",
 ]
+# Servidor MCP do AssetFlow (`python -m assetflow.mcp`, plano desenhista §4,
+# Fase 2): o Claude desenha pela conversa. A v2 do SDK trocou `FastMCP` por
+# `MCPServer` e removeu o caminho antigo, daí o teto em <3.
+mcp = [
+    "mcp>=2.3,<3",
+]
 # Uma gaveta que precise de biblioteca própria declara um extra aqui, com o
 # nome dela. IMPORTANTE (regra de ouro §74 do plano): essas bibliotecas só
 # podem ser importadas de dentro de `assetflow/generation/engines/<gaveta>/`,

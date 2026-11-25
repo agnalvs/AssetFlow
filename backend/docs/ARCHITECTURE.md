@@ -299,6 +299,7 @@ asset tecnicamente válido**. Detalhes em [PIXEL_EXACT.md](PIXEL_EXACT.md).
 | §51–55 API | `assetflow/api/` |
 | §56–59 Pipeline Pixel e pós-processamento | `pipelines/pixel/`, `postprocessing/pixel/` |
 | Plano Pixel §1–110 Pixel Exact | `assetflow/pixel/`, `config/pixel_profiles.yaml` — ver [PIXEL_EXACT.md](PIXEL_EXACT.md) |
+| Plano desenhista, Fase 2 — servidor MCP | `assetflow/mcp/` — ver [MCP.md](MCP.md) |
 | Plano T→J §1–46 Final Resolved Spec | `generation/spec/`, `schemas/resolved_spec.py`, `config/asset_taxonomy/` — ver [RESOLVED_SPEC.md](RESOLVED_SPEC.md) |
 | §60–61 Studio 2D | `pipelines/studio/` |
 | §63–65 Plugins e configuração | `kernel/discovery.py`, `config/`, `settings.py` |
@@ -332,9 +333,9 @@ Nenhum desses itens exigirá mudar o Engine Contract.
 
 ## 8. Próximos passos naturais
 
-1. **Desenho pela conversa** — o servidor MCP que leva a receita do Claude à
-   gaveta `desenhista-v1` ([PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md),
-   Fases 2 e 3).
+1. **Base de conhecimento** — `config/pixel_knowledge/`, o recorte que o
+   servidor MCP entrega ao Claude junto com o pedido
+   ([PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md), Fase 3).
 2. **Broker distribuído** — implementar `JobQueue` sobre Redis/Celery e um
    `JobStore` compartilhado (roteiro em `jobs/celery_adapter.py`).
 3. **Persistência real** — trocar os repositórios em memória por banco,

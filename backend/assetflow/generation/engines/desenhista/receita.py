@@ -210,6 +210,18 @@ def _ler_camada(bruta: Any, indice: int, paleta: dict[str, RGB]) -> Camada:
         _ler_operacao(op, f"{onde}.ops[{posicao}]", paleta)
         for posicao, op in enumerate(ops_brutas)
     )
+    if espelho is not None:
+        for op in ops:
+            if op.forma == "balde":
+                # O balde enxerga a grade *antes* do espelho: numa camada
+                # espelhada ele vaza pelo lado que ainda não foi desenhado, e
+                # a cópia leva o vazamento junto. Melhor recusar do que deixar
+                # o desenho depender dessa ordem.
+                raise ReceitaInvalida(
+                    f"{op.caminho}: 'balde' não pode ficar em camada com 'espelho' — "
+                    "ele preenche antes da cópia e vazaria pelo lado ainda vazio; "
+                    "ponha o balde numa camada sem espelho, depois desta"
+                )
     return Camada(nome=nome, ops=ops, espelho=espelho)
 
 

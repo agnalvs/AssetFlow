@@ -236,6 +236,33 @@ def test_espelho_so_vale_para_a_propria_camada():
     assert _grade(receita, 4, 1) == ["ab.a"]
 
 
+def test_balde_em_camada_espelhada_e_erro():
+    """O balde preenche antes da cópia: vazaria pelo lado ainda vazio."""
+    receita = _receita(
+        _camada(
+            {"ret": [0, 0, 3, 3], "cor": "k", "contorno": True},
+            {"balde": [1, 1], "cor": "a"},
+            nome="corpo",
+            espelho="x",
+        )
+    )
+    with pytest.raises(ReceitaInvalida) as erro:
+        ler_receita(receita)
+    mensagem = str(erro.value)
+    assert "camadas[0] ('corpo').ops[1] (balde)" in mensagem
+    assert "não pode ficar em camada com 'espelho'" in mensagem
+
+
+def test_balde_depois_da_camada_espelhada_funciona():
+    """O caminho que a mensagem de erro indica: o balde numa camada seguinte."""
+    receita = _receita(
+        _camada({"linha": [0, 0, 0, 2, 2, 2], "cor": "k"}, {"linha": [0, 0, 2, 0], "cor": "k"},
+                nome="borda", espelho="x"),
+        _camada({"balde": [2, 1], "cor": "a"}, nome="miolo"),
+    )
+    assert _grade(receita, 5, 3) == ["kkkkk", "kaaak", "kkkkk"]
+
+
 def test_a_pocao_de_exemplo():
     """O exemplo que a documentação mostra é o que a gaveta desenha."""
     receita = json.loads(POCAO.read_text(encoding="utf-8"))

@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1186 passed, 1 skipped)
+pytest -q                                # suíte completa (1254 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -20,7 +20,15 @@ ruff check .                             # lint (sem config própria: defaults d
 # API
 .venv\Scripts\python.exe -m uvicorn assetflow.main:app --port 8000 \
     --reload --reload-dir assetflow --reload-dir config
+
+# Servidor MCP (stdio; fica parado esperando o Claude Code — Ctrl+C sai)
+.venv\Scripts\python.exe -m assetflow.mcp
 ```
+
+O servidor MCP precisa do extra `mcp` (`pip install -e ".[mcp]"`); sem ele,
+`tests/test_mcp_servidor.py` é pulado e o resto da suíte roda igual. Ele carrega
+código e `config/*.yaml` uma vez, quando sobe: depois de mudar qualquer um,
+reinicie a sessão do Claude Code (ou reconecte pelo `/mcp`).
 
 `ruff check .` tem **154 achados pré-existentes** (nenhuma config própria, então
 valem os defaults, bem mais rígidos que o estilo do projeto). Compare com esse
@@ -66,7 +74,8 @@ npm run typecheck
 ```
 
 Instalação completa: veja [SETUP.md](SETUP.md). Não há modelo para baixar nem
-GPU para configurar — `pip install -e ".[dev]"` basta.
+GPU para configurar — `pip install -e ".[dev,mcp]"` basta. O registro do
+servidor MCP no Claude Code está no SETUP.md §10.
 
 ## Plano em andamento
 
@@ -92,7 +101,22 @@ Feito:
   Formato, espelho por camada, erros e avisos:
   [backend/docs/DESENHISTA.md](backend/docs/DESENHISTA.md). O rasterizador
   mora **dentro** da gaveta: o teste de fronteiras proíbe gaveta importar
-  `assetflow.pixel`, então o `PixelCanvas` não é reusado.
+  `assetflow.pixel`, então o `PixelCanvas` não é reusado. `balde` em camada
+  com `espelho` é erro (o balde enxergaria o desenho antes da cópia).
+- **Fase 2** (servidor MCP) — `assetflow/mcp/`, ao lado da API: outra porta de
+  entrada para o mesmo `GenerationService`, pelo mesmo `bootstrap`, sem HTTP.
+  Ferramentas `consultar_pedido`, `desenhar` e `ver_asset`; laudo em texto;
+  remendo com `base: <id>`. Detalhes: [backend/docs/MCP.md](backend/docs/MCP.md).
+  Três regras ao mexer ali:
+  - **o MCP pede `desenhista-v1` pelo nome, com `allow_fallback=False`** — um
+    desenho que falha não vira saída de mock;
+  - **o laudo só lê** o spec e os relatórios gravados (`validation.json`,
+    `optimizer.json`, `engine_output.json`) e só dá posição de problema que o
+    validador expõe — o contorno fragmentado não tem;
+  - **`servico.py` não importa o SDK**; só `servidor.py` importa. É o que deixa
+    o pacote importável e testável sem o extra `mcp`. E `servidor.py` não usa
+    `from __future__ import annotations`: o SDK avalia as anotações das
+    ferramentas, e a descrição de `perfil` é variável local.
 
 ## Arquitetura
 

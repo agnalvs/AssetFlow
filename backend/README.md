@@ -43,7 +43,7 @@ python -m venv .venv
 .venv\Scripts\activate            # Windows;  source .venv/bin/activate no Linux/macOS
 pip install -e ".[dev]"
 
-pytest                             # 1186 testes sem GPU e sem rede (+1 pulado)
+pytest                             # 1254 testes sem GPU e sem rede (+1 pulado)
 uvicorn assetflow.main:app --reload
 ```
 
@@ -103,6 +103,7 @@ backend/
 │   ├── jobs/                     # fila, worker, retry, cancelamento
 │   ├── storage/                  # imagens, thumbnails, metadados, histórico
 │   ├── api/                      # FastAPI (casca fina)
+│   ├── mcp/                      # servidor MCP: o Claude desenha pela conversa
 │   ├── settings.py               # YAML + variáveis de ambiente
 │   └── bootstrap.py              # composition root
 │
@@ -274,6 +275,7 @@ Destaques:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — decisões, camadas e o mapa
   plano → código.
+- [`docs/MCP.md`](docs/MCP.md) — o servidor MCP: ferramentas, laudo e remendo.
 - [`docs/DESENHISTA.md`](docs/DESENHISTA.md) — a receita de desenho da gaveta
   `desenhista-v1`.
 - [`assetflow/generation/engines/README.md`](assetflow/generation/engines/README.md)

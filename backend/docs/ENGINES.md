@@ -56,7 +56,8 @@ atender, diz isso em vez de entregar outro em silêncio.
 MCP)".** A desenhista apareceu ali sozinha, pelo manifesto, sem mudança no
 frontend. As gavetas de referência ficam fora da vitrine (`catalog.hidden`).
 
-A desenhista só desenha a partir de uma receita, e a tela não manda receita.
+A desenhista só desenha a partir de uma receita, e a tela não manda receita —
+quem manda é o servidor MCP, pela conversa com o Claude ([MCP.md](MCP.md)).
 Escolhida no seletor, ela falha com a mensagem dela (regra 1: motor escolhido
 é motor usado). Em "Automático", ela recusa e o fallback entra — em
 desenvolvimento, nos mocks; em produção não há mocks, e a mensagem chega à
