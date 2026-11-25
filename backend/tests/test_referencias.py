@@ -334,6 +334,41 @@ def test_importacao_recusa_o_que_falta_e_o_que_nao_casa(tmp_path: Path):
         _pacote(raiz, origem, "duas-vezes", (Parte("**", "character"),))
 
 
+def test_excluir_tira_arquivos_de_qualquer_parte_na_importacao_e_na_medicao(tmp_path: Path):
+    origem = tmp_path / "baixado"
+    _png(_figura(14, 8, (16, 16)), origem / "Monstros" / "Slime" / "SpriteSheet.png")
+    _png(_figura(30, 30, (38, 38)), origem / "Monstros" / "Slime" / "Faceset.png")
+    _png(_figura(10, 4, (16, 16)), origem / "Itens" / "Espada" / "Sprite.png")
+    _png(_figura(12, 4, (16, 16)), origem / "Itens" / "Espada" / "SpriteInHand.png")
+    _png(_figura(30, 30, (38, 38)), origem / "Retratos" / "Faceset.png")  # fora das partes
+    raiz = tmp_path / "referencias"
+
+    relatorio = importar(
+        origem,
+        raiz,
+        pacote="com-exclusao",
+        fonte="https://exemplo.invalid",
+        autor="Fulano",
+        licenca="CC0-1.0",
+        licenca_url="https://exemplo.invalid/licenca",
+        partes=(Parte("Monstros/**", "character"), Parte("Itens/*/**", "prop")),
+        excluir=("**/Faceset.png", "**/SpriteInHand.png"),
+    )
+
+    assert (relatorio.copiados, relatorio.excluidos) == (2, 2)
+    manifesto = ler_manifesto(raiz / "com-exclusao")
+    assert manifesto.excluir == ("**/Faceset.png", "**/SpriteInHand.png")
+    assert manifesto.parte_de("Monstros/Slime/Faceset.png") is None
+    assert manifesto.parte_de("Monstros/Slime/SpriteSheet.png").tipo == "character"
+
+    # Um arquivo excluído que esteja em original/ (copiado à mão, por exemplo)
+    # também fica fora da medição.
+    _png(_figura(30, 30, (38, 38)), raiz / "com-exclusao" / "original" / "Monstros" / "Boss" / "Faceset.png")
+    from assetflow.referencias import medir_pacote
+
+    assert medir_pacote(raiz / "com-exclusao")["por_tipo"] == {"character": 1, "prop": 1}
+
+
 def test_quadro_individual_ganha_do_mesmo_quadro_no_atlas(tmp_path: Path):
     origem = tmp_path / "baixado"
     f0 = _figura(12, 8, (16, 16))

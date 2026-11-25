@@ -18,6 +18,12 @@ node_modules/
 venv/
 env/
 
+# Variáveis de ambiente locais: podem ter chave ou caminho desta máquina. O
+# repositório é público. O exemplo, sem segredo, continua versionado.
+.env
+.env.*
+!.env.example
+
 # Dados gerados em runtime (assets, thumbnails, histórico, caches de modelo)
 backend/data/
 

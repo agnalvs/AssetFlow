@@ -164,6 +164,10 @@ class Manifesto:
     importado_em: str = ""
     origem: str = ""
     origem_sha256: str = ""
+    #: Globs (mesma regra das partes) de arquivos que não entram, em parte
+    #: nenhuma — retratos, sprites "na mão" e afins que casam com um padrão
+    #: largo como ``Monster/**``. Valem na importação e na medição.
+    excluir: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not _ID.match(self.id):
@@ -184,8 +188,16 @@ class Manifesto:
     def attribution_required(self) -> bool:
         return self.colecao != "principal"
 
+    def excluido(self, caminho: str) -> bool:
+        return any(_glob(padrao).fullmatch(caminho) for padrao in self.excluir)
+
     def parte_de(self, caminho: str) -> Parte | None:
-        """A primeira parte que casa com o caminho; a ordem do manifesto manda."""
+        """A primeira parte que casa com o caminho; a ordem do manifesto manda.
+
+        Arquivo que casa com ``excluir`` não tem parte, qualquer que seja ela.
+        """
+        if self.excluido(caminho):
+            return None
         return next((parte for parte in self.partes if parte.casa(caminho)), None)
 
     def como_dict(self) -> dict[str, Any]:
@@ -200,6 +212,7 @@ class Manifesto:
             "colecao": self.colecao,
             "attribution_required": self.attribution_required,
             "partes": [parte.como_dict() for parte in self.partes],
+            "excluir": list(self.excluir),
             "observacoes": self.observacoes,
             "importado_em": self.importado_em,
             "origem": self.origem,
@@ -251,7 +264,16 @@ def ler_manifesto(pasta: Path) -> Manifesto:
         importado_em=str(dados.get("importado_em") or ""),
         origem=str(dados.get("origem") or ""),
         origem_sha256=str(dados.get("origem_sha256") or ""),
+        excluir=_padroes(dados.get("excluir"), f"{caminho}: excluir"),
     )
+
+
+def _padroes(bruto: Any, onde: str) -> tuple[str, ...]:
+    if bruto is None:
+        return ()
+    if not isinstance(bruto, list) or not all(isinstance(p, str) and p.strip() for p in bruto):
+        raise ReferenciaInvalida(f"{onde}: lista de padrões, como [\"**/Faceset.png\"]")
+    return tuple(p.strip() for p in bruto)
 
 
 # ---------------------------------------------------------------------------

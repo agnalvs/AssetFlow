@@ -3,6 +3,7 @@
     importar <zip|pasta> --pacote ID --fonte URL --autor NOME --licenca SPDX
              --licenca-url URL [--licenca-verificada-em AAAA-MM-DD]
              (--parte PADRAO:TIPO[:CORPO][:QUADRO] ... | --tipo TIPO [--corpo C] [--quadro LxA])
+             [--excluir PADRAO ...]
              [--nome NOME] [--obs TEXTO] [--substituir]
     medir [PACOTE ...]
     listar
@@ -58,6 +59,7 @@ def _importar(a: argparse.Namespace, raiz: Path, _settings) -> int:
         Path(a.origem),
         raiz,
         pacote=a.pacote,
+        excluir=tuple(a.excluir or ()),
         nome=a.nome or "",
         fonte=a.fonte,
         autor=a.autor,
@@ -74,6 +76,8 @@ def _importar(a: argparse.Namespace, raiz: Path, _settings) -> int:
           f"-> coleção {manifesto.colecao}"
           + (" · attribution_required" if manifesto.attribution_required else ""))
     print(f"  {relatorio.copiados} PNG e {relatorio.textos} texto(s) de licença copiados")
+    if relatorio.excluidos:
+        print(f"  excluídos por --excluir: {relatorio.excluidos} PNG")
     if relatorio.ignorados:
         print("  ignorados: " + ", ".join(f"{n} {ext}" for ext, n in relatorio.ignorados.most_common()))
     if relatorio.recusados:
@@ -148,6 +152,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--licenca-url", required=True)
     p.add_argument("--licenca-verificada-em", help="AAAA-MM-DD; padrão: hoje")
     p.add_argument("--parte", action="append", help="PADRAO:TIPO[:CORPO][:QUADRO], repetível")
+    p.add_argument("--excluir", action="append",
+                   help="PADRAO de arquivo que não entra em parte nenhuma, repetível")
     p.add_argument("--tipo", help="tipo do pacote inteiro, se não houver --parte")
     p.add_argument("--corpo")
     p.add_argument("--quadro", help="LxA das folhas, se não houver --parte")

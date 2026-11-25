@@ -61,6 +61,8 @@ class Importacao:
     pacote: str
     copiados: int = 0
     textos: int = 0
+    #: Arquivos que casariam com uma parte, mas casam com ``excluir``.
+    excluidos: int = 0
     ignorados: Counter = field(default_factory=Counter)
     recusados: list[str] = field(default_factory=list)
     medicao: dict[str, Any] = field(default_factory=dict)
@@ -79,6 +81,7 @@ def importar(
     licenca: str,
     licenca_url: str,
     partes: tuple[Parte, ...],
+    excluir: tuple[str, ...] = (),
     nome: str = "",
     verificada_em: str | None = None,
     observacoes: str = "",
@@ -101,6 +104,7 @@ def importar(
         importado_em=datetime.now(UTC).isoformat(timespec="seconds"),
         origem=origem.name,
         origem_sha256=_sha256(origem) if origem.is_file() else "",
+        excluir=excluir,
     )
 
     destino = raiz / pacote
@@ -124,6 +128,13 @@ def importar(
             continue
         texto = _TEXTO_DE_LICENCA.search(relativo.name) is not None and tamanho <= _TEXTO_MAX
         imagem = relativo.suffix.lower() == ".png" and manifesto.parte_de(str(relativo)) is not None
+        if (
+            relativo.suffix.lower() == ".png"
+            and manifesto.excluido(str(relativo))
+            and any(parte.casa(str(relativo)) for parte in manifesto.partes)
+        ):
+            relatorio.excluidos += 1
+            continue
         if not (texto or imagem):
             relatorio.ignorados[relativo.suffix.lower() or "(sem extensão)"] += 1
             continue

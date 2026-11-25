@@ -1,6 +1,6 @@
 # Relatório de estado — branch `desenhista-mcp`
 
-Data: 2026-11-25. Base: `main` em `be3e9aa`. Escrito para quem revisa pelo
+Data: 2026-11-25 (atualizado depois da revisão). Base: `main` em `be3e9aa`. Escrito para quem revisa pelo
 GitHub, sem acesso à máquina onde o trabalho foi feito. Onde um número veio de
 dado que só existe nessa máquina (assets gerados, pacotes de referência), o
 texto diz isso.
@@ -30,7 +30,8 @@ falhas e com o ruff no mesmo baseline de 154 achados.
 | `83ad35a` | Ajuste da Fase 3 | A regra "vão entre braço e tronco e entre as pernas" passa a valer só com o membro à mostra. | 1343 / 1 |
 | `8520337` | Ajuste da Fase 3 | A linha `quadro:` deixa de afirmar o vão do braço como exigência. | 1343 / 1 |
 | `0e67bc8` | Adiantado antes da Fase 4 | Biblioteca de referências: `assetflow/referencias/` (importar, medir, somar, calibrar), `config/pixel_knowledge/referencias.yaml`, linha `referências:` no recorte, ferramenta `ver_referencia`. | 1410 / 1 |
-| (este) | Estado | Lista de ativos com os cinco pacotes importados, `PIXEL_STYLES.md`, `REFERENCIAS_FONTES.md` e este relatório. Nenhum código. | 1410 / 1 |
+| `d77cb6a` | Estado | Lista de ativos com os cinco pacotes importados, `PIXEL_STYLES.md`, `REFERENCIAS_FONTES.md` e este relatório. Nenhum código. | 1410 / 1 |
+| (este) | Correções da revisão | Pendências 1, 2 e 12: Retraissance reimportada com quadro 64×128; importador ganha `--excluir` (com teste) e o Ninja Adventure é reimportado sem `Faceset.png` e `SpriteInHand.png`; `calibrar` refeito; `.env` e `.env.*` no `.gitignore`, `.env.example` continua versionado. | 1411 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -216,8 +217,8 @@ O cavaleiro em quadro 48×48 (`asset_15607e958c4f`, aprovado com 84):
 ### Exemplo real de resposta
 
 `consultar_pedido("cavaleiro 32x32, 8 cores, sem fundo")`, com o código deste
-branch e os cinco pacotes de referência ativos (cerca de 3.200 caracteres; o
-recorte, a partir de `conhecimento:`, tem ~2.300):
+branch e os cinco pacotes de referência ativos (3.089 caracteres; o recorte, a
+partir de `conhecimento:`, tem 2.260):
 
 ```text
 pedido: cavaleiro 32x32, 8 cores, sem fundo (perfil pixel_character_32)
@@ -245,11 +246,11 @@ cores: até 8, contorno incluído · paleta-mestra endesga-32, rampas do escuro 
   tecido_roxo #3e2731 #68386c #b55088 #f6757a · folha #193c3e #265c42 #3e8948 #63c74d
 silhueta: arma e escudo fora do corpo, com vão de 1 px, mudando o contorno · o equipamento muda o contorno do corpo (ombreiras, elmo com crista, capa), não só a cor por dentro · uma assimetria intencional: pose, arma, cabelo ou capa · vão entre braço e tronco e entre as pernas quando a roupa deixa o membro à mostra; com manto, capa, vestido ou roupa larga, vale a silhueta da roupa · partes vizinhas com valores diferentes, antes de matizes diferentes
 camadas: pernas, tronco, braco_dir, braco_esq, cabeca (direita e esquerda do personagem) · a receita do molde-base vem com molde=true
-referências: estilo de 2807 quadros (5 pacotes, peso igual): contorno escuro único em 75% (cor mais comum #222222) · 3 tons por grupo de matiz (mediana); porte de 23–33 px de altura, 518 quadros (4 pacotes, peso igual): 6–20 cores (mediana 11) · largura 0,79× a altura · preenchimento 63% da caixa
+referências: estilo de 2751 quadros (5 pacotes, peso igual): contorno escuro único em 75% (cor mais comum #222222) · 3 tons por grupo de matiz (mediana); porte de 23–33 px de altura, 429 quadros (4 pacotes, peso igual): 6–20 cores (mediana 13) · largura 0,69× a altura · preenchimento 63% da caixa
 ```
 
-Atenção: a parte "porte" desta linha está contaminada por um erro de
-importação (seção 12, item 1).
+Atenção: dos 429 quadros de porte, 400 são de um pacote só e 1 é de outro; com
+peso igual por pacote, esse 1 quadro pesa como os 400 (seção 12, item 1).
 
 ---
 
@@ -309,12 +310,15 @@ arquivos originais são de terceiros e não estão no repositório.
 | Pacote | Autor | Página | Quadros únicos | Por tipo (corpo) | Repetidos |
 |---|---|---|---|---|---|
 | `customizable-character-pack` | Ordinary Bumblebee | ordinary-bumblebee.itch.io/customizable-character-pack | 400 | character/humanoid 400 | 200 |
-| `pixel-character-base-64` | Retraissance | retraissance.itch.io/pixel-character-base-animations-64x64 | 121 | character/humanoid 121 ⚠ | 16 |
+| `pixel-character-base-64` | Retraissance | retraissance.itch.io/pixel-character-base-animations-64x64 | 65 | character/humanoid 65 (quadros de 64×128) | 4 |
 | `dungeontileset-ii` | 0x72 | 0x72.itch.io/dungeontileset-ii | 339 | character/humanoid 90, character 172, prop 35, tile 42 | 10 |
 | `kings-and-pigs` | Pixel Frog | pixelfrog-assets.itch.io/kings-and-pigs | 282 | character/humanoid 40, character 111, prop 17, tile 114 | 25 |
-| `ninja-adventure` | pixel-boy | pixel-boy.itch.io/ninja-adventure-asset-pack | 5.397 | character/humanoid 2.156, character 458, prop 141, tile 2.642 | 974 |
+| `ninja-adventure` | pixel-boy | pixel-boy.itch.io/ninja-adventure-asset-pack | 5.311 | character/humanoid 2.156, character 392, prop 121, tile 2.642 | 974 |
 
-⚠ Medido com a grade errada (seção 12, item 1).
+O Ninja Adventure foi importado com `--excluir "**/Faceset.png" --excluir
+"**/SpriteInHand.png"`: 86 PNG ficaram de fora (66 retratos de monstros e 20
+sprites de arma "na mão"). A Retraissance foi importada com `--quadro 64x128`;
+a altura mediana do conteúdo é 60 px.
 
 Lista de ativos em `config/pixel_knowledge/referencias.yaml`:
 `customizable-character-pack`, `pixel-character-base-64`, `dungeontileset-ii`,
@@ -334,14 +338,14 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 ## Pacotes
 
 - `customizable-character-pack` — Ordinary Bumblebee, CC0-1.0, 400 quadros
-- `pixel-character-base-64` — Retraissance, CC0-1.0, 121 quadros
+- `pixel-character-base-64` — Retraissance, CC0-1.0, 65 quadros
 - `dungeontileset-ii` — 0x72, CC0-1.0, 339 quadros
 - `kings-and-pigs` — Pixel Frog, CC0-1.0, 282 quadros
-- `ninja-adventure` — pixel-boy, CC0-1.0, 5397 quadros
+- `ninja-adventure` — pixel-boy, CC0-1.0, 5311 quadros
 
 ## humanóide 16x16
 
-2807 quadros de estilo; 2168 de porte parecido (12–16 px de altura).
+2751 quadros de estilo; 2165 de porte parecido (12–16 px de altura).
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
@@ -352,13 +356,13 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 | cabecas | 2 a 3 | — | — | não medida: exige separar a cabeça |
 | olho_px | 1×1 | — | — | não medida: exige achar o olho |
 | braco_px | 1 | — | — | não medida: exige separar o braço |
-| tons_por_material | 2 | 2–3–4 (n=2807, 5 pac.) | 3 | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 2 | 2–3–4 (n=2751, 5 pac.) | 3 | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 14 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
-| cores por quadro (informativo) | — | 7–8–10 (n=2168, 3 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
+| cores por quadro (informativo) | — | 7–8–8 (n=2165, 2 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
 
 ## humanóide 32x32
 
-2807 quadros de estilo; 518 de porte parecido (23–33 px de altura).
+2751 quadros de estilo; 429 de porte parecido (23–33 px de altura).
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
@@ -369,18 +373,18 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 | cabecas | 2,8 | — | — | não medida: exige separar a cabeça |
 | folga_topo_px | 2 | — | — | não comparável: depende do quadro |
 | largura_cabeca_px | 12 | — | — | não medida: exige separar a cabeça |
-| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~22 px (com braços, arma e pose) |
+| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~19 px (com braços, arma e pose) |
 | largura_braco_px | 5 | — | — | não medida: exige separar o braço |
 | largura_perna_px | 5 | — | — | não medida: exige separar a perna |
 | vao_braco_px | 1 | — | — | não medida: exige separar o braço |
 | olho_px | 2×2 | — | — | não medida: exige achar o olho |
-| tons_por_material | 3 | 2–3–4 (n=2807, 5 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 3 | 2–3–4 (n=2751, 5 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 30 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
-| cores por quadro (informativo) | — | 6–11–20 (n=518, 4 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
+| cores por quadro (informativo) | — | 6–13–20 (n=429, 4 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
 
 ## humanóide 48x48 (corpo 32x32)
 
-2807 quadros de estilo; 518 de porte parecido (23–33 px de altura).
+2751 quadros de estilo; 429 de porte parecido (23–33 px de altura).
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
@@ -391,35 +395,35 @@ foi alterado. Medidas de conteúdo incluem chapéu, penacho e arma.
 | cabecas | 2,8 | — | — | não medida: exige separar a cabeça |
 | folga_topo_px | 2 | — | — | não comparável: depende do quadro |
 | largura_cabeca_px | 12 | — | — | não medida: exige separar a cabeça |
-| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~22 px (com braços, arma e pose) |
+| largura_tronco_px | 12 | — | — | não medida: exige separar o tronco; o conteúdo do mesmo porte tem largura de ~19 px (com braços, arma e pose) |
 | largura_braco_px | 5 | — | — | não medida: exige separar o braço |
 | largura_perna_px | 5 | — | — | não medida: exige separar a perna |
 | vao_braco_px | 1 | — | — | não medida: exige separar o braço |
 | olho_px | 2×2 | — | — | não medida: exige achar o olho |
-| tons_por_material | 3 | 2–3–4 (n=2807, 5 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 3 | 2–3–4 (n=2751, 5 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 46 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
-| cores por quadro (informativo) | — | 6–11–20 (n=518, 4 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
+| cores por quadro (informativo) | — | 6–13–20 (n=429, 4 pac.) | — | o limite vem do pedido; serve de régua para o 8 ou 12 de costume |
 
 ## objeto 16x16
 
-193 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
+173 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
 | margem_px | 1 | — | — | não comparável: depende do quadro |
 | ocupacao_min | 0,5 | — | — | não comparável: depende do quadro (ocupação é pixels ÷ área do quadro) |
-| tons_por_material | 2 | 1,5–2–2,5 (n=193, 3 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 2 | 1,5–2–3 (n=173, 3 pac.) | (manter) | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 14 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
 
 ## objeto 32x32
 
-193 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
+173 quadros de estilo; sem faixa de porte (forma sem altura ou sem `porte.faixa_altura`).
 
 | medida | base | referências (p25–mediana–p75, n) | proposta | nota |
 |---|---|---|---|---|
 | margem_px | 1 | — | — | não comparável: depende do quadro |
 | ocupacao_min | 0,5 | — | — | não comparável: depende do quadro (ocupação é pixels ÷ área do quadro) |
-| tons_por_material | 3 | 1,5–2–2,5 (n=193, 3 pac.) | 2 | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
+| tons_por_material | 3 | 1,5–2–3 (n=173, 3 pac.) | 2 | por grupo de matiz, de qualquer tamanho; material não se separa por matiz |
 | chao_y | 30 | — | — | não comparável: depende do quadro, e o quadro das referências é outro |
 
 ## O validador atual sobre as referências
@@ -431,7 +435,7 @@ calibração da Fase 5: quantas referências levariam os avisos de blocos pequen
 | pacote | quadros | nota (mediana) | blocos pequenos | cor de 1 px |
 |---|---|---|---|---|
 | `customizable-character-pack` | 300 | 78 | 94% | 45% |
-| `pixel-character-base-64` | 121 | 60 | 100% | 61% |
+| `pixel-character-base-64` | 65 | 60 | 100% | 80% |
 | `dungeontileset-ii` | 300 | 79 | 90% | 6% |
 | `kings-and-pigs` | 282 | 60 | 98% | 31% |
 | `ninja-adventure` | 300 | 78 | 89% | 10% |
@@ -470,7 +474,7 @@ não em config.
 ### Notas dos pacotes (validador atual)
 
 Na tabela final do relatório de calibração acima: medianas 60 a 79; o aviso de
-blocos pequenos em 89% a 100% dos quadros, o de cor de 1 px em 6% a 61%.
+blocos pequenos em 89% a 100% dos quadros, o de cor de 1 px em 6% a 80%.
 
 ### Notas dos assets do projeto
 
@@ -490,7 +494,7 @@ Lidas dos `000_validation.json` gravados (na máquina local).
 | `asset_f7b0cdb92d08` | molde de objeto (caixa) | pixel_prop_64 | 99 | rare_colors 1 | 18,2% | `#c0cbdc` |
 
 ² Desenhado com o texto "48x48" e o perfil padrão, porque o servidor MCP em
-execução não conhecia `pixel_character_48` (seção 12, item 4).
+execução não conhecia `pixel_character_48` (seção 12, item 5).
 
 Leitura: em todos os desenhos com detalhe, a penalidade de microclusters
 sozinha tira 15 a 20 pontos. Os moldes, que não têm detalhe, tiram 99 e 100. A
@@ -500,7 +504,7 @@ calibração disso está pedida e ainda não foi feita.
 
 ## 10. Testes e lint
 
-`pytest -q`: **1410 passando, 1 pulado** (1.411 coletados), cerca de 60 s.
+`pytest -q`: **1411 passando, 1 pulado** (1.412 coletados), cerca de 60 s.
 
 O pulado: `tests/contract/test_engine_contract.py:282`, "gaveta declara que não
 suporta seed" — o teste de reprodutibilidade por seed não se aplica à
@@ -516,7 +520,7 @@ quando o extra `mcp` está instalado; sem ele, é pulado inteiro.
 | test_mcp.py | 46 |
 | test_asset_taxonomy.py | 28 |
 | test_resolved_spec.py | 27 |
-| test_referencias.py | 26 |
+| test_referencias.py | 27 |
 | contract/test_engine_contract.py | 25 |
 | test_engine_selection.py | 23 |
 | test_pixel_optimizer.py | 21 |
@@ -575,66 +579,70 @@ baseline do início do branch; o código novo não acrescentou nenhum.
 
 Em ordem de gravidade. São as coisas que eu olharia primeiro.
 
-1. **Um pacote de referência foi medido com a grade errada.** A folha da
-   Retraissance (`pixel-character-base-64`) tem quadros de **64×128**, e foi
-   importada com `--quadro 64x64` (o comando que eu escrevi, a partir do nome
-   do pacote). Cada personagem foi cortado na cintura: os 121 "quadros" são
-   metades. Isso contamina a parte de estilo e, mais grave, a parte de **porte**
-   da linha `referências:` (as metades têm ~32 px e caem na faixa 23–33 do
-   humanóide 32) e o relatório de calibração. Correção: reimportar com
-   `--quadro 64x128 --substituir` e rodar `calibrar` de novo. Não foi feito.
-2. **Retratos entraram como personagem.** O padrão `*/Actor/Monster/**` do
-   Ninja Adventure trouxe 20 `Faceset.png` (retratos) e um `SpriteInHand.png`.
-   A moldura escura dos retratos foi tratada como fundo sólido. Afeta só as
-   somas de "character sem corpo"; o padrão precisa excluir os `Faceset`.
-3. **O validador pune detalhe legítimo.** A penalidade de microclusters tira 15
+1. **Peso igual por pacote com amostra desigual.** Na faixa de porte do
+   humanóide 32 entram 400 quadros do Customizable Character Pack, 26 do Kings
+   and Pigs, 2 da DungeonTileset e 1 da Retraissance. Com peso igual por
+   pacote, esse 1 quadro pesa como os 400. `minimo_de_quadros` vale para a
+   parte inteira, não por pacote. Falta um mínimo por pacote (ou peso que
+   cresça com a amostra até um teto). Não corrigido.
+2. ~~Pacote medido com a grade errada~~ — **resolvido**. A Retraissance tem
+   quadros de 64×128 e tinha sido importada com 64×64 (comando meu, a partir
+   do nome do pacote): os 121 "quadros" eram metades de personagem e caíam na
+   faixa de porte. Reimportada com `--quadro 64x128`: 65 quadros inteiros,
+   altura mediana 60 px, e só 1 deles na faixa de 23–33.
+3. ~~Retratos entraram como personagem~~ — **resolvido**. A descrição
+   anterior estava incompleta: o padrão `*/Actor/Monster/**` trazia 66
+   `Faceset.png` (e não 20; 20 eram só os que tiveram a moldura escura tomada
+   por fundo), e os 20 `SpriteInHand.png` vinham do padrão de itens. O
+   importador ganhou `--excluir PADRAO` (gravado no manifesto e respeitado
+   também por `medir`), e o Ninja foi reimportado sem esses 86 arquivos.
+4. **O validador pune detalhe legítimo.** A penalidade de microclusters tira 15
    a 20 pontos de todo desenho com detalhe, e as referências profissionais
    ficam com mediana 60 a 79. O laudo pode empurrar o desenho para a
    simplificação. A calibração (limiares em config, `a_calibrar`, sem mexer nos
    requisitos duros) está pedida e não foi implementada.
-4. **O caminho MCP de ponta a ponta não foi exercitado depois da Fase 3.** O
-   servidor da sessão nunca foi reconectado: `consultar_pedido` com recorte,
-   `molde=true`, `ver_referencia` e `pixel_character_48` foram verificados pelo
-   `ServicoDesenhista` direto e pelos testes do SDK (cliente em memória e por
-   stdio), mas nunca por um cliente Claude Code real.
-5. **Constantes do medidor estão no código, sem `a_calibrar`.** Limiares de
+5. **O caminho MCP por um cliente Claude Code real.** Na máquina de
+   desenvolvimento, o servidor da sessão nunca foi reconectado depois da Fase
+   3; a revisão confirmou numa máquina limpa que os testes passam e que o
+   serviço MCP roda de ponta a ponta.
+6. **Constantes do medidor estão no código, sem `a_calibrar`.** Limiares de
    contorno (0,7 / 0,6 / 0,4), margem de "mais escuro" (0,02), neutro
    (saturação 0,15, brilho 0,12), salto de matiz (30°), fundo sólido (30%) e
    tetos de importação. Contraria a regra "número sem fonte vai para config
    com `a_calibrar`".
-6. **Medidas de referência que medem outra coisa.** "Tons por grupo de matiz"
+7. **Medidas de referência que medem outra coisa.** "Tons por grupo de matiz"
    não é "tons por material"; "altura" é altura do conteúdo (com arma e
    chapéu); tiles opacos têm "contorno" na borda do quadro, o que não
    significa nada. As propostas do relatório herdam essas limitações (por
    exemplo, propor 3 tons para o humanóide 16×16 vem de pacotes de todos os
    tamanhos).
-7. **Fatiamento por linhas transparentes** junta sprites que se tocam e separa
+8. **Fatiamento por linhas transparentes** junta sprites que se tocam e separa
    peças soltas (uma espada destacada). Pacotes sem grade informada dependem
    disso.
-8. **Decisões de gosto tomadas rápido:** as rampas por material, os dois
+9. **Decisões de gosto tomadas rápido:** as rampas por material, os dois
    moldes, 2,8 cabeças (abaixo da fonte), larguras do humanóide, a faixa de
    porte de 20%, quais personagens da DungeonTileset contam como humanoides.
    Todas marcadas ou explicadas, mas nenhuma foi validada além dos poucos
    desenhos feitos.
-9. **A desenhista conta cor por chave.** Moldes limitados a 8 chaves; um olho
+10. **A desenhista conta cor por chave.** Moldes limitados a 8 chaves; um olho
    com brilho seria a 9ª. Um desenho que reusa o mesmo hexadecimal em duas
    chaves "gasta" duas cores.
-10. **Textos de orientação no código.** Frases do recorte (rótulos de medidas,
+11. **Textos de orientação no código.** Frases do recorte (rótulos de medidas,
     "para arma, escudo, crista e animação", a instrução do molde) estão em
     `recorte.py`, não em YAML.
-11. **Teto do recorte em caracteres**, com estimativa de tokens sem tokenizador
-    oficial (~3 caracteres por token). O recorte atual tem ~2.300 caracteres
+12. **Teto do recorte em caracteres**, com estimativa de tokens sem tokenizador
+    oficial (~3 caracteres por token). O recorte atual tem 2.260 caracteres
     de conhecimento e cabe no teto de 4.000.
-12. **`.env` não está no `.gitignore`** (só `env/`). Hoje não existe `.env`;
-    se alguém criar um, ele pode ser commitado.
-13. **Busca de asset por varredura do histórico.** `remendo` e `ver_asset`
+13. ~~`.env` fora do `.gitignore`~~ — **resolvido**: `.env` e `.env.*` estão
+    ignorados, e `.env.example` (sem segredo) continua versionado.
+14. **Busca de asset por varredura do histórico.** `remendo` e `ver_asset`
     leem o `generations.jsonl` inteiro (`list(limit=1_000_000)`); fica lento
     com histórico grande.
-14. **Interface e produção.** A tela continua oferecendo "Gerar" com a
+15. **Interface e produção.** A tela continua oferecendo "Gerar" com a
     desenhista, que falha sem receita (mensagem clara). Com
     `ASSETFLOW_APP_ENV=production` os mocks somem e só sobra a desenhista. O
     modo Studio está dormente.
-15. **Configuração lida uma vez.** Base de conhecimento e referências carregam
+16. **Configuração lida uma vez.** Base de conhecimento e referências carregam
     no boot: mudar YAML ou a lista de ativos exige reiniciar o backend e
     reconectar o MCP (`/mcp`). Nada avisa que o processo está desatualizado.
 

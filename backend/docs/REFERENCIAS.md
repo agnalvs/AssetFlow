@@ -42,6 +42,7 @@ python -m assetflow.referencias importar <zip|pasta> --pacote <id> \
     --fonte <url> --autor "<nome>" --licenca CC0-1.0 --licenca-url <url> \
     [--licenca-verificada-em AAAA-MM-DD] [--nome "<nome>"] [--obs "<texto>"] \
     --parte "PADRAO:TIPO[:CORPO][:QUADRO]" [--parte …]      # ou --tipo/--corpo/--quadro
+    [--excluir "PADRAO" …] [--substituir]
 python -m assetflow.referencias listar       # pacotes, licença, ativo e avisos
 python -m assetflow.referencias medir [<id>] # refaz medidas.json
 python -m assetflow.referencias calibrar     # relatório (§6)
@@ -58,6 +59,11 @@ de roupa. Cada `--parte` diz quais arquivos entram e o que eles são:
 - a primeira parte que casa decide; arquivo que não casa com nenhuma não entra.
 
 Sem `--parte`, `--tipo` (com `--corpo` e `--quadro`) vale para o pacote todo.
+
+`--excluir PADRAO` (repetível, mesmo glob) tira arquivos de **qualquer** parte —
+retratos (`**/Faceset.png`) ou sprites "na mão" que casam com um padrão largo
+como `Monster/**`. A exclusão fica no manifesto e vale também para `medir`.
+`--substituir` reimporta um pacote que já existe.
 
 **Segurança.** Arquivo baixado é dado não confiável: o zip nunca é extraído
 inteiro, caminho com `..`, absoluto ou com drive é recusado, só entram PNGs
