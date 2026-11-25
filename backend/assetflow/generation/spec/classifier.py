@@ -43,6 +43,10 @@ class Classification:
 
     asset_type: AssetType | None = None
     category: str | None = None
+    #: Topologia corporal do sujeito, quando o vocabulário a nomeia.
+    #: ``None`` é silêncio honesto: nada no texto disse a forma do corpo, e
+    #: chutar "humanoid" faria um lobo nascer em pé.
+    body_type: str | None = None
     #: O termo do vocabulário que decidiu, já normalizado. Vai para o trace.
     matched_term: str | None = None
     #: ``rule`` = camada A; ``fallback`` = camada B; ``none`` = ninguém.
@@ -95,6 +99,7 @@ class AssetTypeClassifier:
             return Classification(
                 asset_type=best.asset_type,
                 category=best.category or _category_from(candidates, best),
+                body_type=_body_type_from(candidates, best),
                 matched_term=best.text,
                 layer="rule",
             )
@@ -128,6 +133,27 @@ def _strength(term: TaxonomyTerm) -> tuple[bool, int, int, int]:
        floresta, e não uma floresta com um guerreiro dentro.
     """
     return (term.marker, term.words, term.priority, len(term.text))
+
+
+def _body_type_from(
+    candidates: list[TaxonomyTerm], best: TaxonomyTerm
+) -> str | None:
+    """A topologia corporal dita por algum termo do texto.
+
+    Diferente da categoria, ela **não** exige que o termo seja do mesmo tipo
+    de asset do vencedor. O motivo é concreto: em "sprite sheet de um lobo", o
+    marker `spritesheet` decide o tipo e não diz nada sobre corpo — mas "lobo"
+    está ali e diz `quadruped`. Amarrar a topologia ao tipo vencedor jogaria
+    fora a única informação útil da frase.
+
+    O termo mais forte ganha, pela mesma ordem de sempre.
+    """
+    com_corpo = [term for term in candidates if term.body_type]
+    if not com_corpo:
+        return None
+    if best.body_type:
+        return best.body_type
+    return max(com_corpo, key=_strength).body_type
 
 
 def _category_from(

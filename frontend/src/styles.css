@@ -760,6 +760,38 @@ input {
   color: var(--accent-strong);
 }
 
+/* --------------------------------------------------------------------------
+   Selo de classe do campo (pesquisa PixelLab)
+   --------------------------------------------------------------------------
+   Fica ao lado da origem e responde outra pergunta. A origem diz DE ONDE veio
+   o valor; a classe diz O QUE o AssetFlow promete sobre ele.
+
+   Sem o selo, a tela exibe "32 × 32" e "contorno: seletivo" com o mesmo peso —
+   e só o primeiro é medido e reprovado. O segundo é orientação, que o motor
+   pode não seguir sem que nada esteja errado.
+   -------------------------------------------------------------------------- */
+.reading__constraint {
+  margin-right: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* Só o "garantido" ganha destaque: é o único que é uma promessa. */
+.reading__constraint--hard {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.reading__constraint--style {
+  font-style: italic;
+}
+
 .reading__notes {
   display: flex;
   flex-direction: column;

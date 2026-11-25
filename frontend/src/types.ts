@@ -259,6 +259,50 @@ export interface ResolvedPalette {
   colors: string[];
 }
 
+
+/**
+ * A forma do corpo do sujeito (pesquisa PixelLab).
+ *
+ * Eixo **diferente** de `asset.type`: um lobo e um cavaleiro são ambos
+ * `character`, e só isto distingue quatro patas de duas pernas. `unknown` é
+ * silêncio honesto — nada no pedido disse a forma, e o motor decide.
+ */
+export type BodyTypeId =
+  | "unknown"
+  | "humanoid"
+  | "quadruped"
+  | "avian"
+  | "aquatic"
+  | "serpentine"
+  | "amorphous";
+
+export type DetailLevelId = "auto" | "low" | "medium" | "high";
+export type OutlineModeId =
+  | "auto"
+  | "none"
+  | "black"
+  | "single_color"
+  | "selective"
+  | "adaptive_dark";
+export type ShadingModeId = "auto" | "flat" | "basic" | "medium" | "detailed";
+
+/**
+ * A intenção de estilo.
+ *
+ * Tudo aqui é **orientação**, nunca garantia: o motor tenta, o Pixel Optimizer
+ * melhora o que der, e o validador mede sem reprovar. É por isso que o painel
+ * mostra estes campos com um selo diferente do de "32×32" — ver `constraints`
+ * em `PromptPreview`.
+ */
+export interface ResolvedStyle {
+  detail: DetailLevelId;
+  outline: { mode: OutlineModeId; thickness: string; color: string | null };
+  shading: { mode: ShadingModeId; light_direction: string | null };
+}
+
+/** O que o AssetFlow promete sobre um campo do spec. */
+export type ConstraintClassId = "hard" | "semantic" | "style" | "engine_hint";
+
 /**
  * O que acontece depois do motor (plano Optimizer §32).
  *
@@ -310,6 +354,9 @@ export interface FinalResolvedSpec {
   palette: ResolvedPalette | null;
   background: { mode: "transparent" | "solid" };
   composition: { view: string | null; centered: boolean; margin_ratio: number | null };
+  /** Topologia corporal do sujeito — eixo diferente de `asset.type`. */
+  character: { body_type: BodyTypeId };
+  style: ResolvedStyle;
   generation: { variations: number; seed: number | null; quality: string };
   engine: ResolvedEngine;
   pixel_pipeline: ResolvedPixelPipeline;
@@ -336,6 +383,12 @@ export interface SpecOverrides {
   background?: "transparent" | "solid" | null;
   view?: string | null;
   variations?: number | null;
+  body_type?: BodyTypeId | null;
+  detail?: DetailLevelId | null;
+  outline?: OutlineModeId | null;
+  outline_color?: string | null;
+  shading?: ShadingModeId | null;
+  light_direction?: string | null;
   engine_id?: string | null;
   engine_mode?: "auto" | "manual" | null;
   allow_engine_fallback?: boolean | null;
@@ -350,6 +403,15 @@ export interface PromptPreview {
   capability: string;
   /** O contrato final: o que será realmente executado. */
   resolved: FinalResolvedSpec;
+  /**
+   * O que o AssetFlow **promete** sobre cada campo, por caminho pontuado.
+   *
+   * Vem do backend, e não de uma tabela aqui, pela mesma razão do catálogo de
+   * motores: é regra de arquitetura, e uma cópia no React envelheceria em
+   * silêncio. Sem isso a tela exibe "32×32" e "contorno seletivo" com o mesmo
+   * peso — e só o primeiro é garantido.
+   */
+  constraints: Record<string, ConstraintClassId>;
   semantic: SemanticPrompt;
   /**
    * Renderização neutra, para conferência humana. Um motor com dialeto
@@ -369,6 +431,11 @@ export interface OutputSelection {
   palette_size?: number;
   transparent?: boolean;
   view?: string;
+  body_type?: BodyTypeId;
+  detail?: DetailLevelId;
+  outline?: OutlineModeId;
+  shading?: ShadingModeId;
+  light_direction?: string;
 }
 
 export interface CreateJobPayload {

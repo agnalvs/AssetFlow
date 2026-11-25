@@ -51,6 +51,21 @@ class AssetOutputOverrides(AssetFlowModel):
     #: objeto de pedido só para carregar um campo.
     view: str | None = Field(default=None, max_length=40)
 
+    # -- Estilo e topologia (pesquisa PixelLab) --------------------------
+    #
+    # Todos opcionais e todos ausentes por padrão: um controle em "Automático"
+    # **não envia campo nenhum**, e é assim que o classificador e o profile
+    # continuam podendo responder (plano T→J §23).
+    #
+    # `body_type` está aqui, e não em `spec_overrides`, porque é uma escolha
+    # de *interface*: quem escreve "um lobo" já disse quadrúpede na descrição,
+    # e a descrição ganha do dropdown.
+    body_type: str | None = Field(default=None, max_length=20)
+    detail: str | None = Field(default=None, max_length=10)
+    outline: str | None = Field(default=None, max_length=20)
+    shading: str | None = Field(default=None, max_length=10)
+    light_direction: str | None = Field(default=None, max_length=20)
+
 
 class AssetGenerationRequest(AssetFlowModel):
     """Pedido de criação de asset feito por um usuário do AssetFlow."""

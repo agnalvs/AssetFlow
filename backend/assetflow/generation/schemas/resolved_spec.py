@@ -36,17 +36,27 @@ from .capability import Capability
 from .common import AssetFlowModel, AssetMode, AssetType, FrozenModel, QualityLevel
 
 __all__ = [
+    "SPEC_CONSTRAINTS",
     "SPEC_PRECEDENCE",
+    "BodyType",
+    "ConstraintClass",
+    "DetailLevel",
     "FinalResolvedSpec",
     "LogicalResolution",
+    "OutlineMode",
     "RenderResolution",
     "ResolvedAsset",
     "ResolvedBackground",
+    "ResolvedCharacter",
     "ResolvedComposition",
     "ResolvedEngine",
     "ResolvedGeneration",
-    "ResolvedPixelPipeline",
+    "ResolvedOutline",
     "ResolvedPalette",
+    "ResolvedPixelPipeline",
+    "ResolvedShading",
+    "ResolvedStyle",
+    "ShadingMode",
     "SpecOverrides",
     "SpecSource",
 ]
@@ -73,6 +83,59 @@ class SpecSource(str, Enum):
     PROFILE_DEFAULT = "profile_default"
     #: Padrão do próprio contrato, quando nenhuma fonte acima disse nada.
     GLOBAL_DEFAULT = "global_default"
+
+
+class ConstraintClass(str, Enum):
+    """O que o AssetFlow **promete** sobre um campo (pesquisa PixelLab).
+
+    A precedência responde *de onde veio o valor*. Esta pergunta é outra e
+    igualmente importante: *o que acontece se o resultado não bater com ele?*
+
+    Sem essa distinção, a interface trata 32×32 e "contorno seletivo" como se
+    fossem a mesma promessa — e não são. O primeiro é medido e reprovado; o
+    segundo é uma orientação que o motor pode não seguir e que ninguém deveria
+    chamar de erro.
+    """
+
+    #: O AssetFlow **garante**, deterministicamente. Não bater é reprovação:
+    #: resolução lógica, alpha binário, orçamento de cores, paleta travada.
+    HARD = "hard"
+    #: O motor tenta e o validador **mede**. Não bater é problema de
+    #: qualidade do candidato, não erro do sistema: sujeito, tipo, câmera.
+    SEMANTIC = "semantic"
+    #: Intenção de estilo. O motor tenta, o Pixel Optimizer melhora o que der,
+    #: e o validador mede sem reprovar: contorno, sombreamento, detalhe.
+    STYLE = "style"
+    #: Parâmetro de execução, sem promessa visual: seed, variações, motor.
+    ENGINE_HINT = "engine_hint"
+
+
+#: A classe de cada campo do spec, por caminho pontuado.
+#:
+#: Ela vive aqui, ao lado da precedência, porque as duas descrevem o mesmo
+#: contrato por ângulos diferentes — e porque um campo novo sem classe é um
+#: campo sobre o qual o sistema não sabe o que prometer. A interface lê isto
+#: para não exibir "contorno: seletivo" com o mesmo peso de "32×32".
+SPEC_CONSTRAINTS: dict[str, ConstraintClass] = {
+    "logical_resolution": ConstraintClass.HARD,
+    "palette": ConstraintClass.HARD,
+    "background": ConstraintClass.HARD,
+    "asset.type": ConstraintClass.SEMANTIC,
+    "asset.subject": ConstraintClass.SEMANTIC,
+    "asset.category": ConstraintClass.SEMANTIC,
+    "character.body_type": ConstraintClass.SEMANTIC,
+    "composition.view": ConstraintClass.SEMANTIC,
+    "composition.centered": ConstraintClass.SEMANTIC,
+    "composition.margin_ratio": ConstraintClass.SEMANTIC,
+    "style.detail": ConstraintClass.STYLE,
+    "style.outline": ConstraintClass.STYLE,
+    "style.shading": ConstraintClass.STYLE,
+    "render_resolution": ConstraintClass.ENGINE_HINT,
+    "engine": ConstraintClass.ENGINE_HINT,
+    "generation.seed": ConstraintClass.ENGINE_HINT,
+    "generation.variations": ConstraintClass.ENGINE_HINT,
+    "generation.quality": ConstraintClass.ENGINE_HINT,
+}
 
 
 #: Precedência oficial, da MENOR para a MAIOR (plano T→J §9).
@@ -148,7 +211,7 @@ class ResolvedPalette(FrozenModel):
     colors: tuple[str, ...] = ()
 
     @model_validator(mode="after")
-    def _validate(self) -> "ResolvedPalette":
+    def _validate(self) -> ResolvedPalette:
         if self.mode == "locked" and not self.colors:
             raise ValueError("paleta 'locked' exige a lista de cores")
         return self
@@ -242,6 +305,130 @@ class ResolvedPixelPipeline(FrozenModel):
         return self.optimize
 
 
+class BodyType(str, Enum):
+    """A **forma do corpo** do sujeito (pesquisa PixelLab).
+
+    Eixo diferente de ``asset.type`` e de ``asset.category``, e a distinção é
+    a mesma que fez uma árvore deixar de virar `character`, um nível abaixo:
+
+        asset.type      que papel o asset cumpre no jogo   -> character
+        asset.category  que tipo de coisa é                -> creature
+        character.body_type   que forma o corpo tem        -> quadruped
+
+    Um goblin é `creature` de corpo humanoide; um lobo é `creature`
+    quadrúpede. Sem este campo os dois chegam ao motor como "character", e
+    ele desenha o lobo em pé.
+
+    ``UNKNOWN`` é silêncio honesto: nada no pedido disse a forma do corpo, e
+    ele **não** entra no prompt. Chutar `humanoid` seria pior que calar.
+    """
+
+    UNKNOWN = "unknown"
+    HUMANOID = "humanoid"
+    QUADRUPED = "quadruped"
+    AVIAN = "avian"
+    AQUATIC = "aquatic"
+    SERPENTINE = "serpentine"
+    AMORPHOUS = "amorphous"
+
+    @property
+    def known(self) -> bool:
+        return self is not BodyType.UNKNOWN
+
+
+class ResolvedCharacter(FrozenModel):
+    """O que é específico de personagem.
+
+    Preenchido sempre, com o padrão, mesmo em um `prop` — um objeto ausente
+    obrigaria cada leitor a tratar ``None`` por um campo que só é lido quando
+    o tipo é `character`.
+    """
+
+    body_type: BodyType = BodyType.UNKNOWN
+
+
+class OutlineMode(str, Enum):
+    """Como a silhueta é delimitada (pesquisa PixelLab).
+
+    ``AUTO`` não é ausência de escolha: é "o motor decide", que é diferente de
+    ``NONE`` ("sem contorno") — e confundir os dois faria "não opinei" virar
+    "quero lineless".
+    """
+
+    AUTO = "auto"
+    NONE = "none"
+    BLACK = "black"
+    SINGLE_COLOR = "single_color"
+    SELECTIVE = "selective"
+    ADAPTIVE_DARK = "adaptive_dark"
+
+
+class ShadingMode(str, Enum):
+    """Quanto volume o sprite tem."""
+
+    AUTO = "auto"
+    FLAT = "flat"
+    BASIC = "basic"
+    MEDIUM = "medium"
+    DETAILED = "detailed"
+
+
+class DetailLevel(str, Enum):
+    """Densidade de informação — separada de sombreamento de propósito.
+
+    Um sprite pode ser muito detalhado com sombreamento chapado, ou simples
+    com sombreamento dramático. Tratá-los como um controle só perde metade
+    das combinações.
+    """
+
+    AUTO = "auto"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class ResolvedOutline(FrozenModel):
+    """Contorno resolvido."""
+
+    mode: OutlineMode = OutlineMode.AUTO
+    #: No Pixel Exact a espessura é sempre um pixel; ``variable`` existe para
+    #: quando o modo Studio precisar de outra coisa.
+    thickness: Literal["single_pixel", "variable"] = "single_pixel"
+    #: Cor fixa do contorno, quando o modo a exige. ``None`` = o motor escolhe.
+    color: str | None = None
+
+
+class ResolvedShading(FrozenModel):
+    """Sombreamento resolvido."""
+
+    mode: ShadingMode = ShadingMode.AUTO
+    #: De onde vem a luz. Constante em um projeto inteiro é o que faz vários
+    #: assets parecerem do mesmo jogo.
+    light_direction: str | None = None
+
+
+class ResolvedStyle(FrozenModel):
+    """A intenção de estilo (pesquisa PixelLab).
+
+    Tudo aqui é ``STYLE`` na classificação: o motor tenta, o Pixel Optimizer
+    melhora o que der, e o validador mede **sem reprovar**. Um contorno que
+    saiu diferente do pedido é um candidato pior, nunca um asset inválido.
+    """
+
+    detail: DetailLevel = DetailLevel.AUTO
+    outline: ResolvedOutline = Field(default_factory=ResolvedOutline)
+    shading: ResolvedShading = Field(default_factory=ResolvedShading)
+
+    @property
+    def is_default(self) -> bool:
+        """Ninguém opinou sobre estilo neste pedido."""
+        return (
+            self.detail is DetailLevel.AUTO
+            and self.outline.mode is OutlineMode.AUTO
+            and self.shading.mode is ShadingMode.AUTO
+        )
+
+
 class ResolvedGeneration(FrozenModel):
     """Parâmetros da execução em si."""
 
@@ -278,6 +465,11 @@ class FinalResolvedSpec(FrozenModel):
     palette: ResolvedPalette | None = None
     background: ResolvedBackground = Field(default_factory=ResolvedBackground)
     composition: ResolvedComposition = Field(default_factory=ResolvedComposition)
+    #: O que é específico de personagem. Lido só quando `asset.type` é
+    #: `character`; nos demais tipos fica no padrão e ninguém o consulta.
+    character: ResolvedCharacter = Field(default_factory=ResolvedCharacter)
+    #: A intenção de estilo — contorno, sombreamento, densidade de detalhe.
+    style: ResolvedStyle = Field(default_factory=ResolvedStyle)
     generation: ResolvedGeneration = Field(default_factory=ResolvedGeneration)
     #: A decisão de motor deste job (plano de motores §5). Ela entra no spec, e não fica
     #: só no pedido, porque é uma decisão resolvida por precedência como
@@ -324,6 +516,16 @@ class FinalResolvedSpec(FrozenModel):
         """Origem de um campo; ``GLOBAL_DEFAULT`` quando ninguém opinou."""
         return self.sources.get(field, SpecSource.GLOBAL_DEFAULT)
 
+    def constraint_of(self, field: str) -> ConstraintClass:
+        """O que o AssetFlow promete sobre este campo.
+
+        Campo sem classe declarada cai em ``SEMANTIC`` — a resposta
+        conservadora: promete-se medir, não garantir. Prometer ``HARD`` por
+        omissão faria um campo novo nascer com uma garantia que ninguém
+        escreveu.
+        """
+        return SPEC_CONSTRAINTS.get(field, ConstraintClass.SEMANTIC)
+
     def fingerprint(self) -> dict[str, Any]:
         """Os valores que definem a geração — sem identidade nem rastro.
 
@@ -347,7 +549,7 @@ class FinalResolvedSpec(FrozenModel):
             },
         )
 
-    def with_identity(self) -> "FinalResolvedSpec":
+    def with_identity(self) -> FinalResolvedSpec:
         """Devolve o spec com ``spec_id``/``spec_hash`` calculados."""
         payload = json.dumps(self.fingerprint(), sort_keys=True, ensure_ascii=False)
         digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -386,6 +588,19 @@ class SpecOverrides(AssetFlowModel):
 
     view: str | None = None
     variations: int | None = Field(default=None, ge=1, le=32)
+
+    #: Topologia corporal e estilo, corrigidos à mão no JSON final.
+    body_type: Literal[
+        "unknown", "humanoid", "quadruped", "avian", "aquatic",
+        "serpentine", "amorphous",
+    ] | None = None
+    detail: Literal["auto", "low", "medium", "high"] | None = None
+    outline: Literal[
+        "auto", "none", "black", "single_color", "selective", "adaptive_dark"
+    ] | None = None
+    outline_color: str | None = None
+    shading: Literal["auto", "flat", "basic", "medium", "detailed"] | None = None
+    light_direction: str | None = None
 
     #: Motor corrigido à mão. É o nível mais alto da precedência também aqui:
     #: um id escrito no JSON final ganha do seletor da tela.

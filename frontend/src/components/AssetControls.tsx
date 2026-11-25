@@ -1,7 +1,19 @@
-import type { AssetTypeId, FinalResolvedSpec, OutputSelection } from "../types";
+import type {
+  AssetTypeId,
+  BodyTypeId,
+  DetailLevelId,
+  FinalResolvedSpec,
+  OutlineModeId,
+  OutputSelection,
+  ShadingModeId,
+} from "../types";
 import {
   ASSET_TYPE_OPTIONS,
   assetTypeLabel,
+  bodyTypeLabel,
+  detailLabel,
+  outlineLabel,
+  shadingLabel,
   viewLabel,
   viewOptionsFor,
 } from "../labels";
@@ -26,6 +38,12 @@ export interface AssetSelection {
   transparent: boolean | null;
   /** `null` = automático: o builder decide a vista, como inferência. */
   view: string | null;
+  /** `null` = automático: a descrição decide ("um lobo" já diz quadrúpede). */
+  bodyType: BodyTypeId | null;
+  /** Estilo — os três são orientação ao motor, não garantia. */
+  detail: DetailLevelId | null;
+  outline: OutlineModeId | null;
+  shading: ShadingModeId | null;
 }
 
 export const EMPTY_SELECTION: AssetSelection = {
@@ -34,10 +52,33 @@ export const EMPTY_SELECTION: AssetSelection = {
   paletteSize: null,
   transparent: null,
   view: null,
+  bodyType: null,
+  detail: null,
+  outline: null,
+  shading: null,
 };
 
 /** As resoluções do §18. Quadradas: é o formato de sprite e de tile. */
 const RESOLUTIONS = [16, 32, 48, 64, 96, 128] as const;
+
+/** As topologias oferecidas. `unknown` não entra: ele é o "Automático". */
+const BODY_TYPE_OPTIONS = [
+  "humanoid",
+  "quadruped",
+  "avian",
+  "aquatic",
+  "serpentine",
+  "amorphous",
+] as const;
+const DETAIL_OPTIONS = ["low", "medium", "high"] as const;
+const OUTLINE_OPTIONS = [
+  "none",
+  "black",
+  "single_color",
+  "selective",
+  "adaptive_dark",
+] as const;
+const SHADING_OPTIONS = ["flat", "basic", "medium", "detailed"] as const;
 const PALETTES = [8, 16, 32, 64] as const;
 
 /**
@@ -59,6 +100,10 @@ export function selectionToOutput(
   if (selection.paletteSize !== null) output.palette_size = selection.paletteSize;
   if (selection.transparent !== null) output.transparent = selection.transparent;
   if (selection.view !== null) output.view = selection.view;
+  if (selection.bodyType !== null) output.body_type = selection.bodyType;
+  if (selection.detail !== null) output.detail = selection.detail;
+  if (selection.outline !== null) output.outline = selection.outline;
+  if (selection.shading !== null) output.shading = selection.shading;
   return output;
 }
 
@@ -112,6 +157,26 @@ export function AssetControls({
   const autoView = resolved?.composition.view
     ? viewLabel(resolved.composition.view)
     : null;
+
+  // Topologia só faz sentido em personagem: um tileset não tem corpo, e um
+  // controle que não se aplica é pior do que um controle ausente. É a mesma
+  // regra que já esconde resolução lógica no modo 2D.
+  const isCharacter = assetType === "character";
+  const resolvedBody = resolved?.character?.body_type ?? "unknown";
+  const autoBody = resolvedBody !== "unknown" ? bodyTypeLabel(resolvedBody) : null;
+
+  const autoDetail =
+    resolved && resolved.style.detail !== "auto"
+      ? detailLabel(resolved.style.detail)
+      : null;
+  const autoOutline =
+    resolved && resolved.style.outline.mode !== "auto"
+      ? outlineLabel(resolved.style.outline.mode)
+      : null;
+  const autoShading =
+    resolved && resolved.style.shading.mode !== "auto"
+      ? shadingLabel(resolved.style.shading.mode)
+      : null;
 
   return (
     <div className="controls" role="group" aria-label="Configuração do asset">
@@ -193,6 +258,88 @@ export function AssetControls({
             ))}
           </select>
         </Control>
+      ) : null}
+
+      {isCharacter ? (
+        <Control label="Tipo corporal">
+          <select
+            className="controls__field"
+            value={selection.bodyType ?? ""}
+            disabled={disabled}
+            onChange={(event) =>
+              update({ bodyType: (event.target.value || null) as BodyTypeId | null })
+            }
+          >
+            <option value="">{auto(autoBody)}</option>
+            {BODY_TYPE_OPTIONS.map((body) => (
+              <option key={body} value={body}>
+                {bodyTypeLabel(body)}
+              </option>
+            ))}
+          </select>
+        </Control>
+      ) : null}
+
+      {pixel ? (
+        <>
+          <Control label="Detalhe">
+            <select
+              className="controls__field"
+              value={selection.detail ?? ""}
+              disabled={disabled}
+              onChange={(event) =>
+                update({ detail: (event.target.value || null) as DetailLevelId | null })
+              }
+            >
+              <option value="">{auto(autoDetail)}</option>
+              {DETAIL_OPTIONS.map((level) => (
+                <option key={level} value={level}>
+                  {detailLabel(level)}
+                </option>
+              ))}
+            </select>
+          </Control>
+
+          <Control label="Contorno">
+            <select
+              className="controls__field"
+              value={selection.outline ?? ""}
+              disabled={disabled}
+              onChange={(event) =>
+                update({
+                  outline: (event.target.value || null) as OutlineModeId | null,
+                })
+              }
+            >
+              <option value="">{auto(autoOutline)}</option>
+              {OUTLINE_OPTIONS.map((mode) => (
+                <option key={mode} value={mode}>
+                  {outlineLabel(mode)}
+                </option>
+              ))}
+            </select>
+          </Control>
+
+          <Control label="Sombreamento">
+            <select
+              className="controls__field"
+              value={selection.shading ?? ""}
+              disabled={disabled}
+              onChange={(event) =>
+                update({
+                  shading: (event.target.value || null) as ShadingModeId | null,
+                })
+              }
+            >
+              <option value="">{auto(autoShading)}</option>
+              {SHADING_OPTIONS.map((mode) => (
+                <option key={mode} value={mode}>
+                  {shadingLabel(mode)}
+                </option>
+              ))}
+            </select>
+          </Control>
+        </>
       ) : null}
 
       <Control label="Fundo">

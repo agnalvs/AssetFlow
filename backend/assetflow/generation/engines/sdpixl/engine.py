@@ -81,10 +81,21 @@ class SDPiXLEngine(BaseImageGenerationEngine):
             # comunica isso é o health check, que é onde a interface olha.
             self._logger.warning("SD-πXL indisponível: %s", problem)
 
+    def _effective_config(self) -> SDPiXLConfig:
+        """A configuração desta gaveta, mesmo antes de ``initialize()``.
+
+        Mesma razão do Pixel Forge: com ``lazy_load`` o catálogo pergunta a
+        saúde antes do primeiro job, e responder "não configurado" nesse
+        momento trancava o motor (ver ``lifecycle.py``).
+        """
+        if self._sdpixl_config.configured:
+            return self._sdpixl_config
+        pending = self.pending_config
+        return SDPiXLConfig.from_runtime(pending) if pending else self._sdpixl_config
+
     async def health_check(self) -> EngineHealth:
-        problem = command_available(
-            self._sdpixl_config.command, self._sdpixl_config.working_dir
-        )
+        config = self._effective_config()
+        problem = command_available(config.command, config.working_dir)
         if problem:
             return EngineHealth(
                 status=EngineHealthStatus.UNAVAILABLE,

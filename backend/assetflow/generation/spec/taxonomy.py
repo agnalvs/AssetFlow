@@ -66,6 +66,11 @@ class TaxonomyTerm:
     marker: bool
     priority: int
     category: str | None = None
+    #: Topologia corporal, quando o termo a nomeia. Eixo **diferente** de
+    #: `category`: um goblin é `creature` de corpo `humanoid`. Categoria diz
+    #: que tipo de coisa é; topologia diz que forma o corpo tem — e é a forma
+    #: que o gerador precisa saber.
+    body_type: str | None = None
 
     @property
     def words(self) -> int:
@@ -92,10 +97,23 @@ class TaxonomyEntry:
 
         priority = int(payload.get("priority") or 0)
         categories = _category_index(payload.get("categories") or {})
+        # `body_types` é um eixo à parte de `categories`, e não um sinônimo: um
+        # goblin é `creature` de corpo humanoide. Ver o comentário no
+        # `config/asset_taxonomy/character.yaml`.
+        body_types = _category_index(payload.get("body_types") or {})
+
+        # Um termo que aparece só em `body_types` também é um sujeito deste
+        # tipo — se dá para nomear a topologia do corpo dele, é um personagem.
+        # Registrá-lo aqui evita a duplicação de listar cada bicho duas vezes,
+        # e é o que faz acrescentar uma ave ao vocabulário ser **uma** edição.
+        implicit_keywords = tuple(body_types)
 
         terms: list[TaxonomyTerm] = []
         for marker, key in ((True, "markers"), (False, "keywords")):
-            for text in _flatten_languages(payload.get(key) or {}):
+            source = _flatten_languages(payload.get(key) or {})
+            if not marker:
+                source = (*source, *implicit_keywords)
+            for text in source:
                 normalized = normalize_text(text)
                 if not normalized:
                     continue
@@ -106,6 +124,7 @@ class TaxonomyEntry:
                         marker=marker,
                         priority=priority,
                         category=categories.get(normalized),
+                        body_type=body_types.get(normalized),
                     )
                 )
 

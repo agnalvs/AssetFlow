@@ -142,6 +142,21 @@ export function userChoicesOf(resolved: FinalResolvedSpec): SpecOverrides | null
   if (chosen(resolved, "composition.view") && resolved.composition.view) {
     overrides.view = resolved.composition.view;
   }
+  // Topologia e estilo voltam só quando foram **escolhidos**. A topologia
+  // inferida ("um lobo" -> quadrúpede) fica de fora: se ela voltasse como
+  // correção manual, trocar o sujeito na descrição deixaria de mudar o corpo.
+  if (chosen(resolved, "character.body_type") && resolved.character) {
+    overrides.body_type = resolved.character.body_type;
+  }
+  if (chosen(resolved, "style.detail") && resolved.style) {
+    overrides.detail = resolved.style.detail;
+  }
+  if (chosen(resolved, "style.outline") && resolved.style) {
+    overrides.outline = resolved.style.outline.mode;
+  }
+  if (chosen(resolved, "style.shading") && resolved.style) {
+    overrides.shading = resolved.style.shading.mode;
+  }
 
   // `asset.subject` fica de fora de propósito: ele é sempre `explicit_prompt`
   // (é a frase da pessoa) e reenviá-lo travaria o sujeito, fazendo com que

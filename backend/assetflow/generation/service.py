@@ -33,6 +33,7 @@ from .prompting import (
     resolve_semantic_prompt,
 )
 from .schemas import (
+    SPEC_CONSTRAINTS,
     AssetGenerationRequest,
     AssetSpec,
     Capability,
@@ -153,6 +154,7 @@ class GenerationService:
             semantic=semantic,
             positive=positive,
             negative=negative,
+            constraints=_constraint_map(),
             source="request" if request.semantic_prompt is not None else "builder",
         )
 
@@ -399,3 +401,8 @@ def _default_pipeline_for(capability: Capability) -> str:
     if capability.family in {"text_to_image", "character", "prop", "background"}:
         return "studio.character"
     return "raw.image"
+
+
+def _constraint_map() -> dict[str, str]:
+    """A classificação de cada campo, no formato que a API serializa."""
+    return {campo: classe.value for campo, classe in SPEC_CONSTRAINTS.items()}

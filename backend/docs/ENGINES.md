@@ -55,17 +55,37 @@ porque não é um motor.
 
 ## 2. As gavetas
 
-| id | família | estado padrão | do que depende |
-|---|---|---|---|
-| `flux-pixel-v1` | difusão | desabilitada | GPU, `diffusers`, `peft`, download do modelo |
-| `sdpixl-v1` | otimização | desabilitada | clone do SD-πXL + `options.command` |
-| `pixel-forge-v1` | sprites nativos | desabilitada | binário Rust + `options.binary` |
-| `diffusers-sdxl-v1` | difusão | habilitada | GPU, `diffusers`, download do modelo |
-| `mock-*` | procedural | referência | nada (fora da vitrine) |
+**Todas as seis estão implementadas e registradas.** A coluna "estado padrão"
+diz se elas vêm *ligadas*, e isso é outra coisa: uma gaveta desabilitada tem
+código, manifesto, bloco em `engines.yaml` e teste de contrato — falta só a
+dependência externa que o `engines.yaml` aponta.
 
-Todas nascem desabilitadas porque dependem de algo que a máquina pode não ter
-— e uma gaveta habilitada que não roda entra na **cadeia de fallback**,
-transformando cada falha do motor principal em uma segunda falha, mais lenta.
+| id | família | estado padrão | falta o quê para ligar |
+|---|---|---|---|
+| `gpt-image-v1` | difusão (API) | desabilitada | uma credencial em `OPENAI_API_KEY` |
+| `diffusers-sdxl-v1` | difusão | **habilitada** | nada (baixa ~7GB no 1º job) |
+| `mock-image-v1` | procedural | **habilitada** | nada — é gaveta de referência |
+| `flux-pixel-v1` | difusão | desabilitada | GPU + `pip install -e ".[diffusers]"` + `enabled: true` |
+| `sdpixl-v1` | otimização | desabilitada | clone do SD-πXL + `options.command` |
+| `pixel-forge-v1` | sprites nativos | desabilitada | binário Rust compilado + `options.binary` |
+| `mock-pixel-alt-v1` | procedural | desabilitada | nada — só existe para testar troca de motor |
+
+Para ver o estado real da sua instalação, sem adivinhar:
+
+```bash
+python scripts/benchmark_engines.py --list
+```
+
+Ou, pela API, `GET /api/generation/engines/catalog?include_hidden=true` — é a
+mesma lista que o seletor da tela consome, com `available` e
+`unavailable_reason` por gaveta. Uma gaveta ligada mas mal configurada diz
+exatamente o que falta: o Pixel Forge, por exemplo, responde *"aponte
+`options.binary` em engines.yaml para o executável compilado do projeto"*.
+
+As três de produção nascem desligadas porque dependem de algo que a máquina
+pode não ter — e uma gaveta habilitada que não roda entra na **cadeia de
+fallback**, transformando cada falha do motor principal em uma segunda falha,
+mais lenta.
 
 Sem nenhuma delas configurada, a geração Pixel Art **não funciona** fora do
 ambiente de desenvolvimento — o que roda ali são as gavetas `mock-*`, que
@@ -91,6 +111,70 @@ vira aviso no resultado e o modelo-base continua gerando. Recusar o motor
 inteiro porque um adaptador de dezenas de MB não baixou trocaria uma
 degradação visível por uma indisponibilidade total.
 
+### GPT Image (`gpt_image/`)
+
+A única gaveta que roda **sem GPU, sem download e sem clone**: só rede e uma
+credencial. Também a primeira remota — todas as outras carregam um modelo ou
+executam um binário local.
+
+Ela **não gera Pixel Art**, e isso não é um defeito dela:
+
+> O provedor exige no mínimo **655.360 pixels** por imagem. Um sprite 32×32 tem
+> 1.024 — 640 vezes menos. Não existe pedido de sprite a fazer.
+
+O que ela entrega é a **proposta visual**; a grade é do Pixel Exact, depois
+dela. É a tese da arquitetura levada ao limite: o motor precisa ser bom em
+*entender o pedido*, não em *acertar a grade*.
+
+```
+logical 32×32  ->  render 832×832  ->  GPT Image  ->  redução  ->  32×32
+```
+
+**A escala é sempre inteira.** `sizing.py` escolhe o menor render que é
+múltiplo exato do grid e satisfaz as quatro regras do provedor (arestas
+múltiplas de 16, 655.360–8.294.400 pixels, aresta ≤ 3840, proporção ≤ 3:1).
+Não é preciosismo: a redução que vem depois é **por blocos**, e com 900×900
+para um grid de 32 cada pixel lógico cobriria 28,125 pixels de origem — as
+bordas de bloco cairiam no meio de um pixel e a silhueta chegaria contaminada.
+
+| grid | render | escala |
+|---|---|---|
+| 16×16 | 816×816 | 51 |
+| 32×32 | 832×832 | 26 |
+| 48×48 | 816×816 | 17 |
+| 64×64 | 832×832 | 13 |
+| 32×48 | 672×1008 | 21 |
+
+Proporção acima de 3:1 é **recusada** com a razão — uma barra de vida 128×8 é
+16:1, e gerar em 3:1 para esticar depois entregaria um asset deformado sem
+avisar ninguém.
+
+**Três capacidades ausentes, todas declaradas.** O provedor não tem `seed` e
+não tem negative prompt; o fundo transparente está em *preview*. As duas
+primeiras viram **aviso no job** — quem pediu uma seed precisa saber que o
+resultado não é reprodutível —, e o negative é incorporado ao texto como
+`Avoid:` em vez de ser descartado.
+
+**Ligar:**
+
+```bash
+setx OPENAI_API_KEY "sk-..."           # Windows (vale na sessão seguinte)
+export OPENAI_API_KEY="sk-..."         # bash
+export ASSETFLOW_ENGINES_ENABLED="gpt-image-v1"
+```
+
+A chave vem **sempre** do ambiente. O `engines.yaml` guarda só o nome da
+variável — ele é versionado, e uma chave de API em um arquivo do repositório é
+um incidente, não um detalhe.
+
+**Custo.** Cada imagem é cobrada, e `output.variations` vira `n` na chamada: um
+candidate pool de 8 custa 8 imagens. O selo `pago` existe no catálogo para que
+isso apareça na tela antes de alguém pedir oito variações.
+
+O adapter fala HTTP direto, sem SDK. O teste de fronteiras *permitiria* o
+pacote `openai` aqui dentro; a escolha de não usá-lo evita uma dependência de
+instalação e faz qualquer endpoint compatível funcionar trocando `base_url`.
+
 ### SD-πXL (`sdpixl/`) e Pixel Forge (`pixel_forge/`)
 
 As duas são **pontes para processos externos**, não bibliotecas importadas. O
@@ -98,14 +182,70 @@ motivo é o mesmo nos dois casos e é de arquitetura: importar o SD-πXL
 amarraria o backend ao ambiente Python dele; o Pixel Forge é Rust e o plano é
 explícito em não acoplar o backend àquele runtime.
 
-O comando é configuração, com placeholders:
+#### Como ligar uma delas
+
+O caminho do executável é **diferente em cada máquina**, e `engines.yaml` é
+versionado. Então ele vai no ambiente, não no arquivo — senão todo `git pull`
+vira conflito, ou o caminho de outra pessoa entra no seu ambiente:
+
+```bash
+# Pixel Forge
+export ASSETFLOW_ENGINES_ENABLED="pixel-forge-v1"
+export ASSETFLOW_ENGINE_PIXEL_FORGE_V1_OPTIONS='{
+  "binary": "D:/ferramentas/pixel-forge/target/release/pixel-forge.exe",
+  "args": ["--prompt", "{prompt}", "--seed", "{seed}",
+           "--size", "{size}", "--out", "{output}"]
+}'
+
+# SD-πXL
+export ASSETFLOW_ENGINES_ENABLED="sdpixl-v1"
+export ASSETFLOW_ENGINE_SDPIXL_V1_OPTIONS='{
+  "command": ["python", "main.py", "--prompt", "{prompt}",
+              "--size", "{logical_width}", "--output", "{output}"],
+  "working_dir": "D:/ferramentas/sd-pixl"
+}'
+```
+
+O nome da variável sai do id da gaveta em maiúsculas, com `-` virando `_`. O
+merge é **por chave**: apontar só o `binary` mantém `args`, `output_glob` e
+timeout do YAML.
+
+Os `args`/`command` dependem da CLI do projeto que você compilou ou clonou —
+rode o `--help` dele e traduza para os placeholders. Eles são substituídos
+**por argumento já separado**, nunca por shell.
+
+> **O Pixel Forge é condicionado por classe, não por prompt.** A CLI dele é
+> `generate <classe> --size 32 --seed N --output arquivo.png`, e `<classe>` vem
+> de um vocabulário fechado pelo **modelo treinado** (`character`, `weapon`,
+> `tree`, `building`, …). Mandar `{prompt}` naquela posição é erro de
+> invocação, não um pedido genérico.
+>
+> Por isso existe o placeholder `{class}`: o AssetFlow traduz o **sujeito** e o
+> **tipo** do pedido para uma classe — nessa ordem, porque "uma casa de pedra"
+> é um `prop` para o AssetFlow e um `building` para o Pixel Forge, e é
+> `building` a resposta útil. Os mapas `class_map`/`subject_map` em
+> `options` ajustam isso ao seu modelo; eles só precisam existir quando o
+> padrão erra.
+>
+> Nota de realidade: o projeto **não distribui pesos treinados**. Compilar o
+> binário não basta — sem um `.safetensors` não há o que gerar, e treinar é
+> parte do trabalho (`cargo run --release -- train ...`).
+
+Confira antes de gerar:
+
+```bash
+python scripts/benchmark_engines.py --list
+```
+
+Se ela aparecer como disponível ali, está ligada. Se não, a mensagem diz o que
+falta.
+
+O YAML continua servindo para o que **não** é específico da máquina:
 
 ```yaml
 sdpixl-v1:
   options:
-    command: ["python", "main.py", "--prompt", "{prompt}", "--size",
-              "{logical_width}", "--output", "{output}"]
-    working_dir: "D:/ferramentas/sd-pixl"
+    process_timeout_s: 7200
 ```
 
 Placeholders disponíveis: `{prompt}`, `{negative}`, `{width}`, `{height}`,
@@ -120,6 +260,20 @@ As duas pontes têm código separado e não compartilham nada. É a regra 3 do
 teste de fronteiras — uma gaveta não importa outra —, e ela vale aqui: um
 módulo comum faria mexer no timeout do SD-πXL, que leva horas, alterar o Pixel
 Forge, que responde em segundos.
+
+> **Um defeito que já esteve aqui.** As duas ficaram *permanentemente*
+> inutilizáveis, mesmo configuradas, por um ciclo de três peças: com
+> `lazy_load`, a gaveta só recebia a configuração dela no primeiro job; o
+> `health_check()` respondia antes disso e dizia "não configurado"; e o
+> `EngineHandle` transformava esse "indisponível" em estado `FAILED` — que o
+> resolver recusa, de modo que a inicialização nunca chegava a acontecer.
+>
+> A correção foi separar duas coisas que estavam juntas: **receber a
+> configuração** (barato, acontece ao criar a instância) e **inicializar**
+> (pode baixar gigabytes, continua preguiçoso). Um "indisponível" anterior à
+> inicialização também deixou de reprovar o motor: ali ele significa "ainda
+> não perguntei direito", não "quebrado". `tests/test_process_bridges.py`
+> tranca os dois lados.
 
 ---
 
@@ -240,7 +394,7 @@ O teste de contrato gera os casos sozinho a partir do manifesto — **motor novo
 instaladas, ou que se declaram indisponíveis no `health_check()`, são puladas
 em vez de falhadas.
 
-Se a gaveta entrega a resolução lógica exata (como o Texel-style e o SD-πXL),
+Se a gaveta entrega a resolução lógica exata (como o SD-πXL e o Pixel Forge),
 declare `catalog.exact_resolution: true`: o contrato passa a aceitar que a
 saída venha no grid, em vez de no tamanho de render.
 

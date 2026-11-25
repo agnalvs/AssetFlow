@@ -193,6 +193,10 @@ const ENGINE_BADGES: Record<string, string> = {
   mvp: "primeira versão",
   especializado: "especializado",
   referência: "referência",
+  api: "roda na nuvem",
+  // O selo mais importante da lista: um motor cobrado por imagem precisa
+  // dizer isso **antes** de alguém pedir oito variações.
+  pago: "cobrado por imagem",
 };
 
 export function familyLabel(value: string): string {
@@ -249,4 +253,76 @@ export function optimizationLabel(optimization: {
       : "";
   const teto = optimization.status === "exhausted" ? " (ainda com ressalvas)" : "";
   return `${pixels}${nota}${teto}`;
+}
+
+
+// ---------------------------------------------------------------------------
+// Topologia corporal e estilo (pesquisa PixelLab)
+// ---------------------------------------------------------------------------
+const BODY_TYPES: Record<string, string> = {
+  unknown: "Automático",
+  humanoid: "Humanoide",
+  quadruped: "Quadrúpede",
+  avian: "Ave",
+  aquatic: "Aquático",
+  serpentine: "Serpentiforme",
+  amorphous: "Amorfo",
+};
+
+const DETAIL_LEVELS: Record<string, string> = {
+  auto: "Automático",
+  low: "Baixo",
+  medium: "Médio",
+  high: "Alto",
+};
+
+const OUTLINE_MODES: Record<string, string> = {
+  auto: "Automático",
+  none: "Sem contorno",
+  black: "Preto sólido",
+  single_color: "Cor única",
+  selective: "Seletivo",
+  adaptive_dark: "Escurecido adaptativo",
+};
+
+const SHADING_MODES: Record<string, string> = {
+  auto: "Automático",
+  flat: "Chapado",
+  basic: "Dois tons",
+  medium: "Três tons",
+  detailed: "Detalhado",
+};
+
+/**
+ * O que o AssetFlow promete sobre um campo.
+ *
+ * A distinção é a razão de o selo existir: "32×32" é medido e reprovado;
+ * "contorno seletivo" é uma orientação que o motor pode não seguir, e chamar
+ * isso de erro seria mentir sobre o que o sistema controla.
+ */
+const CONSTRAINT_CLASSES: Record<string, string> = {
+  hard: "garantido",
+  semantic: "verificado",
+  style: "orientação",
+  engine_hint: "execução",
+};
+
+export function bodyTypeLabel(value: string): string {
+  return BODY_TYPES[value] ?? value;
+}
+
+export function detailLabel(value: string): string {
+  return DETAIL_LEVELS[value] ?? value;
+}
+
+export function outlineLabel(value: string): string {
+  return OUTLINE_MODES[value] ?? value;
+}
+
+export function shadingLabel(value: string): string {
+  return SHADING_MODES[value] ?? value;
+}
+
+export function constraintLabel(value: string | undefined): string {
+  return value ? CONSTRAINT_CLASSES[value] ?? value : "";
 }

@@ -7,12 +7,16 @@
 #
 # Como rodar:
 #
-#   python scripts/benchmark_engines.py --engines texel-style-v1
-#   python scripts/benchmark_engines.py --engines texel-style-v1,flux-pixel-v1
+#   python scripts/benchmark_engines.py --targets mock-image-v1
+#   python scripts/benchmark_engines.py --targets flux-pixel-v1,pixel-forge-v1
 #   python scripts/benchmark_engines.py --cases tree_32,red_potion_16
 #
-# ATENÇÃO: sem `--engines`, o script roda em TODOS os motores disponíveis. Se o
+# ATENÇÃO: sem `--targets`, o script roda em TODOS os motores disponíveis. Se o
 # SD-πXL estiver habilitado e configurado, isso são horas por caso (§2.2).
+#
+# Todos os alvos atravessam o mesmo Pixel Optimizer, então a diferença entre
+# duas linhas do relatório é a diferença entre os motores — e não entre
+# caminhos (plano Optimizer §69).
 #
 # `seed` é fixa por caso de propósito: sem ela, duas execuções do mesmo caso no
 # mesmo motor já divergem, e a comparação entre motores perde a base.

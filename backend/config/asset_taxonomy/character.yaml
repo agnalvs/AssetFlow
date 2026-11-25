@@ -271,3 +271,153 @@ categories:
     - android
     - robo
     - robô
+
+# ---------------------------------------------------------------------------
+# Topologia corporal (pesquisa PixelLab — `character.body_type`)
+# ---------------------------------------------------------------------------
+# Eixo DIFERENTE de `categories`, e a diferença importa: um goblin é
+# `creature` de corpo humanoide; um lobo é `creature` quadrúpede. Categoria
+# diz que TIPO de coisa é; topologia diz que FORMA o corpo tem — e é a forma
+# que o gerador precisa saber.
+#
+# Confundir os dois é o mesmo erro do `asset_type` virando `character` para
+# uma árvore, um nível abaixo.
+#
+# Termo ausente vira `unknown`, e `unknown` não entra no prompt: é silêncio
+# honesto, não palpite. Acrescentar um bicho aqui é editar este arquivo,
+# nunca um `.py`.
+# ---------------------------------------------------------------------------
+body_types:
+  humanoid:
+    - warrior
+    - knight
+    - mage
+    - wizard
+    - witch
+    - archer
+    - ranger
+    - rogue
+    - thief
+    - paladin
+    - bard
+    - monk
+    - samurai
+    - ninja
+    - pirate
+    - king
+    - queen
+    - villager
+    - blacksmith
+    - goblin
+    - orc
+    - troll
+    - elf
+    - dwarf
+    - skeleton
+    - zombie
+    - vampire
+    - robot
+    - android
+    - cavaleiro
+    - guerreiro
+    - mago
+    - bruxa
+    - arqueiro
+    - ladino
+    - aldeão
+    - aldeao
+    - ferreiro
+    - rei
+    - rainha
+    - esqueleto
+    - zumbi
+    - vampiro
+    - anão
+    - anao
+    - elfo
+    - robô
+    - robo
+  quadruped:
+    - wolf
+    - dog
+    - cat
+    - horse
+    - bear
+    - lion
+    - tiger
+    - fox
+    - deer
+    - cow
+    - pig
+    - sheep
+    - goat
+    - rat
+    - boar
+    - lobo
+    - cachorro
+    - cão
+    - cao
+    - gato
+    - cavalo
+    - urso
+    - leão
+    - leao
+    - tigre
+    - raposa
+    - veado
+    - cervo
+    - vaca
+    - porco
+    - ovelha
+    - cabra
+    - rato
+    - javali
+  avian:
+    - bird
+    - eagle
+    - owl
+    - crow
+    - raven
+    - chicken
+    - duck
+    - bat
+    - pássaro
+    - passaro
+    - ave
+    - águia
+    - aguia
+    - coruja
+    - corvo
+    - galinha
+    - pato
+    - morcego
+  aquatic:
+    - fish
+    - shark
+    - octopus
+    - crab
+    - peixe
+    - tubarão
+    - tubarao
+    - polvo
+    - caranguejo
+  serpentine:
+    - snake
+    - serpent
+    - dragon
+    - worm
+    - cobra
+    - serpente
+    - dragão
+    - dragao
+    - verme
+  amorphous:
+    - slime
+    - blob
+    - ghost
+    - spirit
+    - cloud
+    - gosma
+    - fantasma
+    - espírito
+    - espirito

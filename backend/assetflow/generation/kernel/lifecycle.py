@@ -167,9 +167,21 @@ class EngineHandle:
 
         Construtores de engine **não podem** carregar modelo — é aqui que a
         promessa de lazy loading se sustenta.
+
+        A instância recebe a configuração dela **agora**, e não só em
+        ``initialize()``. As duas coisas são diferentes: entregar a
+        configuração é barato e não carrega nada; inicializar pode baixar
+        gigabytes. Separá-las é o que permite a uma gaveta responder
+        ``health_check()`` com honestidade antes do primeiro job — antes disso,
+        uma ponte para processo externo respondia "não configurado" sobre uma
+        configuração que existia e que ela simplesmente ainda não tinha
+        recebido.
         """
         if self._instance is None:
             self._instance = self._factory()
+            configure = getattr(self._instance, "receive_config", None)
+            if callable(configure):
+                configure(self._config)
         return self._instance
 
     async def ensure_ready(self) -> ImageGenerationEngine:
@@ -273,6 +285,20 @@ class EngineHandle:
         if health.status is EngineHealthStatus.UNAVAILABLE and self._state not in {
             EngineState.FAILED,
             EngineState.DISABLED,
+            # REGISTERED = a gaveta ainda **não recebeu a configuração dela**.
+            #
+            # Com `lazy_load`, `initialize()` só roda no primeiro job, e até lá
+            # a gaveta responde sobre um estado que ela ainda não tem. Deixar
+            # essa resposta virar FAILED trancava o motor para sempre: o
+            # resolver recusa FAILED, então `initialize()` nunca rodava, então
+            # a configuração nunca chegava, então o health check nunca podia
+            # melhorar. Foi exatamente o que manteve o Pixel Forge e o SD-πXL
+            # inutilizáveis mesmo depois de configurados.
+            #
+            # Um "indisponível" aqui significa "ainda não perguntei direito",
+            # e não "quebrado". O veredito que vale é o de depois da
+            # inicialização — e esse continua podendo reprovar.
+            EngineState.REGISTERED,
         }:
             self._transition(EngineState.FAILED, error=health.detail)
         elif health.status is EngineHealthStatus.DEGRADED and self._state is EngineState.READY:

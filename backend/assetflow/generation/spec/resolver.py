@@ -26,6 +26,7 @@ Duas garantias que o resolver assume junto (plano T→J §30):
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
@@ -36,21 +37,31 @@ from ..schemas import (
     AssetGenerationRequest,
     AssetMode,
     AssetType,
+    BodyType,
+    DetailLevel,
     EngineAdvice,
     FinalResolvedSpec,
     LogicalResolution,
+    OutlineMode,
     RenderResolution,
     ResolvedAsset,
     ResolvedBackground,
+    ResolvedCharacter,
     ResolvedComposition,
     ResolvedEngine,
     ResolvedGeneration,
+    ResolvedOutline,
     ResolvedPalette,
+    ResolvedShading,
+    ResolvedStyle,
+    ShadingMode,
     SpecSource,
 )
 from .classifier import AssetTypeClassifier, Classification
 from .constraints import ExplicitConstraintExtractor, ExplicitConstraints
 from .engine_advisor import EngineAdvisor
+
+_LOG = logging.getLogger("assetflow.generation.spec")
 
 __all__ = ["ConstraintResolver", "SpecResolution"]
 
@@ -207,6 +218,30 @@ class ConstraintResolver:
         variations.set(profile.output.variations, SpecSource.PROFILE_DEFAULT)
         variations.set(ui.variations, SpecSource.UI_SELECTION)
 
+        # -- topologia corporal e estilo (pesquisa PixelLab) --------------
+        #
+        # A topologia é **inferida** do sujeito: quem escreve "um lobo" não
+        # precisa dizer quadrúpede num dropdown. Mas inferência é o nível 3 da
+        # precedência e a interface é o 4 — então uma escolha explícita na tela
+        # ganha, como em qualquer outro campo. É o que permite pedir um lobo
+        # antropomórfico sem reescrever a frase.
+        body_type: _Slot[str] = _Slot()
+        body_type.set(classification.body_type, SpecSource.INFERENCE)
+        body_type.set(ui.body_type, SpecSource.UI_SELECTION)
+
+        detail: _Slot[str] = _Slot()
+        detail.set(ui.detail, SpecSource.UI_SELECTION)
+
+        outline: _Slot[str] = _Slot()
+        outline.set(ui.outline, SpecSource.UI_SELECTION)
+        outline_color: _Slot[str] = _Slot()
+
+        shading: _Slot[str] = _Slot()
+        shading.set(ui.shading, SpecSource.UI_SELECTION)
+
+        light_direction: _Slot[str] = _Slot()
+        light_direction.set(ui.light_direction, SpecSource.UI_SELECTION)
+
         # -- camada 1: correção manual, que ganha de todas as anteriores --
         if manual is not None:
             asset_type.set(manual.asset_type, SpecSource.MANUAL_OVERRIDE)
@@ -230,6 +265,12 @@ class ConstraintResolver:
             background.set(manual.background, SpecSource.MANUAL_OVERRIDE)
             view.set(manual.view, SpecSource.MANUAL_OVERRIDE)
             variations.set(manual.variations, SpecSource.MANUAL_OVERRIDE)
+            body_type.set(manual.body_type, SpecSource.MANUAL_OVERRIDE)
+            detail.set(manual.detail, SpecSource.MANUAL_OVERRIDE)
+            outline.set(manual.outline, SpecSource.MANUAL_OVERRIDE)
+            outline_color.set(manual.outline_color, SpecSource.MANUAL_OVERRIDE)
+            shading.set(manual.shading, SpecSource.MANUAL_OVERRIDE)
+            light_direction.set(manual.light_direction, SpecSource.MANUAL_OVERRIDE)
 
         resolved_type = asset_type.value or AssetType.PROP
         resolved_mode = mode.value or AssetMode.PIXEL
@@ -244,6 +285,17 @@ class ConstraintResolver:
         ):
             category = _Slot()
 
+        # A topologia corporal é inferida do **sujeito**, e por isso a regra
+        # dela é ancorada no sujeito — não no tipo. Um "sprite sheet de um
+        # lobo" continua sendo quadrúpede, mesmo com o tipo virando
+        # `spritesheet`; mas se alguém trocou o sujeito à mão, `quadruped`
+        # passou a descrever um bicho que saiu do pedido.
+        if (
+            body_type.source is SpecSource.INFERENCE
+            and subject.source is SpecSource.MANUAL_OVERRIDE
+        ):
+            body_type = _Slot()
+
         sources: dict[str, SpecSource] = {
             "asset.type": asset_type.source,
             "asset.mode": mode.source,
@@ -256,6 +308,15 @@ class ConstraintResolver:
             sources["asset.category"] = category.source
         if view.value is not None:
             sources["composition.view"] = view.source
+        if body_type.value is not None:
+            sources["character.body_type"] = body_type.source
+        for nome, slot in (
+            ("style.detail", detail),
+            ("style.outline", outline),
+            ("style.shading", shading),
+        ):
+            if slot.value is not None:
+                sources[nome] = slot.source
 
         notes: list[str] = []
 
@@ -324,6 +385,20 @@ class ConstraintResolver:
                 view=view.value,
                 centered=True,
                 margin_ratio=None,
+            ),
+            character=ResolvedCharacter(
+                body_type=_body_type(body_type.value)
+            ),
+            style=ResolvedStyle(
+                detail=_enum_or_auto(DetailLevel, detail.value),
+                outline=ResolvedOutline(
+                    mode=_enum_or_auto(OutlineMode, outline.value),
+                    color=outline_color.value,
+                ),
+                shading=ResolvedShading(
+                    mode=_enum_or_auto(ShadingMode, shading.value),
+                    light_direction=light_direction.value,
+                ),
             ),
             generation=ResolvedGeneration(
                 variations=variations.value or 1,
@@ -587,6 +662,41 @@ class ConstraintResolver:
 
         sources["palette"] = max_colors.source
         return palette
+
+
+def _body_type(value: str | None) -> BodyType:
+    """Texto para :class:`BodyType`; desconhecido vira ``UNKNOWN``.
+
+    Um valor que o vocabulário produziu mas o enum não conhece é sinal de que
+    alguém acrescentou uma topologia ao YAML sem acrescentá-la ao contrato.
+    Isso vira ``UNKNOWN`` — silêncio — em vez de derrubar a geração: um termo
+    novo no vocabulário não pode quebrar um pedido.
+    """
+    if not value:
+        return BodyType.UNKNOWN
+    try:
+        return BodyType(str(value).strip().lower())
+    except ValueError:
+        _LOG.warning(
+            "topologia corporal '%s' não existe no contrato; tratada como "
+            "desconhecida. Acrescente-a a BodyType para que ela chegue ao motor.",
+            value,
+        )
+        return BodyType.UNKNOWN
+
+
+def _enum_or_auto(enum_cls, value: str | None):
+    """Texto para um enum de estilo; ausente ou inválido vira ``AUTO``.
+
+    ``AUTO`` não é "sem estilo": é "ninguém opinou", e o compilador de prompt
+    de cada motor decide o que fazer com isso.
+    """
+    if not value:
+        return enum_cls.AUTO
+    try:
+        return enum_cls(str(value).strip().lower())
+    except ValueError:
+        return enum_cls.AUTO
 
 
 def _field_error(campo: str, erro: str) -> dict[str, object]:

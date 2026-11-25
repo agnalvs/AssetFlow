@@ -339,3 +339,83 @@ assert logical_png.size == (32, 32)         # §42  o arquivo
 
 O §42 mede o **arquivo**, e não o relatório. O spec dizer 32 e o PNG ter 64 era
 exatamente o defeito.
+
+---
+
+## Os três eixos do sujeito
+
+Um erro que este módulo já corrigiu uma vez, e que reaparece um nível abaixo se
+ninguém o vigiar: **colapsar eixos diferentes no mesmo campo**.
+
+```
+asset.type            que papel o asset cumpre no jogo   ->  character
+asset.category        que tipo de coisa é                ->  creature
+character.body_type   que forma o corpo tem              ->  quadruped
+```
+
+Um goblin é `creature` de corpo **humanoide**. Um lobo é `creature`
+**quadrúpede**. Sem o terceiro eixo os dois chegam ao motor como "character", e
+ele desenha o lobo em pé — exatamente como uma árvore virava `character` antes
+de o segundo eixo existir.
+
+A topologia é **inferida do sujeito**, não pedida em um dropdown: quem escreve
+"um lobo" já disse quadrúpede. Inferência é o nível 3 da precedência, então uma
+escolha explícita na tela ganha — é o que permite pedir um lobo antropomórfico
+sem reescrever a frase.
+
+O vocabulário é configuração: `config/asset_taxonomy/character.yaml`, seção
+`body_types`. Um termo que aparece **só** ali também é registrado como sujeito
+do tipo — acrescentar uma ave é uma edição, não duas.
+
+`unknown` é silêncio honesto e **não entra no prompt**. Chutar `humanoid` para
+uma árvore mandaria "humanoid character" junto da palavra "árvore", e o modelo
+tentaria conciliar as duas coisas.
+
+### A regra de sobrevivência
+
+A categoria inferida morre quando outra camada troca o **tipo**. A topologia
+morre quando outra camada troca o **sujeito** — porque é dele que ela deriva.
+Não é a mesma regra:
+
+```
+"sprite sheet de um lobo"        -> tipo virou spritesheet, corpo continua quadruped
+subject corrigido para "espada"  -> corpo volta a unknown
+```
+
+---
+
+## O que o AssetFlow promete sobre cada campo
+
+A precedência responde *de onde veio o valor*. Falta a outra metade: *o que
+acontece se o resultado não bater com ele?*
+
+Sem essa distinção a interface trata `32×32` e "contorno seletivo" como a mesma
+promessa. Não são — e chamar o segundo de erro é mentir sobre o que o sistema
+controla.
+
+| classe | promessa | exemplos |
+|---|---|---|
+| `hard` | o AssetFlow **garante**; não bater reprova | `logical_resolution`, `palette`, `background` |
+| `semantic` | o motor tenta, o validador **mede** | `asset.type`, `character.body_type`, `composition.view` |
+| `style` | orientação; o Optimizer melhora o que der | `style.detail`, `style.outline`, `style.shading` |
+| `engine_hint` | execução, sem promessa visual | `engine`, `generation.seed`, `render_resolution` |
+
+Mora em `SPEC_CONSTRAINTS`, ao lado de `SPEC_PRECEDENCE`, e é servida à
+interface em `PromptPreview.constraints` — não copiada no React, pelo mesmo
+motivo do catálogo de motores: uma cópia envelheceria em silêncio.
+
+Campo sem classe declarada cai em `semantic`, a resposta conservadora.
+Prometer `hard` por omissão daria a um campo novo uma garantia que ninguém
+escreveu.
+
+### Estilo: `auto` não é "sem estilo"
+
+`auto` significa **ninguém opinou**, e o compilador de prompt de cada motor
+decide o que fazer com isso. A diferença é concreta: em `auto` o compilador do
+GPT Image **não diz nada** sobre contorno, em vez de mandar um padrão. Um
+prompt que sempre pede "contorno seletivo" tira do modelo uma decisão que
+ninguém pediu para tirar.
+
+E `detail` é separado de `shading` de propósito: um sprite pode ser muito
+detalhado com sombreamento chapado, ou simples com sombreamento dramático.
+Tratá-los como um controle só perderia metade das combinações.

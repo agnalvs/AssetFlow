@@ -20,6 +20,7 @@ from .semantic_prompt import SemanticPrompt
 
 __all__ = [
     "AssetSpec",
+    "StyleSpec",
     "PromptSpec",
     "OutputSpec",
     "GenerationParams",
@@ -35,6 +36,40 @@ class AssetSpec(AssetFlowModel):
 
     type: AssetType = AssetType.RAW
     mode: AssetMode = AssetMode.PIXEL
+    #: A forma do corpo do sujeito, quando ela é conhecida.
+    #:
+    #: Eixo diferente de ``type``: um lobo e um cavaleiro são ambos
+    #: `character`, e só este campo distingue quatro patas de duas pernas.
+    #: ``"unknown"`` é silêncio, e um motor que não saiba usar simplesmente
+    #: ignora — como acontece com qualquer campo deste contrato.
+    body_type: str = "unknown"
+
+
+class StyleSpec(AssetFlowModel):
+    """A intenção de estilo, para os motores que saibam usá-la.
+
+    Tudo aqui é **orientação**, nunca garantia. O que o AssetFlow garante —
+    resolução, paleta, alpha — está em :class:`OutputSpec`, e a diferença
+    entre os dois objetos é a diferença entre o que se cobra e o que se pede.
+
+    ``"auto"`` significa "ninguém opinou", e é o padrão de todos: um motor que
+    receba `auto` deve deixar a decisão com o modelo, e não aplicar um padrão
+    próprio disfarçado de escolha do usuário.
+    """
+
+    detail: str = "auto"
+    outline: str = "auto"
+    outline_color: str | None = None
+    shading: str = "auto"
+    light_direction: str | None = None
+
+    @property
+    def is_default(self) -> bool:
+        return (
+            self.detail == "auto"
+            and self.outline == "auto"
+            and self.shading == "auto"
+        )
 
 
 class PromptSpec(AssetFlowModel):
@@ -85,7 +120,7 @@ class OutputSpec(AssetFlowModel):
     logical_width: int | None = Field(default=None, ge=8, le=1024)
     logical_height: int | None = Field(default=None, ge=8, le=1024)
     #: Limite de cores do asset, para motores com controle de paleta nativo
-    #: (SD-πXL, Texel-style). Os demais ignoram e o Pixel Exact quantiza.
+    #: (SD-πXL, Pixel Forge). Os demais ignoram e o Pixel Exact quantiza.
     max_colors: int | None = Field(default=None, ge=2, le=256)
 
     @property
@@ -183,6 +218,8 @@ class ImageGenerationRequest(AssetFlowModel):
     asset: AssetSpec = Field(default_factory=AssetSpec)
     prompt: PromptSpec
     output: OutputSpec = Field(default_factory=OutputSpec)
+    #: Intenção de estilo (orientação, não garantia). Ver :class:`StyleSpec`.
+    style: StyleSpec = Field(default_factory=StyleSpec)
     generation: GenerationParams = Field(default_factory=GenerationParams)
     engine: EngineSelector = Field(default_factory=EngineSelector)
 

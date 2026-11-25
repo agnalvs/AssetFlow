@@ -54,12 +54,27 @@ class PixelForgeEngine(BaseImageGenerationEngine):
             self._forge_config.binary, self._forge_config.working_dir
         )
         if problem:
+            # Não é erro de inicialização: a gaveta existe e está registrada,
+            # ela só não roda nesta máquina. Quem informa isso é o
+            # `health_check`, com a frase que diz o que falta.
             self._logger.warning("Pixel Forge indisponível: %s", problem)
 
+    def _effective_config(self) -> PixelForgeConfig:
+        """A configuração desta gaveta, mesmo antes de ``initialize()``.
+
+        Com ``lazy_load``, o catálogo pergunta a saúde bem antes do primeiro
+        job. Responder a partir de ``self._forge_config`` nesse momento diria
+        "não configurado" sobre uma gaveta que **está** configurada — e a
+        resposta errada trancava o motor (ver ``lifecycle.py``).
+        """
+        if self._forge_config.configured:
+            return self._forge_config
+        pending = self.pending_config
+        return PixelForgeConfig.from_runtime(pending) if pending else self._forge_config
+
     async def health_check(self) -> EngineHealth:
-        problem = binary_available(
-            self._forge_config.binary, self._forge_config.working_dir
-        )
+        config = self._effective_config()
+        problem = binary_available(config.binary, config.working_dir)
         if problem:
             return EngineHealth(
                 status=EngineHealthStatus.UNAVAILABLE,
@@ -161,6 +176,21 @@ class PixelForgeEngine(BaseImageGenerationEngine):
                 output_dir = Path(config.output_dir or tmp)
                 output_dir.mkdir(parents=True, exist_ok=True)
                 values = {
+                    # O Pixel Forge é condicionado por **classe**, não por
+                    # texto: a CLI dele recebe `generate <classe>`, de um
+                    # vocabulário fechado pelo modelo treinado. `{prompt}`
+                    # continua disponível para quem tiver um binário que o
+                    # aceite, mas mandá-lo na posição da classe é um erro de
+                    # invocação — e é por isso que `{class}` existe.
+                    "class": config.resolve_class(
+                        request.asset.type.value, request.prompt.semantic.subject
+                        if request.prompt.semantic else ""
+                    ),
+                    "subject": (
+                        request.prompt.semantic.subject
+                        if request.prompt.semantic
+                        else ""
+                    ),
                     "prompt": request.prompt.positive,
                     "seed": (seed + index) % (_MAX_SEED + 1),
                     "size": NATIVE_SIZE,

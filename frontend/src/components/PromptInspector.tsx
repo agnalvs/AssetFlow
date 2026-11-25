@@ -4,15 +4,22 @@ import type { PreviewError } from "../hooks/usePromptPreview";
 import { diffSpec } from "../specOverrides";
 import {
   assetTypeLabel,
+  bodyTypeLabel,
   capitalize,
   categoryLabel,
+  constraintLabel,
+  detailLabel,
   isUserChoice,
+  outlineLabel,
+  shadingLabel,
   sourceLabel,
   viewLabel,
 } from "../labels";
 import type {
+  ConstraintClassId,
   FinalResolvedSpec,
   PromptPreview,
+  ResolvedStyle,
   SemanticPrompt,
   SpecOverrides,
   SpecSource,
@@ -218,6 +225,9 @@ function TabButton({
  */
 function Reading({ preview }: { preview: PromptPreview }) {
   const { resolved } = preview;
+  // A classificação vem do backend. Um campo sem classe declarada não recebe
+  // selo — melhor a ausência do que um rótulo inventado aqui.
+  const classes = preview.constraints ?? {};
   const size = resolved.logical_resolution;
   const palette = resolved.palette;
   const category = categoryLabel(resolved.asset.category);
@@ -230,6 +240,7 @@ function Reading({ preview }: { preview: PromptPreview }) {
           label="Tipo"
           value={assetTypeLabel(resolved.asset.type)}
           source={resolved.sources["asset.type"]}
+          constraint={classes["asset.type"]}
         />
         <Row
           label="Objeto"
@@ -253,6 +264,7 @@ function Reading({ preview }: { preview: PromptPreview }) {
             label="Resolução"
             value={`${size.width} × ${size.height}`}
             source={resolved.sources["logical_resolution"]}
+          constraint={classes["logical_resolution"]}
           />
         ) : null}
         {palette?.max_colors ? (
@@ -260,18 +272,21 @@ function Reading({ preview }: { preview: PromptPreview }) {
             label="Paleta"
             value={`${palette.max_colors} cores`}
             source={resolved.sources["palette"]}
+          constraint={classes["palette"]}
           />
         ) : null}
         <Row
           label="Fundo"
           value={resolved.background.mode === "transparent" ? "Transparente" : "Sólido"}
           source={resolved.sources["background"]}
+          constraint={classes["background"]}
         />
         {view ? (
           <Row
             label="Vista"
             value={view}
             source={resolved.sources["composition.view"]}
+          constraint={classes["composition.view"]}
           />
         ) : null}
         <Row
@@ -279,10 +294,48 @@ function Reading({ preview }: { preview: PromptPreview }) {
           value={String(resolved.generation.variations)}
           source={resolved.sources["generation.variations"]}
         />
+        {resolved.character?.body_type &&
+        resolved.character.body_type !== "unknown" ? (
+          <Row
+            label="Tipo corporal"
+            value={bodyTypeLabel(resolved.character.body_type)}
+            source={resolved.sources["character.body_type"]}
+            constraint={classes["character.body_type"]}
+          />
+        ) : null}
+        {resolved.style && !isDefaultStyle(resolved.style) ? (
+          <>
+            {resolved.style.detail !== "auto" ? (
+              <Row
+                label="Detalhe"
+                value={detailLabel(resolved.style.detail)}
+                source={resolved.sources["style.detail"]}
+                constraint={classes["style.detail"]}
+              />
+            ) : null}
+            {resolved.style.outline.mode !== "auto" ? (
+              <Row
+                label="Contorno"
+                value={outlineLabel(resolved.style.outline.mode)}
+                source={resolved.sources["style.outline"]}
+                constraint={classes["style.outline"]}
+              />
+            ) : null}
+            {resolved.style.shading.mode !== "auto" ? (
+              <Row
+                label="Sombreamento"
+                value={shadingLabel(resolved.style.shading.mode)}
+                source={resolved.sources["style.shading"]}
+                constraint={classes["style.shading"]}
+              />
+            ) : null}
+          </>
+        ) : null}
         <Row
           label="Motor"
           value={engineValue(resolved)}
           source={resolved.sources["engine"]}
+          constraint={classes["engine"]}
         />
         <Row
           label="Otimização"
@@ -351,17 +404,28 @@ function Row({
   value,
   source,
   showSource = true,
+  constraint,
 }: {
   label: string;
   value: string;
   source?: SpecSource | undefined;
   showSource?: boolean;
+  /** O que o AssetFlow promete sobre este campo. */
+  constraint?: ConstraintClassId | undefined;
 }) {
   return (
     <>
       <dt className="reading__label">{label}</dt>
       <dd className="reading__value">
         {value}
+        {constraint ? (
+          <span
+            className={`reading__constraint reading__constraint--${constraint}`}
+            title={CONSTRAINT_HINTS[constraint]}
+          >
+            {constraintLabel(constraint)}
+          </span>
+        ) : null}
         {showSource ? (
           <span
             className={`reading__source${
@@ -375,6 +439,20 @@ function Row({
     </>
   );
 }
+
+/**
+ * O que cada selo quer dizer, no `title` da linha.
+ *
+ * A distinção é a razão de o selo existir: sem ela, a tela mostra "32×32" e
+ * "contorno seletivo" com o mesmo peso, e a pessoa reclama de um "erro" que é
+ * na verdade o limite do que um gerador consegue obedecer.
+ */
+const CONSTRAINT_HINTS: Record<ConstraintClassId, string> = {
+  hard: "O AssetFlow garante este valor. Sair dele reprova o asset.",
+  semantic: "O motor tenta e o AssetFlow verifica. Divergir baixa a qualidade.",
+  style: "Orientação ao motor. O Pixel Optimizer melhora o que der.",
+  engine_hint: "Parâmetro de execução, sem efeito visual garantido.",
+};
 
 /**
  * Editor de JSON compartilhado pelas duas abas editáveis.
@@ -521,5 +599,15 @@ function NeutralReading({ preview }: { preview: PromptPreview }) {
         monta o prompt dele.
       </dd>
     </dl>
+  );
+}
+
+
+/** Ninguém opinou sobre estilo — as linhas somem em vez de mostrar "auto". */
+function isDefaultStyle(style: ResolvedStyle): boolean {
+  return (
+    style.detail === "auto" &&
+    style.outline.mode === "auto" &&
+    style.shading.mode === "auto"
   );
 }

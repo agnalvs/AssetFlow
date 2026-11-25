@@ -9,7 +9,7 @@ de sprites do que com um modelo de difusão de 1024 px.
 A política preenche essa lacuna com **regras declaradas em configuração**,
 não em código::
 
-    prop 32×32 com 16 cores  ->  pixel-forge-v1, texel-style-v1
+    prop 32×32 com 16 cores  ->  pixel-forge-v1
     character 64×64          ->  flux-pixel-v1
     qualidade máxima + lento ->  sdpixl-v1
 

@@ -62,6 +62,7 @@ from ..schemas import (
     PromptSpec,
     SemanticPrompt,
     StageTimings,
+    StyleSpec,
     Stopwatch,
     ValidationReport,
 )
@@ -201,7 +202,18 @@ class ImageAssetPipeline(AssetPipeline):
 
         return ImageGenerationRequest(
             capability=resolved.capability,
-            asset=AssetSpec(type=resolved.asset.type, mode=resolved.asset.mode),
+            asset=AssetSpec(
+                type=resolved.asset.type,
+                mode=resolved.asset.mode,
+                body_type=resolved.character.body_type.value,
+            ),
+            style=StyleSpec(
+                detail=resolved.style.detail.value,
+                outline=resolved.style.outline.mode.value,
+                outline_color=resolved.style.outline.color,
+                shading=resolved.style.shading.mode.value,
+                light_direction=resolved.style.shading.light_direction,
+            ),
             prompt=PromptSpec(positive=positive, negative=negative, semantic=semantic),
             output=OutputSpec(
                 width=width,

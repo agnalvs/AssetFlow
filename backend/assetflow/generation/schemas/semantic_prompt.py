@@ -120,6 +120,16 @@ class PromptPreview(AssetFlowModel):
     profile: str
     capability: str
 
+    #: O que o AssetFlow **promete** sobre cada campo do spec, por caminho
+    #: pontuado: ``hard`` | ``semantic`` | ``style`` | ``engine_hint``.
+    #:
+    #: Vem do backend, e não de uma tabela no React, pelo mesmo motivo do
+    #: catálogo de motores: é uma regra de arquitetura, e uma cópia dela no
+    #: frontend envelheceria em silêncio no dia em que um campo mudasse de
+    #: classe. Sem isso a tela exibe "32×32" e "contorno seletivo" com o mesmo
+    #: peso — e só o primeiro é garantido.
+    constraints: dict[str, str] = Field(default_factory=dict)
+
     #: O contrato final — o que a geração vai executar (plano T→J §32 e §33).
     #:
     #: É o campo que a aba "Interpretação" da interface lê: tipo de asset,

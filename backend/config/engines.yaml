@@ -24,6 +24,7 @@ discovery:
     - "flux-pixel-v1"
     - "sdpixl-v1"
     - "pixel-forge-v1"
+    - "gpt-image-v1"
 
 defaults:
   # Tempo máximo padrão de uma geração, quando o manifesto não declara o seu.
@@ -254,14 +255,76 @@ engines:
   # Placeholders: {prompt}, {seed}, {size}, {width}, {height}, {max_colors},
   # {model}, {output}, {output_dir}, {workspace}.
   # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # GPT Image — a única gaveta que roda sem GPU, sem download e sem clone.
+  #
+  # Ela NÃO gera Pixel Art: o provedor exige no mínimo 655.360 pixels por
+  # imagem, e um sprite 32×32 tem 1.024. O que ela entrega é a proposta
+  # visual; a grade é do Pixel Exact, depois dela. O adapter traduz o grid
+  # lógico para um render que é múltiplo inteiro dele (32×32 -> 832×832).
+  #
+  # A CHAVE NUNCA VAI NESTE ARQUIVO — ele é versionado. Aqui fica só o NOME
+  # da variável de ambiente que a guarda:
+  #
+  #     setx OPENAI_API_KEY "sk-..."        (Windows, sessão nova)
+  #     export OPENAI_API_KEY="sk-..."      (bash)
+  #
+  # Para ligar sem editar este arquivo:
+  #     ASSETFLOW_ENGINES_ENABLED="gpt-image-v1"
+  #
+  # ATENÇÃO: cada geração é cobrada por imagem, e `output.variations` vira
+  # `n` na chamada. Um candidate pool de 8 custa 8 imagens.
+  # ---------------------------------------------------------------------------
+  gpt-image-v1:
+    enabled: false
+    model:
+      id: "gpt-image-2"
+    options:
+      base_url: "https://api.openai.com/v1"
+      api_key_env: "OPENAI_API_KEY"
+      timeout_s: 180
+      # `low` relaxa o filtro de conteúdo do provedor; `auto` é o padrão dele.
+      moderation: "auto"
+      # headers:
+      #   OpenAI-Organization: "org-..."
+    timeouts:
+      timeout_s: 300
+      load_timeout_s: 30
+
   pixel-forge-v1:
     enabled: false
     model:
       id: "pixel-forge"
     options:
+      # O caminho é específico da máquina e por isso NÃO vai aqui — este
+      # arquivo é versionado. Use a variável de ambiente:
+      #
+      #   ASSETFLOW_ENGINE_PIXEL_FORGE_V1_OPTIONS='{"binary": "...", "args": [...]}'
+      #
       binary: ""
-      # binary: "D:/ferramentas/pixel-forge/target/release/pixel-forge.exe"
       args: []
-      # args: ["--prompt", "{prompt}", "--seed", "{seed}", "--out", "{output}"]
+      # A CLI real do projeto (cochranblock/pixel-forge):
+      #
+      #   pixel-forge generate <classe> --size 32 --count 1 --steps 40 \
+      #       --palette stardew --seed N --output arquivo.png \
+      #       --model pixel-forge-cinder.safetensors
+      #
+      # args: ["generate", "{class}",
+      #        "--size", "{size}", "--seed", "{seed}",
+      #        "--steps", "40", "--palette", "stardew",
+      #        "--output", "{output}"]
+      #
+      # Repare no `{class}` e NÃO no `{prompt}`: o Pixel Forge é condicionado
+      # por classe, de um vocabulário fechado pelo modelo treinado — texto
+      # livre naquela posição é erro de invocação. O AssetFlow traduz o tipo
+      # e o sujeito do pedido para a classe; os mapas abaixo ajustam isso ao
+      # SEU modelo, e só precisam existir quando o padrão erra.
+      #
+      # class_map:
+      #   prop: "misc"
+      #   tileset: "terrain"
+      # subject_map:
+      #   candelabro: "misc"
+      # fallback_class: "misc"
       output_glob: "*.png"
       process_timeout_s: 300

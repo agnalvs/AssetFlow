@@ -58,8 +58,8 @@ RUN_REAL_ENGINES = os.environ.get("ASSETFLOW_TEST_REAL_ENGINES", "").lower() in 
 #: capacidade, troca de motor, fallback, retry —, e mecanismo se testa com
 #: motores previsíveis. Amarrar esses testes ao conjunto de gavetas que o
 #: projeto por acaso entrega habilitadas os quebraria a cada motor novo, sem
-#: que nada de errado tivesse acontecido: foi exatamente o que ocorreu quando
-#: `texel-style-v1` entrou e passou a ser o preferido em Pixel Art.
+#: que nada de errado tivesse acontecido — foi exatamente o que ocorreu quando
+#: uma gaveta nova entrou e passou a ser a preferida em Pixel Art.
 #:
 #: As gavetas de produto têm testes próprios, que as habilitam explicitamente
 #: (`container.registry.enable(...)`) — e é lá que o comportamento delas é

@@ -310,6 +310,32 @@ class BaseImageGenerationEngine(ImageGenerationEngine):
             raise RuntimeError("engine usado antes de initialize()")
         return self._config
 
+    def receive_config(self, config: EngineRuntimeConfig) -> None:
+        """Recebe a configuração sem inicializar nada.
+
+        Chamado pelo ``EngineHandle`` assim que a instância é criada. É de
+        propósito que ele não faça mais nada: entregar configuração é barato,
+        inicializar pode baixar gigabytes, e a promessa de lazy loading é
+        sobre a segunda coisa.
+        """
+        self._config = config
+
+    @property
+    def pending_config(self) -> EngineRuntimeConfig | None:
+        """A configuração, se ela já chegou — sem estourar quando não chegou.
+
+        Existe para uma pergunta que acontece **antes** de ``initialize()``: o
+        ``health_check()``. Com ``lazy_load``, uma gaveta pode ser consultada
+        pelo catálogo muito antes de rodar o primeiro job, e nesse momento
+        ``config`` levantaria — o que forçaria cada gaveta a responder sobre
+        um estado que ela não tem, tipicamente com um "não configurado" falso.
+
+        Quem responde saúde deve olhar aqui. ``None`` quer dizer "a
+        configuração ainda não chegou", que é diferente de "a configuração
+        está vazia".
+        """
+        return self._config
+
     @property
     def is_initialized(self) -> bool:
         return self._initialized

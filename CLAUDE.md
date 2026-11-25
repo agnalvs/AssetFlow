@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (~1143 passed, 34 skipped)
+pytest -q                                # suíte completa (~1217 passed, 42 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -22,7 +22,7 @@ ruff check .                             # lint (sem config própria: defaults d
     --reload --reload-dir assetflow --reload-dir config
 ```
 
-`ruff check .` tem **191 achados pré-existentes** (nenhuma config própria, então
+`ruff check .` tem **190 achados pré-existentes** (nenhuma config própria, então
 valem os defaults, bem mais rígidos que o estilo do projeto). Compare com esse
 baseline antes de concluir que uma alteração sua introduziu lint novo — e, se
 mexer nele, atualize o número aqui: o baseline só serve enquanto estiver certo.
@@ -192,6 +192,26 @@ Três consequências práticas ao mexer aqui:
   `keywords` (termos que nomeiam o sujeito — "grass", "espada"): é o que faz
   "grass tileset" ser um tileset.
 
+Três eixos que **nunca** se colapsam, e o terceiro é novo (pesquisa PixelLab):
+
+```
+asset.type            que papel cumpre no jogo   ->  character
+asset.category        que tipo de coisa é        ->  creature
+character.body_type   que forma o corpo tem      ->  quadruped
+```
+
+Um goblin é `creature` de corpo humanoide; um lobo, `creature` quadrúpede. Sem
+o terceiro, o motor desenha o lobo em pé — o mesmo erro que fazia uma árvore
+virar `character`, um nível abaixo. O vocabulário está em
+`config/asset_taxonomy/character.yaml`, seção `body_types`.
+
+E cada campo declara **o que o AssetFlow promete sobre ele** (`SPEC_CONSTRAINTS`,
+ao lado de `SPEC_PRECEDENCE`): `hard` é garantido e reprova; `semantic` é medido;
+`style` é orientação que o Optimizer melhora; `engine_hint` não tem promessa
+visual. A precedência diz de onde veio o valor; a classe diz o que acontece se o
+resultado não bater com ele. Sem as duas, a tela mostra "32×32" e "contorno
+seletivo" com o mesmo peso.
+
 Os testes permanentes dos dois bugs estão em `tests/test_resolved_spec.py`.
 Detalhes em [backend/docs/RESOLVED_SPEC.md](backend/docs/RESOLVED_SPEC.md) — é
 o documento que as docstrings citam como `plano T→J §N`.
@@ -217,11 +237,16 @@ regras por tipo de asset, tamanho lógico, paleta e qualidade, cada uma com um
 obriga: um motor preferido que caia é substituído pelo fallback, porque em
 `auto` ninguém tinha escolhido.
 
-As gavetas de produção nascem desabilitadas: cada uma exige GPU, um clone de
-projeto externo ou um binário Rust. **Sem nenhuma delas, a geração Pixel Art
-não funciona fora do ambiente de desenvolvimento** — ali o que roda são as
-gavetas `mock-*`, que produzem um padrão determinístico, não arte. O AssetFlow
-não tem mais um caminho que desenha sozinho, e essa é a contrapartida.
+As gavetas de produção local nascem desabilitadas: cada uma exige GPU, um
+clone de projeto externo ou um binário Rust. A exceção é **`gpt-image-v1`**,
+que só precisa de rede e de uma credencial em `OPENAI_API_KEY` — é o caminho
+mais curto para gerar Pixel Art de verdade em uma máquina sem GPU.
+
+Ela não desenha na grade, e isso é o ponto: o provedor exige no mínimo 655.360
+pixels por imagem (um sprite 32×32 tem 1.024), então ela entrega a **proposta
+visual** em ~832×832 e o Pixel Exact entrega o sprite. O adapter traduz o grid
+lógico para um render que é **múltiplo inteiro** dele — a redução seguinte é
+por blocos, e blocos precisam fechar.
 
 **O frontend continua sem conhecer motor**: a lista vem de
 `GET /api/generation/engines/catalog`, com nome, resumo, selos e
@@ -352,6 +377,18 @@ os imports são bare specifiers que só o Vite resolve.
   e o cache do modelo (vários GB) moram lá. Nunca faça `rmtree` na pasta toda.
 - **Diferenças de hardware vão em env var, não no YAML.** `engines.yaml` é
   versionado e compartilhado; editar direto gera conflito de merge a cada pull.
+  Além de `ASSETFLOW_ENGINES_ENABLED`/`_DISABLED`, as **opções** de cada gaveta
+  entram por `ASSETFLOW_ENGINE_<ID>_OPTIONS` como JSON (id em maiúsculas, `-`
+  vira `_`), com merge por chave sobre o YAML. É assim que se liga o Pixel
+  Forge ou o SD-πXL, cujos caminhos de executável são diferentes em cada
+  máquina:
+
+  ```bash
+  ASSETFLOW_ENGINE_PIXEL_FORGE_V1_OPTIONS='{"binary": "D:/pf/pf.exe", "args": [...]}'
+  ```
+- **Credencial de API nunca vai no YAML.** `gpt-image-v1` lê a chave de
+  `OPENAI_API_KEY`; o `engines.yaml` guarda apenas o **nome** da variável. E
+  cada imagem dele é cobrada — `output.variations` vira `n` na chamada.
 - **`ASSETFLOW_APP_ENV=production` remove as gavetas de referência.** Os
   mocks declaram `catalog.dev_only` e deixam de ser **registrados** fora de
   desenvolvimento — não são apenas escondidos. Em uma máquina sem GPU e sem

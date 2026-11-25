@@ -333,10 +333,19 @@ class GenerationKernel:
                 )
 
             timings.inference_ms = inference_ms
-            metadata["effective_prompt"] = {
-                "positive": request.prompt.positive,
-                "negative": request.prompt.negative,
-            }
+            # `setdefault`, e não atribuição: uma gaveta com dialeto próprio
+            # já registrou aqui o texto que ela **de fato** enviou, e é esse
+            # que o histórico precisa guardar. Sobrescrever devolvia sempre o
+            # prompt do AssetFlow, apagando justamente a distância entre o que
+            # se pediu e o que o motor recebeu — que é onde o defeito costuma
+            # estar (plano de motores §18).
+            metadata.setdefault(
+                "effective_prompt",
+                {
+                    "positive": request.prompt.positive,
+                    "negative": request.prompt.negative,
+                },
+            )
             return (
                 EngineGenerationResult(
                     engine=engine_ref or engine.engine_ref(),

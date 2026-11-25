@@ -11,6 +11,8 @@ mudar a ordem de preferência sem tocar em código nem reconstruir imagem.
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 from enum import Enum
 from pathlib import Path
@@ -38,6 +40,8 @@ __all__ = [
 ]
 
 _ENV_PREFIX = "ASSETFLOW_"
+
+_LOG = logging.getLogger("assetflow.settings")
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -278,9 +282,7 @@ def _app_env() -> AppEnvironment:
     try:
         return AppEnvironment(raw)
     except ValueError:
-        import logging
-
-        logging.getLogger("assetflow.settings").warning(
+        _LOG.warning(
             "ASSETFLOW_APP_ENV=%r não é reconhecido; usando 'development'. "
             "Valores válidos: %s",
             raw,
@@ -305,10 +307,29 @@ def _parse_queue_routes(raw: str | None) -> dict[str, str]:
 def engine_runtime_configs(settings: Settings) -> dict[str, EngineRuntimeConfig]:
     """Constrói a configuração de runtime de cada gaveta.
 
-    A habilitação também pode vir do ambiente::
+    A habilitação pode vir do ambiente::
 
         ASSETFLOW_ENGINES_ENABLED="mock-image-v1,diffusers-sdxl-v1"
         ASSETFLOW_ENGINES_DISABLED="mock-pixel-alt-v1"
+
+    E as **opções** da gaveta também, como um objeto JSON por motor::
+
+        ASSETFLOW_ENGINE_PIXEL_FORGE_V1_OPTIONS={"binary": "D:/pf/pf.exe"}
+        ASSETFLOW_ENGINE_SDPIXL_V1_OPTIONS={"working_dir": "D:/sd-pixl"}
+
+    O nome sai do id da gaveta em maiúsculas, com ``-`` e ``.`` virando ``_``.
+
+    Isto não é conveniência: é o que torna possível ligar o Pixel Forge ou o
+    SD-πXL **sem editar `engines.yaml`**. Esses dois motores são pontes para
+    executáveis externos, e o caminho do executável é diferente em cada
+    máquina — mas `engines.yaml` é versionado e compartilhado. Sem esta porta,
+    ligar uma ponte exigia escrever um caminho absoluto em um arquivo que vai
+    para o repositório, e todo `git pull` viraria um conflito (ou, pior, o
+    caminho de outra pessoa entraria no seu ambiente).
+
+    O merge é **raso e por chave**: o que o ambiente disser substitui aquela
+    chave, e o resto do bloco do YAML continua valendo. É o que permite
+    apontar só o `binary` sem ter de repetir `args`, `output_glob` e timeout.
     """
     forced_enabled = {
         item.strip() for item in (_env("ENGINES_ENABLED") or "").split(",") if item.strip()
@@ -334,12 +355,47 @@ def engine_runtime_configs(settings: Settings) -> dict[str, EngineRuntimeConfig]
             device=EngineDeviceConfig.model_validate(raw.get("device") or {}),
             precision=EnginePrecisionConfig.model_validate(raw.get("precision") or {}),
             runtime=dict(raw.get("runtime") or {}),
-            options=dict(raw.get("options") or {}),
+            options={**(raw.get("options") or {}), **_engine_options_env(engine_id)},
             workspace_dir=str(settings.engine_workspace(engine_id)),
             timeout_s=_optional_float(timeouts.get("timeout_s")),
             load_timeout_s=_optional_float(timeouts.get("load_timeout_s")),
         )
     return configs
+
+
+def _engine_options_env(engine_id: str) -> dict[str, Any]:
+    """As opções que o ambiente sobrescreve para esta gaveta.
+
+    JSON inválido é **ignorado com aviso**, e não derruba o boot: uma aspa a
+    menos em uma variável de ambiente não pode impedir o sistema de subir. Mas
+    também não pode passar em silêncio — quem escreveu a variável precisa
+    saber que ela não teve efeito, senão vai passar a tarde procurando o motivo
+    de o motor continuar dizendo "não configurado".
+    """
+    suffix = engine_id.upper().replace("-", "_").replace(".", "_")
+    raw = _env(f"ENGINE_{suffix}_OPTIONS")
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        _LOG.warning(
+            "%sENGINE_%s_OPTIONS não é JSON válido (%s); as opções do "
+            "engines.yaml continuam valendo",
+            _ENV_PREFIX,
+            suffix,
+            exc,
+        )
+        return {}
+    if not isinstance(parsed, dict):
+        _LOG.warning(
+            "%sENGINE_%s_OPTIONS precisa ser um objeto JSON, e veio %s",
+            _ENV_PREFIX,
+            suffix,
+            type(parsed).__name__,
+        )
+        return {}
+    return parsed
 
 
 def _optional_float(value: Any) -> float | None:

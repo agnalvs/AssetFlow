@@ -251,9 +251,25 @@ sem configuração**:
 
 | motor | para habilitar |
 |---|---|
+| **GPT Image** | `OPENAI_API_KEY` no ambiente — sem GPU, sem download |
 | **FLUX Pixel** | `pip install -e ".[diffusers]"` + GPU + `enabled: true` em `engines.yaml` |
-| **SD-πXL** | clone do projeto + `options.command` apontando para a CLI dele |
-| **Pixel Forge** | binário Rust compilado + `options.binary` |
+| **SD-πXL** | clone do projeto + `ASSETFLOW_ENGINE_SDPIXL_V1_OPTIONS` |
+| **Pixel Forge** | binário Rust compilado + `ASSETFLOW_ENGINE_PIXEL_FORGE_V1_OPTIONS` |
+
+Em uma máquina sem GPU, **o GPT Image é o caminho**:
+
+```bash
+setx OPENAI_API_KEY "sk-..."           # Windows, vale na sessão seguinte
+set ASSETFLOW_ENGINES_ENABLED=gpt-image-v1
+```
+
+As duas últimas da tabela são pontes para executáveis externos: o caminho vai
+em **variável de ambiente**, nunca em `engines.yaml`, que é versionado. Os
+exemplos completos estão em
+[backend/docs/ENGINES.md](backend/docs/ENGINES.md) §2.
+
+Credencial e caminho de binário seguem a mesma regra, e pelo mesmo motivo: o
+`engines.yaml` é compartilhado.
 
 Para conferir o fluxo inteiro — escolha automática com motivo, Pixel Exact,
 revisão do Pixel Optimizer, selo técnico — antes de qualquer download, use a

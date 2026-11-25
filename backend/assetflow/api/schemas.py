@@ -12,9 +12,10 @@ from typing import Any, Callable
 
 from pydantic import Field
 
-from ..generation.prompting import render_semantic_prompt
 from ..generation.kernel.catalog import EngineCatalogEntry
+from ..generation.prompting import render_semantic_prompt
 from ..generation.schemas import (
+    SPEC_CONSTRAINTS,
     AssetFlowModel,
     AssetMode,
     AssetType,
@@ -393,6 +394,7 @@ def _prompt_view(job: Job) -> PromptPreview | None:
         semantic=semantic,
         positive=positive,
         negative=negative,
+        constraints={campo: classe.value for campo, classe in SPEC_CONSTRAINTS.items()},
         source="request" if job.request.semantic_prompt is not None else "builder",
     )
 

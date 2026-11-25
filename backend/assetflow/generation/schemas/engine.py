@@ -69,7 +69,13 @@ class EngineFamily(str, Enum):
     NATIVE_SPRITE = "native_sprite"
     #: Otimização iterativa por imagem (SD-πXL): lento e caro por natureza.
     OPTIMIZATION = "optimization"
-    #: Agente que desenha com ferramentas, pixel a pixel (estilo Texel).
+    #: Motor que gera usando ferramentas em vez de uma passada de inferência.
+    #:
+    #: **Hoje nenhuma gaveta declara esta família.** O agente que desenhava
+    #: pixel a pixel não é um motor: ele virou o ``AssetFlowPixelOptimizer``, o
+    #: estágio que corrige a saída de *qualquer* motor (plano Optimizer §79).
+    #: O valor fica porque um gerador agêntico continua sendo concebível — e
+    #: porque manifestos antigos podem citá-lo.
     AGENTIC = "agentic"
     #: Gerador determinístico sem IA — as gavetas de referência.
     PROCEDURAL = "procedural"
@@ -203,7 +209,7 @@ class EngineCatalogInfo(AssetFlowModel):
     #: Avisos que precisam viajar com o motor: ``experimental``, ``lento``.
     badges: tuple[str, ...] = ()
 
-    #: O motor entrega a resolução lógica exata sozinho (SD-πXL, Texel-style).
+    #: O motor entrega a resolução lógica exata sozinho (SD-πXL, Pixel Forge).
     #: Falso não é defeito: o Pixel Exact é quem garante isso no fim (§8.1).
     exact_resolution: bool = False
     #: O motor aceita um limite de cores como entrada, e não só no pós.
