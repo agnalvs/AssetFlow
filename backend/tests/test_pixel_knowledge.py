@@ -13,6 +13,7 @@ Plano desenhista, Fase 3. Três grupos:
 
 from __future__ import annotations
 
+import colorsys
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
@@ -224,8 +225,8 @@ def test_a_carga_recusa_numero_sem_fonte(tmp_path: Path):
     diretorio = _copia(tmp_path)
     arquivo = diretorio / "proporcoes.yaml"
     texto = arquivo.read_text(encoding="utf-8").replace(
-        'braco_px:          {valor: 2,      classe: style,    secao: "§9", a_calibrar: true}',
-        'braco_px:          {valor: 2,      classe: style,    secao: "§9"}',
+        'largura_braco_px:  {valor: 5,      classe: style,    secao: "§9", a_calibrar: true}',
+        'largura_braco_px:  {valor: 5,      classe: style,    secao: "§9"}',
         1,
     )
     arquivo.write_text(texto, encoding="utf-8")
@@ -262,20 +263,55 @@ def test_as_partes_somam_a_altura(base: BaseDeConhecimento):
         assert m["cabeca_px"] + m["tronco_px"] + m["pernas_px"] == m["altura_px"], tamanho
 
 
-def test_a_altura_em_cabecas_cai_na_faixa_da_fonte(base: BaseDeConhecimento):
+def test_a_altura_em_cabecas_bate_com_as_medidas(base: BaseDeConhecimento):
+    """`cabecas` é faixa (da fonte) ou valor (nosso); nos dois, a conta fecha."""
     for tamanho, m in _humanoides(base):
-        minimo, maximo = m["cabecas"]
-        assert minimo <= m["altura_px"] / m["cabeca_px"] <= maximo, tamanho
+        razao = m["altura_px"] / m["cabeca_px"]
+        if isinstance(m["cabecas"], tuple):
+            minimo, maximo = m["cabecas"]
+            assert minimo <= razao <= maximo, tamanho
+        else:
+            assert razao == pytest.approx(m["cabecas"], abs=0.05), tamanho
 
 
-def test_chao_e_topo_cabem_na_grade_com_margem(base: BaseDeConhecimento):
+def test_chao_topo_e_folga_cabem_na_grade_com_margem(base: BaseDeConhecimento):
     for forma in base.formas.values():
         for tamanho, medidas in forma.tamanhos.items():
             altura_da_grade = int(tamanho.split("x")[1])
             chao = medidas["chao_y"].valor
             assert chao <= altura_da_grade - 2, f"{forma.id} {tamanho}: sem margem embaixo"
             if "altura_px" in medidas:
-                assert chao - medidas["altura_px"].valor + 1 >= 1, f"{forma.id} {tamanho}: topo"
+                topo = chao - medidas["altura_px"].valor + 1
+                folga = medidas["folga_topo_px"].valor if "folga_topo_px" in medidas else 0
+                assert topo - folga >= 1, f"{forma.id} {tamanho}: topo ou folga sem margem"
+
+
+def test_humanoide_32_tem_cabeca_de_10_e_larguras_a_calibrar(base: BaseDeConhecimento):
+    medidas = base.formas["humanoid"].tamanhos["32x32"]
+    assert medidas["cabeca_px"].valor == 10
+    larguras = sorted(nome for nome in medidas if nome.startswith("largura_"))
+    assert larguras == [
+        "largura_braco_px",
+        "largura_cabeca_px",
+        "largura_perna_px",
+        "largura_tronco_px",
+    ]
+    assert all(medidas[nome].a_calibrar for nome in larguras)
+
+
+def test_regras_de_sombra_e_de_equipamento(base: BaseDeConhecimento):
+    assert any("vizinho imediato da rampa" in regra.texto for regra in base.luz.regras)
+    assert any(
+        "equipamento muda o contorno" in regra.texto for regra in base.formas["humanoid"].regras
+    )
+
+
+def test_tecido_vermelho_da_mestra_fica_perto_do_vermelho(base: BaseDeConhecimento):
+    """O tom escuro era um roxo (#68386c), a mais de 60° do vermelho."""
+    for cor in base.paletas[base.mestra].rampas["tecido_vermelho"]:
+        r, g, b = (int(cor[i : i + 2], 16) / 255 for i in (1, 3, 5))
+        matiz = colorsys.rgb_to_hsv(r, g, b)[0] * 360
+        assert min(matiz, 360 - matiz) <= 30, cor
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +341,41 @@ def test_molde_pisa_na_linha_de_chao_das_proporcoes(base: BaseDeConhecimento, mo
     assert opacas[-1] == medidas["chao_y"].valor
     if "altura_px" in medidas:
         assert opacas[-1] - opacas[0] + 1 == medidas["altura_px"].valor
+
+
+def _so_camada(molde: Molde, nome: str) -> list[str]:
+    receita = dict(molde.receita)
+    receita["camadas"] = [camada for camada in molde.receita["camadas"] if camada["nome"] == nome]
+    return desenhar(ler_receita(receita), *molde.grade).grade.linhas()
+
+
+def _corridas(linha: str) -> list[int]:
+    """Comprimento de cada trecho opaco da linha, da esquerda para a direita."""
+    return [len(trecho) for trecho in linha.split(".") if trecho]
+
+
+def test_molde_humanoide_segue_faixas_e_larguras(base: BaseDeConhecimento):
+    """O molde é a medida desenhada: cada parte na faixa e na largura do YAML."""
+    molde = base.moldes[("humanoid", "32x32")]
+    m = {nome: medida.valor for nome, medida in base.formas["humanoid"].tamanhos["32x32"].items()}
+    topo = m["chao_y"] - m["altura_px"] + 1
+    faixas = {
+        "cabeca": (topo, topo + m["cabeca_px"] - 1),
+        "tronco": (topo + m["cabeca_px"], topo + m["cabeca_px"] + m["tronco_px"] - 1),
+        "pernas": (m["chao_y"] - m["pernas_px"] + 1, m["chao_y"]),
+    }
+    for nome, (inicio, fim) in faixas.items():
+        opacas = [y for y, linha in enumerate(_so_camada(molde, nome)) if linha.strip(".")]
+        assert (opacas[0], opacas[-1]) == (inicio, fim), nome
+
+    meio_tronco = sum(faixas["tronco"]) // 2
+    meio_pernas = sum(faixas["pernas"]) // 2
+    cabeca = _so_camada(molde, "cabeca")
+    assert max(len(linha.strip(".")) for linha in cabeca) == m["largura_cabeca_px"]
+    assert _corridas(_so_camada(molde, "tronco")[meio_tronco]) == [m["largura_tronco_px"]]
+    for braco in ("braco_dir", "braco_esq"):
+        assert _corridas(_so_camada(molde, braco)[meio_tronco]) == [m["largura_braco_px"]], braco
+    assert _corridas(_so_camada(molde, "pernas")[meio_pernas]) == [m["largura_perna_px"]] * 2
 
 
 @pytest.mark.parametrize("molde", _moldes(), ids=lambda m: m.id)
@@ -351,28 +422,49 @@ def test_chaves_documentadas_tem_de_bater_com_a_paleta(tmp_path: Path):
 # ---------------------------------------------------------------------------
 # Recorte
 # ---------------------------------------------------------------------------
-def test_recorte_do_cavaleiro(base: BaseDeConhecimento):
+def test_recorte_do_cavaleiro_traz_medidas_e_nao_a_receita(base: BaseDeConhecimento):
     recorte = montar_recorte(_spec(), base)
     linhas = recorte.splitlines()
 
-    assert linhas[0].startswith(
-        "humanóide 32×32: altura 28 = cabeça 8 + tronco 9 + pernas 11 · topo y=3, chão y=30"
+    assert linhas[0] == (
+        "humanóide 32×32: cabeça y3–12 (10 px) · tronco y13–20 (8 px) · pernas y21–30 (10 px)"
+        " · chão y=30 (pixel opaco mais baixo)"
+        " · folga y1–2 acima da cabeça, para crista, penacho ou cabelo"
+        " · larguras com contorno: cabeça 12, tronco 12, braço 5, perna 5"
+        " · olho 2×2 com brilho de 1 px · 3 tons por material"
     )
-    assert "olho 2×2 com brilho de 1 px" in linhas[0]
     assert linhas[1].startswith("luz: de cima e da esquerda (padrão da base; o pedido não definiu)")
     assert linhas[2].startswith("cores: até 8, contorno incluído · paleta-mestra endesga-32")
     assert "  contorno #181425" in linhas
     assert any(linha.startswith("silhueta: arma e escudo fora do corpo") for linha in linhas)
-    assert any(linha.startswith("molde humanoid_32x32: ") for linha in linhas)
-    assert linhas[-1] == USO_DO_MOLDE
+    assert linhas[-1] == (
+        "camadas: pernas, tronco, braco_dir, braco_esq, cabeca (direita e esquerda do"
+        " personagem) · a receita do molde-base vem com molde=true"
+    )
+    assert "{" not in recorte and USO_DO_MOLDE not in recorte
     assert len(recorte) <= TETO_CARACTERES
 
 
-def test_recorte_de_objeto_traz_o_molde_de_prop(base: BaseDeConhecimento):
-    recorte = montar_recorte(_spec(tipo=AssetType.PROP, corpo=BodyType.UNKNOWN), base)
+def test_com_molde_a_receita_vem_no_lugar_da_linha_de_camadas(base: BaseDeConhecimento):
+    recorte = montar_recorte(_spec(), base, molde=True)
+    linhas = recorte.splitlines()
+
+    assert linhas[-3].startswith("molde humanoid_32x32: manequim de frente")
+    assert linhas[-2].startswith('{"grade":[32,32],"paleta":')
+    assert linhas[-1] == USO_DO_MOLDE
+    assert not any(linha.startswith("camadas: ") for linha in linhas)
+    assert len(recorte) <= TETO_CARACTERES
+
+
+def test_recorte_de_objeto_usa_as_medidas_e_o_molde_de_prop(base: BaseDeConhecimento):
+    objeto = _spec(tipo=AssetType.PROP, corpo=BodyType.UNKNOWN)
+    recorte = montar_recorte(objeto, base)
 
     assert recorte.startswith("objeto 32×32: chão y=30 (pixel opaco mais baixo) · margem 1 px")
-    assert "molde prop_32x32: " in recorte
+    assert recorte.endswith(
+        "camadas: topo, frente, detalhe · a receita do molde-base vem com molde=true"
+    )
+    assert "molde prop_32x32: " in montar_recorte(objeto, base, molde=True)
 
 
 def test_corpo_desconhecido_nao_vira_humanoide(base: BaseDeConhecimento):
@@ -399,7 +491,7 @@ def test_paleta_travada_do_pedido_tira_as_rampas(base: BaseDeConhecimento):
     recorte = montar_recorte(_spec(paleta=travada), base)
 
     assert "cores: paleta travada pelo pedido, use só estas: #000000 #ff0000 #ffffff" in recorte
-    assert "paleta-mestra" not in recorte and "#181425" not in recorte.split("{", 1)[0]
+    assert "paleta-mestra" not in recorte and "#181425" not in recorte
 
 
 def test_luz_do_pedido_ganha_do_padrao_da_base(base: BaseDeConhecimento):
@@ -459,11 +551,11 @@ def test_o_estilo_e_o_ponto_unico_de_paleta_luz_proporcoes_e_moldes(
 
 
 def test_teto_tira_secoes_inteiras_e_diz_quais(base: BaseDeConhecimento):
-    completo = montar_recorte(_spec(), base)
+    completo = montar_recorte(_spec(), base, molde=True)
     # Cabe tudo até a silhueta, mais a linha que diz o que saiu (~45 caracteres).
     teto = completo.index("molde humanoid_32x32") + 50
 
-    cortado = montar_recorte(_spec(), base, teto=teto)
+    cortado = montar_recorte(_spec(), base, molde=True, teto=teto)
 
     assert len(cortado) <= teto
     assert cortado.endswith(f"omitido pelo teto de {teto} caracteres: molde")
@@ -471,9 +563,13 @@ def test_teto_tira_secoes_inteiras_e_diz_quais(base: BaseDeConhecimento):
 
 
 def test_teto_corta_na_ordem_de_prioridade(base: BaseDeConhecimento):
-    cortado = montar_recorte(_spec(), base, teto=600)
+    proporcoes, luz = montar_recorte(_spec(), base).splitlines()[:2]
+    # Cabem proporções e luz, mais a linha do que saiu; as cores já não cabem.
+    teto = len(proporcoes) + len(luz) + 2 + 70
 
-    assert cortado.startswith("humanóide 32×32: ")
+    cortado = montar_recorte(_spec(), base, teto=teto)
+
+    assert cortado.splitlines()[:2] == [proporcoes, luz]
     assert cortado.splitlines()[-1] == (
-        "omitido pelo teto de 600 caracteres: cores, silhueta, molde"
+        f"omitido pelo teto de {teto} caracteres: cores, silhueta, molde"
     )

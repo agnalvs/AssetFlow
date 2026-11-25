@@ -14,3 +14,6 @@ padrao: de cima e da esquerda
 regras:
   - {texto: "luz do lado de onde ela vem e sombra no oposto, nunca só acompanhando o contorno",
      classe: style, secao: "§6"}
+  # §5: sombra = base + preto fica suja; o vizinho da rampa já desloca o matiz.
+  - {texto: "sombra principal com o vizinho imediato da rampa; o tom mais escuro só em pontos pequenos, nunca em faixa",
+     classe: style, secao: "§5 e §6"}

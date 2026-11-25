@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1323 passed, 1 skipped)
+pytest -q                                # suíte completa (1330 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -132,6 +132,10 @@ Feito:
     número sem fonte leva `a_calibrar: true`, e a carga recusa o que faltar;
   - **molde com no máximo 8 chaves de paleta**: a desenhista conta cor por
     chave, não por hexadecimal. O recorte tem teto (`TETO_CARACTERES`).
+  - **o recorte padrão traz medidas, não o molde**: faixas de y, chão,
+    larguras e nomes de camadas. A receita do molde só vem com
+    `consultar_pedido(..., molde=true)` — entregue sempre, ela engessava o
+    desenho no corpo do manequim.
 
 ## Arquitetura
 

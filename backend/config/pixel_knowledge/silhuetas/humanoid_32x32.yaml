@@ -1,18 +1,25 @@
 # Molde-base: humanóide 32×32 de frente (PIXEL_KNOWLEDGE.md §3 e §9).
 #
 # Uma receita da desenhista-v1 (docs/DESENHISTA.md) que é guia de medidas e de
-# camadas, não desenho a copiar: segue proporcoes.yaml (cabeça 8, tronco 9,
-# pernas 11, chão y=30) e separa as partes em camadas com nome, para remendar
+# camadas, não desenho a copiar: segue proporcoes.yaml (cabeça y3–12, tronco
+# y13–20, pernas y21–30, chão y=30; larguras com contorno de cabeça 12, tronco
+# 12, braço 5, perna 5) e separa as partes em camadas com nome, para remendar
 # uma parte sem reenviar o resto — e, na Fase 6, animar parte por parte.
+#
+# O recorte de consultar_pedido só traz a receita com molde=true; por padrão
+# vêm as medidas e os nomes das camadas. A pose é neutra e simétrica de
+# propósito: a assimetria é do desenho de cada pedido.
 #
 # Direita e esquerda são as do personagem: de frente, o braço direito fica à
 # esquerda da imagem. A paleta tem 8 chaves, porque a desenhista conta cores
 # por chave e o pedido comum é de 8 cores; por isso o olho é 2×2 sem brilho.
-# As cores são da paleta-mestra (paletas.yaml).
+# Cada material tem base e sombra vizinhas na rampa da paleta-mestra
+# (paletas.yaml); o tom mais escuro é o contorno.
 
 forma: humanoid
 grade: [32, 32]
-descricao: manequim de frente, braço direito afastado para a arma (direita e esquerda do personagem); olho sem brilho, que seria a 9ª chave
+descricao: manequim de frente, pose neutra; olho sem brilho, que seria a 9ª chave
+nota_camadas: direita e esquerda do personagem
 chaves:
   k: contorno
   p: pele
@@ -30,63 +37,64 @@ receita:
   camadas:
     - nome: pernas
       ops:
-        - em: [10, 20]
-          px: ["..kccccddk..",
-               "..kcdkkcdk..",
-               ".kcdk..kcdk.",
-               ".kcdk..kcdk.",
-               ".kcdk..kcdk.",
-               ".kcdk..kcdk.",
-               ".kcdk..kcdk.",
-               ".kddk..kddk.",
-               ".kddk..kddk.",
-               "kdddk..kdddk",
-               "kkkkk..kkkkk"]
+        - em: [9, 21]
+          px: [".kccccccccddk.",
+               ".kccdkkkkccdk.",
+               ".kccdk..kccdk.",
+               ".kccdk..kccdk.",
+               ".kccdk..kccdk.",
+               ".kccdk..kccdk.",
+               ".kccdk..kccdk.",
+               ".kdddk..kdddk.",
+               "kddddk..kddddk",
+               "kkkkkk..kkkkkk"]
     - nome: tronco
       ops:
-        - em: [12, 11]
-          px: ["kRsssssk",
-               "kRRrrssk",
-               "kRrrrssk",
-               "kRrrrssk",
-               "kRrrrssk",
-               "kRrrrssk",
-               "kRrrrssk",
-               "krrrrssk",
-               "kssssssk"]
+        - em: [10, 13]
+          px: ["kkRRrrrrsskk",
+               "kRRrrrrrrssk",
+               "kRrrrrrrrssk",
+               "kRrrrrrrrssk",
+               "kRrrrrrrrssk",
+               "kRrrrrrrrssk",
+               "kRrrrrrrrssk",
+               "kssssssssssk"]
     - nome: braco_dir
       ops:
-        - em: [5, 11]
-          px: ["....kkk.",
-               "...kRrr.",
-               "...kRrk.",
-               "..kRrk..",
-               "..kRrk..",
-               ".kRrk...",
-               "kppqk...",
-               "kppqk...",
-               ".kkk...."]
+        - em: [4, 13]
+          px: ["..kkkk",
+               ".kRrrr",
+               "kRrrsk",
+               "kRrsk.",
+               "kRrsk.",
+               "kRrsk.",
+               "kRrsk.",
+               "kppqk.",
+               "kppqk.",
+               ".kkk.."]
     - nome: braco_esq
       ops:
-        - em: [19, 11]
-          px: [".kkk..",
-               ".rrsk.",
-               ".krsk.",
-               "..krsk",
-               "..krsk",
-               "..krsk",
-               "..krsk",
-               "..kpqk",
-               "..kpqk",
-               "...kk."]
+        - em: [22, 13]
+          px: ["kkkk..",
+               "rrrsk.",
+               "kRrrsk",
+               ".kRrsk",
+               ".kRrsk",
+               ".kRrsk",
+               ".kRrsk",
+               ".kppqk",
+               ".kppqk",
+               "..kkk."]
     - nome: cabeca
       ops:
-        - em: [11, 3]
-          px: ["..kkkkkk..",
-               ".kpppppqk.",
-               "kppppppqqk",
-               "kpkkppkkqk",
-               "kpkkppkkqk",
-               "kppppppqqk",
-               "kppppqqqqk",
-               ".kkkkkkkk."]
+        - em: [10, 3]
+          px: ["...kkkkkk...",
+               ".kkpppppqkk.",
+               "kppppppppqqk",
+               "kppppppppqqk",
+               "kppkkppkkqqk",
+               "kppkkppkkqqk",
+               "kppppppppqqk",
+               "kppppppppqqk",
+               ".kpppppqqqk.",
+               "..kkkkkkkk.."]

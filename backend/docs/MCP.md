@@ -29,7 +29,7 @@ nelas.
 
 | Ferramenta | Recebe | Devolve |
 |---|---|---|
-| `consultar_pedido` | `pedido`, `perfil?` | o que o spec resolveu + o formato da receita + o recorte de conhecimento |
+| `consultar_pedido` | `pedido`, `perfil?`, `molde?` | o que o spec resolveu + o formato da receita + o recorte de conhecimento |
 | `desenhar` | `pedido?`, `receita?`, `base?`, `perfil?` | o laudo em texto |
 | `ver_asset` | `id` | uma legenda e o PNG ampliado |
 
@@ -40,6 +40,8 @@ nelas.
   descrição de `desenhar`: assim ele só ocupa contexto quando há desenho.
 - **O recorte de conhecimento** fecha a resposta de `consultar_pedido`: as
   linhas de `config/pixel_knowledge/` que valem para aquele spec (§4).
+  **`molde`** (padrão `false`) troca a linha de camadas pela receita inteira
+  do molde-base.
 - Cada desenho é uma variação, no projeto `mcp`: os arquivos ficam em
   `backend/data/assets/projects/mcp/`.
 
@@ -144,33 +146,45 @@ para o pedido — nunca a base inteira. Quem monta é
 
 | Arquivo | O que entra no recorte |
 |---|---|
-| `proporcoes.yaml` | medidas da forma e do tamanho (altura, cabeça, tronco, pernas, chão) e as regras de silhueta |
-| `luz.yaml` | a direção padrão, quando o pedido não define uma |
+| `proporcoes.yaml` | faixas de y de cabeça, tronco e pernas, chão, folga acima da cabeça, larguras, e as regras de silhueta |
+| `luz.yaml` | a direção padrão, quando o pedido não define uma, e as regras de luz e sombra |
 | `paletas.yaml` | o limite de cores do spec e as rampas da paleta-mestra |
-| `silhuetas/*.yaml` | o molde-base daquela forma e tamanho, como receita |
+| `silhuetas/*.yaml` | os nomes das camadas do molde-base; a receita inteira só com `molde=true` |
 
 Para "cavaleiro 32x32, 8 cores, sem fundo":
 
 ```text
 conhecimento:
-humanóide 32×32: altura 28 = cabeça 8 + tronco 9 + pernas 11 · topo y=3, chão y=30 (pixel opaco mais baixo) · olho 2×2 com brilho de 1 px · braço 2 px · 3 tons por material
-luz: de cima e da esquerda (padrão da base; o pedido não definiu) · luz do lado de onde ela vem e sombra no oposto, nunca só acompanhando o contorno
+humanóide 32×32: cabeça y3–12 (10 px) · tronco y13–20 (8 px) · pernas y21–30 (10 px) · chão y=30 (pixel opaco mais baixo) · folga y1–2 acima da cabeça, para crista, penacho ou cabelo · larguras com contorno: cabeça 12, tronco 12, braço 5, perna 5 · olho 2×2 com brilho de 1 px · 3 tons por material
+luz: de cima e da esquerda (padrão da base; o pedido não definiu) · luz do lado de onde ela vem e sombra no oposto, nunca só acompanhando o contorno · sombra principal com o vizinho imediato da rampa; o tom mais escuro só em pontos pequenos, nunca em faixa
 cores: até 8, contorno incluído · paleta-mestra endesga-32, rampas do escuro ao claro; cada material usa tons vizinhos de uma rampa:
   contorno #181425
   metal #262b44 #3a4466 #5a6988 #8b9bb4 #c0cbdc #ffffff · pedra #262b44 #3a4466 #5a6988 #8b9bb4
   ...
-silhueta: arma e escudo fora do corpo, com vão de 1 px, mudando o contorno · uma assimetria intencional: ...
-molde humanoid_32x32: manequim de frente, ...; camadas pernas, tronco, braco_dir, braco_esq, cabeca; chaves k contorno · p pele · ...
+silhueta: arma e escudo fora do corpo, com vão de 1 px, mudando o contorno · o equipamento muda o contorno do corpo (ombreiras, elmo com crista, capa), não só a cor por dentro · ...
+camadas: pernas, tronco, braco_dir, braco_esq, cabeca (direita e esquerda do personagem) · a receita do molde-base vem com molde=true
+```
+
+Com `molde=true`, a última linha dá lugar à receita do molde, entre uma linha
+de descrição e chaves e a instrução de uso:
+
+```text
+molde humanoid_32x32: manequim de frente, pose neutra; ...; camadas pernas, tronco, braco_dir, braco_esq, cabeca; chaves k contorno · p pele · ...
 {"grade":[32,32],"paleta":{...},"camadas":[...]}
 o molde é guia de medidas e de camadas, não desenho a copiar: mantenha as proporções, a linha de chão e os nomes das camadas; redesenhe pose, silhueta e detalhes para o pedido
 ```
+
+A receita deixou de vir por padrão porque virava o desenho em vez de
+orientá-lo: o primeiro cavaleiro com ela saiu com o corpo fino e reto do
+manequim, sem ombreiras nem penacho. As medidas bastam para a consistência
+entre personagens; o molde fica para quem quer partir dele.
 
 Quatro regras:
 
 - **O seletor só lê o spec**: `logical_resolution`, `asset.type`,
   `character.body_type`, `palette` e `style.shading.light_direction`. Paleta
   travada tira as rampas; luz do pedido ganha do padrão; corpo `unknown` fica
-  sem proporções e sem molde, em vez de virar humanoide. A linha `estilo:` da
+  sem proporções e sem camadas, em vez de virar humanoide. A linha `estilo:` da
   consulta continua dizendo o que o spec resolveu.
 - **Paleta-mestra e luz vêm da configuração**, por um ponto só:
   `BaseDeConhecimento.estilo()`. O código não tem paleta nem direção próprias;
@@ -178,7 +192,8 @@ Quatro regras:
   troca paleta, luz, contorno e proporções juntos mudando só esse método.
 - **Teto de 4.000 caracteres** (`TETO_CARACTERES`, cerca de 1.300 tokens). As
   seções entram na ordem proporções, luz, cores, silhueta, molde; a que não
-  cabe sai inteira, e a última linha diz qual saiu. O cavaleiro usa ~2.600.
+  cabe sai inteira, e a última linha diz qual saiu. O cavaleiro usa ~1.650
+  caracteres, ou ~2.900 com `molde=true`.
 - **Diretório ausente não quebra o boot**: o recorte sai vazio, e a consulta
   diz `conhecimento: (nada da base para este pedido)`. Arquivo fora do formato
   é ignorado com aviso no log e em `BaseDeConhecimento.problemas`.

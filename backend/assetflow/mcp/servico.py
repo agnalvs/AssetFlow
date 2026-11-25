@@ -78,13 +78,14 @@ class ServicoDesenhista:
         )
 
     # ------------------------------------------------------------------
-    def consultar(self, pedido: str, perfil: str | None = None) -> str:
+    def consultar(self, pedido: str, perfil: str | None = None, molde: bool = False) -> str:
         perfil = self._perfil(perfil)
         texto = self._texto(pedido)
         spec = self._resolver(texto, perfil)
         # O recorte lê o spec já resolvido e só acrescenta orientação: o que
         # o pedido virou (tamanho, paleta, tipo) não muda por causa da base.
-        recorte = montar_recorte(spec, self._container.conhecimento)
+        # A receita do molde só vem quando pedida — por padrão, só as medidas.
+        recorte = montar_recorte(spec, self._container.conhecimento, molde=molde)
         return formatar_consulta(texto, perfil, spec, conhecimento=recorte)
 
     # ------------------------------------------------------------------

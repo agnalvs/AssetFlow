@@ -61,6 +61,10 @@ def test_tres_ferramentas_com_descricao_curta(servidor):
     assert "pixel_prop_64" in perfil["description"]
     assert "studio_character" not in perfil["description"]
 
+    consultar = ferramentas["consultar_pedido"].input_schema
+    assert consultar["properties"]["molde"]["default"] is False, "a receita do molde só vem pedida"
+    assert consultar.get("required") == ["pedido"]
+
     desenhar = ferramentas["desenhar"].input_schema
     assert set(desenhar["properties"]) == {"pedido", "receita", "base", "perfil"}
     assert desenhar.get("required", []) == []
@@ -71,6 +75,16 @@ def test_consultar_devolve_texto(servidor):
     assert not resultado.is_error
     assert resultado.structured_content is None, "só texto: JSON a mais é contexto a mais"
     assert "grade: 32×32 (do texto)" in resultado.content[0].text
+
+
+def test_consultar_com_molde_traz_a_receita(servidor):
+    sem = _chamar(servidor, "consultar_pedido", {"pedido": "cavaleiro 32x32"}).content[0].text
+    com = _chamar(
+        servidor, "consultar_pedido", {"pedido": "cavaleiro 32x32", "molde": True}
+    ).content[0].text
+
+    assert "molde humanoid_32x32: " not in sem and "camadas: pernas, tronco" in sem
+    assert "molde humanoid_32x32: " in com and '"camadas":[' in com
 
 
 def test_desenhar_devolve_o_laudo(servidor):

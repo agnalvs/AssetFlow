@@ -16,6 +16,11 @@ O que um estilo decide — paleta-mestra, luz padrão, proporções e moldes —
 chega por um ponto só, :meth:`BaseDeConhecimento.estilo`. O código não tem
 paleta nem direção de luz próprias: sem configuração, a linha some.
 
+O molde entra por padrão só como **medidas e nomes de camadas**. A receita
+inteira vem quando quem consulta pede (``molde=True``): entregue sempre, ela
+virava o desenho em vez de orientá-lo — o corpo do manequim aparecia em todo
+personagem.
+
 O recorte tem teto, para a base poder crescer sem aumentar o gasto por pedido.
 As seções entram em ordem de prioridade; a que não couber sai **inteira**, e a
 última linha diz qual saiu.
@@ -43,16 +48,31 @@ USO_DO_MOLDE = (
     "silhueta e detalhes para o pedido"
 )
 
-#: Medidas que a primeira frase das proporções já diz.
-_DITAS_NA_ALTURA = ("altura_px", "cabeca_px", "tronco_px", "pernas_px", "chao_y")
-#: Faixa de origem, que justifica as medidas mas não orienta o desenho.
+#: As partes do corpo, de cima para baixo, como viram faixas de y.
+_PARTES = (("cabeca_px", "cabeça"), ("tronco_px", "tronco"), ("pernas_px", "pernas"))
+#: Larguras, ditas juntas numa frase só.
+_LARGURAS = (
+    ("largura_cabeca_px", "cabeça"),
+    ("largura_tronco_px", "tronco"),
+    ("largura_braco_px", "braço"),
+    ("largura_perna_px", "perna"),
+)
+#: Proporção de origem, que justifica as medidas mas não orienta o desenho.
 _SO_REFERENCIA = ("cabecas",)
 
 
 def montar_recorte(
-    resolved: Any, base: BaseDeConhecimento | None, *, teto: int = TETO_CARACTERES
+    resolved: Any,
+    base: BaseDeConhecimento | None,
+    *,
+    molde: bool = False,
+    teto: int = TETO_CARACTERES,
 ) -> str:
-    """As linhas da base que valem para este spec; ``""`` quando não há nada."""
+    """As linhas da base que valem para este spec; ``""`` quando não há nada.
+
+    Com ``molde=True``, a receita do molde-base vem inteira no lugar da linha
+    de camadas.
+    """
     if base is None or base.esta_vazia:
         return ""
     logica = resolved.logical_resolution
@@ -63,14 +83,14 @@ def montar_recorte(
     largura, altura = logica.width, logica.height
     forma = estilo.formas.get(_forma(resolved))
     medidas = forma.medidas(largura, altura) if forma else None
-    molde = estilo.molde(forma.id, largura, altura) if forma else None
+    molde_base = estilo.molde(forma.id, largura, altura) if forma else None
 
     secoes = [
         ("proporções", _proporcoes(forma, medidas, largura, altura)),
         ("luz", _luz(resolved, estilo.luz)),
         ("cores", _cores(resolved, estilo.paleta)),
         ("silhueta", _silhueta(forma)),
-        ("molde", _molde(molde)),
+        ("molde", _molde(molde_base, completo=molde)),
     ]
     return _caber([(nome, texto) for nome, texto in secoes if texto], teto)
 
@@ -96,19 +116,39 @@ def _proporcoes(
     if forma is None or not medidas:
         return ""
     valor = {nome: medida.valor for nome, medida in medidas.items()}
+    ditas: set[str] = set(_SO_REFERENCIA)
     partes: list[str] = []
-    if all(nome in valor for nome in ("altura_px", "cabeca_px", "tronco_px", "pernas_px")):
-        partes.append(
-            f"altura {valor['altura_px']} = cabeça {valor['cabeca_px']} + tronco "
-            f"{valor['tronco_px']} + pernas {valor['pernas_px']}"
-        )
+
+    # As faixas de y saem das medidas da configuração, de cima para baixo a
+    # partir do topo (chão - altura + 1). Nada aqui vem do spec além do tamanho.
+    topo = None
+    if "chao_y" in valor and "altura_px" in valor:
+        topo = valor["chao_y"] - valor["altura_px"] + 1
+        if all(nome in valor for nome, _ in _PARTES):
+            inicio = topo
+            for nome, rotulo in _PARTES:
+                fim = inicio + valor[nome] - 1
+                partes.append(f"{rotulo} y{inicio}–{fim} ({valor[nome]} px)")
+                inicio = fim + 1
+            ditas.update(nome for nome, _ in _PARTES)
+            ditas.add("altura_px")
     if "chao_y" in valor:
-        chao = valor["chao_y"]
-        topo = f"topo y={chao - valor['altura_px'] + 1}, " if "altura_px" in valor else ""
-        partes.append(f"{topo}chão y={chao} (pixel opaco mais baixo)")
-    for nome, medida in medidas.items():
-        if nome not in _DITAS_NA_ALTURA and nome not in _SO_REFERENCIA:
-            partes.append(_frase(medida))
+        partes.append(f"chão y={valor['chao_y']} (pixel opaco mais baixo)")
+        ditas.add("chao_y")
+    if topo is not None and "folga_topo_px" in valor:
+        folga = medidas["folga_topo_px"]
+        texto = f"folga y{topo - folga.valor}–{topo - 1}"
+        partes.append(f"{texto} {folga.nota}" if folga.nota else texto)
+        ditas.add("folga_topo_px")
+
+    larguras = [(rotulo, valor[nome]) for nome, rotulo in _LARGURAS if nome in valor]
+    if larguras:
+        partes.append(
+            "larguras com contorno: " + ", ".join(f"{rotulo} {px}" for rotulo, px in larguras)
+        )
+        ditas.update(nome for nome, _ in _LARGURAS)
+
+    partes.extend(_frase(medida) for nome, medida in medidas.items() if nome not in ditas)
     return f"{forma.nome} {largura}×{altura}: " + " · ".join(partes)
 
 
@@ -173,10 +213,13 @@ def _silhueta(forma: Forma | None) -> str:
     return "silhueta: " + " · ".join(regra.texto for regra in forma.regras)
 
 
-def _molde(molde: Molde | None) -> str:
+def _molde(molde: Molde | None, *, completo: bool) -> str:
     if molde is None:
         return ""
     camadas = ", ".join(str(camada.get("nome")) for camada in molde.receita.get("camadas") or [])
+    if not completo:
+        nota = f" ({molde.nota_camadas})" if molde.nota_camadas else ""
+        return f"camadas: {camadas}{nota} · a receita do molde-base vem com molde=true"
     chaves = " · ".join(f"{chave} {papel}" for chave, papel in molde.chaves.items())
     return "\n".join(
         [

@@ -139,6 +139,9 @@ class Molde:
     #: Chave da paleta -> papel ("p": "pele"). Mesmas chaves da paleta.
     chaves: Mapping[str, str]
     receita: Mapping[str, Any]
+    #: O que os nomes das camadas pressupõem ("direita e esquerda do
+    #: personagem"). Vai na linha de camadas do recorte, que não traz a receita.
+    nota_camadas: str = ""
 
     @property
     def tamanho(self) -> str:
@@ -406,7 +409,7 @@ def _ler_medida(nome: str, bruta: Any, onde: str) -> Medida:
 
 
 def _ler_molde(dados: Mapping[str, Any], origem: str, mid: str) -> Molde:
-    _so_chaves(dados, {"forma", "grade", "descricao", "chaves", "receita"}, origem)
+    _so_chaves(dados, {"forma", "grade", "descricao", "nota_camadas", "chaves", "receita"}, origem)
 
     grade = dados.get("grade")
     if (
@@ -445,6 +448,7 @@ def _ler_molde(dados: Mapping[str, Any], origem: str, mid: str) -> Molde:
         descricao=_texto(dados.get("descricao"), "descricao"),
         chaves=chaves,
         receita=receita,
+        nota_camadas=_texto(dados.get("nota_camadas") or "", "nota_camadas", vazio=True),
     )
 
 

@@ -60,10 +60,13 @@ def criar_servidor(
     def consultar_pedido(
         pedido: Annotated[str, Field(description="O pedido em texto livre.")],
         perfil: Annotated[str | None, Field(description=perfil_desc)] = None,
+        molde: Annotated[
+            bool, Field(description="true inclui a receita do molde-base; sem ele, só as medidas.")
+        ] = False,
     ) -> str:
-        """Resolve um pedido de pixel art em texto livre (ex.: "cavaleiro 32x32, 8 cores, sem fundo") e devolve o que o AssetFlow entendeu (tipo, grade, paleta, fundo) e o formato da receita. Chame antes de desenhar."""
+        """Resolve um pedido de pixel art em texto livre (ex.: "cavaleiro 32x32, 8 cores, sem fundo") e devolve o que o AssetFlow entendeu, o formato da receita e as medidas, a paleta e a luz da base. Chame antes de desenhar."""
         try:
-            return servico.consultar(pedido, perfil)
+            return servico.consultar(pedido, perfil, molde)
         except ErroDoPedido as exc:
             raise ToolError(str(exc)) from exc
 

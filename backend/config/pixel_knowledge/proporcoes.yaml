@@ -18,6 +18,9 @@ formas:
       # §3 só diz que a arma faz parte do contorno (Pixnote); o vão de 1 px é nosso.
       - {texto: "arma e escudo fora do corpo, com vão de 1 px, mudando o contorno",
          classe: semantic, secao: "§3", a_calibrar: true}
+      # §3: "exagere o que identifica" — altera a silhueta, não só a cor interna.
+      - {texto: "o equipamento muda o contorno do corpo (ombreiras, elmo com crista, capa), não só a cor por dentro",
+         classe: semantic, secao: "§3"}
       - {texto: "uma assimetria intencional: pose, arma, cabelo ou capa",
          classe: style, secao: "§3"}
       - {texto: "vão entre braço e tronco e entre as pernas",
@@ -36,15 +39,23 @@ formas:
         tons_por_material: {valor: 2,      classe: style,    secao: "§6", a_calibrar: true}
         chao_y:            {valor: 14,     classe: semantic, secao: "§9", a_calibrar: true}
       "32x32":
+        # Cerca de 3 cabeças: 28 / 10 = 2,8. O Pixnote dá 3 a 4 em 32×32; a
+        # cabeça maior é escolha nossa, para ler melhor elmo, rosto e cabelo,
+        # e deixa 2 px livres acima dela para crista, penacho ou cabelo.
         altura_px:         {valor: 28,     classe: semantic, secao: "§9", a_calibrar: true}
-        cabeca_px:         {valor: 8,      classe: style,    secao: "§9", a_calibrar: true}
-        tronco_px:         {valor: 9,      classe: style,    secao: "§9", a_calibrar: true}
-        pernas_px:         {valor: 11,     classe: style,    secao: "§9", a_calibrar: true}
-        cabecas:           {valor: [3, 4], classe: style,    secao: "§9", fonte: Pixnote}
+        cabeca_px:         {valor: 10,     classe: style,    secao: "§9", a_calibrar: true}
+        tronco_px:         {valor: 8,      classe: style,    secao: "§9", a_calibrar: true}
+        pernas_px:         {valor: 10,     classe: style,    secao: "§9", a_calibrar: true}
+        cabecas:           {valor: 2.8,    classe: style,    secao: "§9", a_calibrar: true}
+        folga_topo_px:     {valor: 2,      classe: style,    secao: "§3", a_calibrar: true,
+                            nota: "acima da cabeça, para crista, penacho ou cabelo"}
+        # Larguras com o contorno incluído. §9: acima de 16×16 são extrapolação.
+        largura_cabeca_px: {valor: 12,     classe: style,    secao: "§9", a_calibrar: true}
+        largura_tronco_px: {valor: 12,     classe: style,    secao: "§9", a_calibrar: true}
+        largura_braco_px:  {valor: 5,      classe: style,    secao: "§9", a_calibrar: true}
+        largura_perna_px:  {valor: 5,      classe: style,    secao: "§9", a_calibrar: true}
         olho_px:           {valor: [2, 2], classe: style,    secao: "§9", fonte: Pixnote,
                             nota: com brilho de 1 px}
-        # §9: as larguras de braço acima de 16×16 são extrapolação.
-        braco_px:          {valor: 2,      classe: style,    secao: "§9", a_calibrar: true}
         tons_por_material: {valor: 3,      classe: style,    secao: "§6", a_calibrar: true}
         chao_y:            {valor: 30,     classe: semantic, secao: "§9", a_calibrar: true}
 

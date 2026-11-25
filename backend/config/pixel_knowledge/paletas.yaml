@@ -32,7 +32,9 @@ paletas:
       pele_rosada:     ["#733e39", "#c28569", "#e8b796"]
       madeira:         ["#3e2731", "#733e39", "#b86f50", "#d77643", "#e4a672"]
       ouro:            ["#be4a2f", "#f77622", "#feae34", "#fee761"]
-      tecido_vermelho: ["#68386c", "#a22633", "#e43b44", "#f77622"]
+      # O tom escuro era o roxo #68386c, longe demais do vermelho; #733e39 fica a
+      # menos de 30° de matiz, e a luz ainda puxa para o laranja.
+      tecido_vermelho: ["#733e39", "#a22633", "#e43b44", "#f77622"]
       tecido_azul:     ["#262b44", "#124e89", "#0099db", "#2ce8f5"]
       tecido_roxo:     ["#3e2731", "#68386c", "#b55088", "#f6757a"]
       folha:           ["#193c3e", "#265c42", "#3e8948", "#63c74d"]
@@ -47,6 +49,8 @@ paletas:
     rampas:
       metal:           ["#333c57", "#566c86", "#94b0c2", "#f4f4f4"]
       pele:            ["#b13e53", "#ef7d57", "#ffcd75"]
+      # #5d275d é roxo, mas a Sweetie 16 não tem vermelho escuro para pôr no lugar:
+      # fica, e vale a regra de luz.yaml — o tom mais escuro só em pontos pequenos.
       tecido_vermelho: ["#5d275d", "#b13e53", "#ef7d57"]
       tecido_azul:     ["#29366f", "#3b5dc9", "#41a6f6", "#73eff7"]
       folha:           ["#257179", "#38b764", "#a7f070"]
