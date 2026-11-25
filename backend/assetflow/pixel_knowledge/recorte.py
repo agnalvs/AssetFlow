@@ -38,12 +38,19 @@ import copy
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from ..generation.schemas import AssetType
 from .base import BaseDeConhecimento, Forma, Luz, Medida, Molde, Paleta
 
-__all__ = ["TETO_CARACTERES", "USO_DO_MOLDE", "montar_recorte"]
+__all__ = [
+    "TETO_CARACTERES",
+    "USO_DO_MOLDE",
+    "FonteDeReferencias",
+    "Porte",
+    "montar_recorte",
+    "porte",
+]
 
 #: Teto do recorte, em caracteres (cerca de 1.300 tokens). Contagem de
 #: caracteres porque é determinística; um tokenizador mudaria com o modelo.
@@ -69,23 +76,68 @@ _LARGURAS = (
 _SO_REFERENCIA = ("cabecas",)
 
 
+class FonteDeReferencias(Protocol):
+    """Quem soma as referências medidas (``assetflow.referencias``).
+
+    O recorte não importa aquele módulo: recebe a linha pronta por aqui, e o
+    seletor continua sendo o único que lê o spec.
+    """
+
+    def linha(self, tipo: str, corpo: str | None, altura: int | None) -> str: ...
+
+
+@dataclass(frozen=True, slots=True)
+class Porte:
+    """O que as referências precisam saber do pedido, lido do spec uma vez só."""
+
+    tipo: str
+    #: Forma do corpo quando o spec a conhece; ``None`` em objeto ou corpo
+    #: ``unknown`` — que não vira humanoide.
+    corpo: str | None
+    #: Altura do corpo da tabela da base (``tamanhos`` ou ``quadros``); ``None``
+    #: quando a forma não tem altura (um objeto) ou o tamanho não tem tabela.
+    altura: int | None
+
+
+def porte(resolved: Any, base: BaseDeConhecimento | None) -> Porte | None:
+    """Tipo, corpo e altura do corpo deste pedido; ``None`` fora de Pixel Art."""
+    logica = resolved.logical_resolution
+    if logica is None:
+        return None
+    tipo = _valor(resolved.asset.type)
+    corpo = _valor(resolved.character.body_type) if resolved.asset.type == AssetType.CHARACTER else None
+    altura = None
+    if base is not None and not base.esta_vazia:
+        forma = base.estilo().formas.get(_forma(resolved))
+        encaixe = _encaixe(forma, logica.width, logica.height)
+        if encaixe is not None and "altura_px" in encaixe.medidas:
+            altura = int(encaixe.medidas["altura_px"].valor)
+    return Porte(tipo=tipo, corpo=None if corpo in (None, "unknown") else corpo, altura=altura)
+
+
 def montar_recorte(
     resolved: Any,
     base: BaseDeConhecimento | None,
     *,
     molde: bool = False,
+    referencias: FonteDeReferencias | None = None,
     teto: int = TETO_CARACTERES,
 ) -> str:
     """As linhas da base que valem para este spec; ``""`` quando não há nada.
 
     Com ``molde=True``, a receita do molde-base vem inteira no lugar da linha
-    de camadas.
+    de camadas. Com ``referencias``, a linha ``referências:`` entra por último
+    — é a primeira a sair quando o teto aperta.
     """
-    if base is None or base.esta_vazia:
-        return ""
     logica = resolved.logical_resolution
     if logica is None:  # pedido que não é Pixel Art
         return ""
+    linha_de_referencias = ""
+    if referencias is not None:
+        alvo = porte(resolved, base)
+        linha_de_referencias = referencias.linha(alvo.tipo, alvo.corpo, alvo.altura)
+    if base is None or base.esta_vazia:
+        return _caber([("referências", linha_de_referencias)] if linha_de_referencias else [], teto)
 
     estilo = base.estilo()
     largura, altura = logica.width, logica.height
@@ -99,6 +151,7 @@ def montar_recorte(
         ("cores", _cores(resolved, estilo.paleta)),
         ("silhueta", _silhueta(forma)),
         ("molde", _molde(molde_base, encaixe, largura, altura, completo=molde)),
+        ("referências", linha_de_referencias),
     ]
     return _caber([(nome, texto) for nome, texto in secoes if texto], teto)
 

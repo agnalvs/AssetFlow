@@ -1,0 +1,29 @@
+# Referências do projeto: quais pacotes de data/referencias/ valem como estilo.
+#
+# Os pacotes em si ficam em backend/data/referencias/<id>/ e não vão para o
+# git (são arte de terceiros); importe com:
+#
+#   python -m assetflow.referencias importar <zip|pasta> --pacote <id> ...
+#
+# e confira com `python -m assetflow.referencias listar`. Detalhes em
+# backend/docs/REFERENCIAS.md.
+#
+# Só CC0 entra direto. Um pacote de outra licença (coleção `atribuicao`) só
+# entra com o aceite explícito:
+#
+#   ativos:
+#     - pacote-cc0
+#     - pacote-cc-by: {aceitar_atribuicao: true}
+#
+# Pacote listado aqui e ausente da pasta vira aviso, e a linha do recorte sai
+# sem ele. Lista vazia: nada muda em relação a não ter referências.
+
+ativos: []
+
+porte:
+  # Referências de "porte parecido": altura do conteúdo dentro de
+  # altura do corpo do pedido × (1 ± faixa). Para o humanóide 32×32 (28 px),
+  # 0.2 dá 23 a 33 px. A altura de conteúdo inclui chapéu e arma.
+  faixa_altura:      {valor: 0.2, classe: style, secao: "§2", a_calibrar: true}
+  # Menos quadros que isto numa parte da linha `referências:`, e ela some.
+  minimo_de_quadros: {valor: 3,   classe: style, secao: "§2", a_calibrar: true}

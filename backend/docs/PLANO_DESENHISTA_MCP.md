@@ -194,7 +194,7 @@ A base de conhecimento não termina na fase 3. Ela cresce a cada fase e é o que
 
 **Como ela melhora com o uso**
 
-1. **Calibrar com exemplos reais.** Rodar o validador sobre 20 a 30 sprites de pacotes livres de boa qualidade e ajustar os limiares de `validacao.yaml` até eles passarem.
+1. **Calibrar com exemplos reais.** Rodar o validador sobre 20 a 30 sprites de pacotes livres de boa qualidade e ajustar os limiares de `validacao.yaml` até eles passarem. A ferramenta para isso foi adiantada antes da Fase 4: a biblioteca de referências (`docs/REFERENCIAS.md`), cujo `calibrar` já roda o validador sobre os pacotes ativos e propõe ajustes, sem alterar YAML.
 2. **Registrar o que você aprova e reprova.** Cada asset guarda a receita e a sua decisão. Receitas aprovadas viram candidatas a molde-base.
 3. **Promover moldes.** Um sprite aprovado pode ser salvo como silhueta-base de um novo tipo (por exemplo, quadrúpede 32×32) com um comando, sem editar YAML à mão.
 4. **Anotar correções repetidas.** Se o Claude erra a mesma coisa várias vezes (braço grosso, olho alto demais), a correção entra como regra em `proporcoes.yaml`, e não como pedido repetido na conversa.

@@ -19,7 +19,14 @@ from .base import (
     Regra,
     luminancia,
 )
-from .recorte import TETO_CARACTERES, USO_DO_MOLDE, montar_recorte
+from .recorte import (
+    TETO_CARACTERES,
+    USO_DO_MOLDE,
+    FonteDeReferencias,
+    Porte,
+    montar_recorte,
+    porte,
+)
 
 __all__ = [
     "CLASSES",
@@ -28,12 +35,15 @@ __all__ = [
     "BaseDeConhecimento",
     "ConhecimentoInvalido",
     "Estilo",
+    "FonteDeReferencias",
     "Forma",
     "Luz",
     "Medida",
     "Molde",
     "Paleta",
+    "Porte",
     "Regra",
     "luminancia",
     "montar_recorte",
+    "porte",
 ]

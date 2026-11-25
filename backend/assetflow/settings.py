@@ -161,6 +161,20 @@ class Settings(AssetFlowModel):
         return self._resolve(self.config_dir / "pixel_knowledge")
 
     @property
+    def referencias_dir(self) -> Path:
+        """``data/referencias/`` — pacotes de pixel art livres, importados à mão.
+
+        Fica em ``data/`` porque é arte de terceiros: não vai para o git.
+        Ausente, a linha de referências do recorte some e nada mais muda.
+        """
+        return self._resolve(self.data_dir / "referencias")
+
+    @property
+    def referencias_config(self) -> Path:
+        """``config/pixel_knowledge/referencias.yaml`` — quais pacotes estão ativos."""
+        return self._resolve(self.config_dir / "pixel_knowledge" / "referencias.yaml")
+
+    @property
     def engine_discovery_paths(self) -> tuple[Path, ...]:
         discovery = self.engines_config.get("discovery") or {}
         paths = discovery.get("paths") or ["assetflow/generation/engines"]

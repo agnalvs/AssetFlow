@@ -451,6 +451,8 @@ LAYERS_FORBIDDEN_TO_KNOWLEDGE = (
     "assetflow.storage",
     "assetflow.mcp",
     "assetflow.pixel",
+    # As referências entram no recorte por um parâmetro, nunca por import.
+    "assetflow.referencias",
 )
 
 
@@ -483,5 +485,58 @@ def test_engines_ignore_the_knowledge_base(path: Path):
         f"{path.name}:{line} importa '{module}'"
         for module, line in _resolved_imports(path)
         if _imports_any(module, ("assetflow.pixel_knowledge",))
+    ]
+    assert not violations, "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# Biblioteca de referências (adiantada antes da Fase 4)
+# ---------------------------------------------------------------------------
+# ``assetflow/referencias/`` importa e mede pacotes de pixel art livres. Ela
+# mora na estante: lê arquivos, mede com o módulo Pixel e compara com a base
+# de conhecimento. Se dependesse de gaveta, job, API ou da porta MCP, deixaria
+# de ser utilizável pela linha de comando sozinha — e se uma gaveta a
+# importasse, um sprite de terceiro poderia virar desenho sem passar pelo
+# Claude, que só vê números e uma imagem.
+
+REFERENCIAS_ROOT = PACKAGE_ROOT / "referencias"
+REFERENCIAS_FILES = _python_files(REFERENCIAS_ROOT)
+
+LAYERS_FORBIDDEN_TO_REFERENCIAS = (
+    "assetflow.generation.engines",
+    "assetflow.generation.kernel",
+    "assetflow.generation.pipelines",
+    "assetflow.jobs",
+    "assetflow.api",
+    "assetflow.storage",
+    "assetflow.mcp",
+)
+
+
+def test_there_are_referencias_files_to_inspect():
+    """Guarda da própria seção: parametrização vazia passa sem provar nada."""
+    assert len(REFERENCIAS_FILES) >= 5
+
+
+@pytest.mark.parametrize(
+    "path", REFERENCIAS_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT))
+)
+def test_referencias_do_not_import_engines_jobs_api_or_mcp(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, LAYERS_FORBIDDEN_TO_REFERENCIAS)
+    ]
+    assert not violations, "assetflow/referencias/ é estante:\n" + "\n".join(violations)
+
+
+@pytest.mark.parametrize(
+    "path", ENGINE_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT))
+)
+def test_engines_ignore_the_referencias(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, ("assetflow.referencias",))
     ]
     assert not violations, "\n".join(violations)

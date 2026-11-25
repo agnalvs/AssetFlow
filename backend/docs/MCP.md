@@ -32,6 +32,7 @@ nelas.
 | `consultar_pedido` | `pedido`, `perfil?`, `molde?` | o que o spec resolveu + o formato da receita + o recorte de conhecimento |
 | `desenhar` | `pedido?`, `receita?`, `base?`, `perfil?` | o laudo em texto |
 | `ver_asset` | `id` | uma legenda e o PNG ampliado |
+| `ver_referencia` | `pedido`, `perfil?` | um quadro de referência do tipo do pedido, ampliado, com origem e licença ([REFERENCIAS.md](REFERENCIAS.md)) |
 
 - **`perfil`** é o profile de partida, e só vale no que o texto não disser. O
   padrão é `pixel_character_32`. A lista de opções na descrição sai dos
@@ -230,6 +231,12 @@ Quatro regras:
 
 A desenhista conta cor por **chave** da paleta, então os moldes têm no máximo
 8 chaves — cabem direto num pedido de 8 cores.
+
+Com pacotes de referência ativos, o recorte ganha uma última linha,
+`referências:`, com o que os pacotes dizem de estilo e de porte — e é a
+primeira a sair quando o teto aperta. O recorte não importa o módulo de
+referências: o serviço passa a linha por um parâmetro. Detalhes em
+[REFERENCIAS.md](REFERENCIAS.md) §5.
 
 ## 5. Rodar e testar
 

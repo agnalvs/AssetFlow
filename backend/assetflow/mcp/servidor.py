@@ -1,4 +1,4 @@
-"""O servidor MCP: as três ferramentas do desenhista, por stdio.
+"""O servidor MCP: as ferramentas do desenhista, por stdio.
 
 Casca fina sobre :class:`~.servico.ServicoDesenhista`. Só este módulo importa
 o SDK do MCP (``mcp``, dependência opcional: ``pip install -e ".[mcp]"``).
@@ -93,6 +93,18 @@ def criar_servidor(
             return await servico.desenhar(pedido=pedido, receita=receita, base=base, perfil=perfil)
         except ErroDoPedido as exc:
             raise ToolError(str(exc)) from exc
+
+    @servidor.tool(structured_output=False)
+    def ver_referencia(
+        pedido: Annotated[str, Field(description="O mesmo texto de consultar_pedido.")],
+        perfil: Annotated[str | None, Field(description="Igual a consultar_pedido.")] = None,
+    ) -> list:
+        """Mostra UMA imagem de referência dos pacotes livres ativos, do tipo de asset do pedido, ampliada. Serve para ver estilo, não para copiar; use só quando precisar ver."""
+        try:
+            png, legenda = servico.ver_referencia(pedido, perfil)
+        except ErroDoPedido as exc:
+            raise ToolError(str(exc)) from exc
+        return [legenda, Image(data=png, format="png")]
 
     @servidor.tool(structured_output=False)
     async def ver_asset(

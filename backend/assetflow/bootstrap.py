@@ -45,6 +45,7 @@ from .llm import ChatClient, ChatConfig, LLMPixelReviewer
 from .pixel import PixelProfileRegistry
 from .pixel.optimizer import AssetFlowPixelOptimizer, PixelReviewer, ReviewLoop
 from .pixel_knowledge import BaseDeConhecimento
+from .referencias import ReferenciasAtivas
 from .settings import Settings, engine_runtime_configs, load_settings
 from .storage import (
     AssetStorageService,
@@ -83,6 +84,9 @@ class AppContainer:
     #: porta MCP a lê, para montar o recorte de ``consultar_pedido``; nenhum
     #: pipeline, gaveta ou validador depende dela.
     conhecimento: BaseDeConhecimento
+    #: Os pacotes de referência ativos, já medidos (``data/referencias/``).
+    #: Também só a porta MCP lê: a linha ``referências:`` e ``ver_referencia``.
+    referencias: ReferenciasAtivas
     storage: AssetStorageService
     records: GenerationRecordRepository
     job_store: JobStore
@@ -198,6 +202,9 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     # lidos como a taxonomia — YAML, sem código, e diretório ausente não
     # derruba o boot. Arquivo torto é ignorado com aviso, e o aviso fica aqui.
     conhecimento = BaseDeConhecimento.do_diretorio(settings.pixel_knowledge_dir)
+    # Referências: só o que já foi medido; nada é medido no boot. Sem pasta ou
+    # sem pacote ativo, a coleção vem vazia e a linha do recorte some.
+    referencias = ReferenciasAtivas.carregar(settings.referencias_dir, settings.referencias_config)
 
     # -- Storage ----------------------------------------------------------
     backend = LocalFilesystemBackend(settings.storage_root)
@@ -248,7 +255,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     _LOG.info(
         "AssetFlow pronto [%s]: %s gaveta(s), %s profile(s), "
         "%s profile(s) Pixel, %s pipeline(s), %s vocabulário(s) de asset, "
-        "%s molde(s) de desenho | otimização %s",
+        "%s molde(s) de desenho, %s quadro(s) de referência | otimização %s",
         settings.app_env.value,
         len(registry),
         len(profiles),
@@ -256,6 +263,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         len(pipelines.ids()),
         len(taxonomy),
         len(conhecimento.moldes),
+        len(referencias.quadros),
         "ligada" if optimizer.enabled else "DESLIGADA",
     )
 
@@ -274,6 +282,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         taxonomy=taxonomy,
         constraints=constraints,
         conhecimento=conhecimento,
+        referencias=referencias,
         storage=storage,
         records=records,
         job_store=job_store,

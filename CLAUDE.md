@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1343 passed, 1 skipped)
+pytest -q                                # suíte completa (1410 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -63,6 +63,19 @@ passa a ser uma variação.
 
 O benchmark entre motores (`scripts/benchmark_engines.py`) saiu na Fase 0 do
 plano desenhista; as métricas de otimização continuam gravadas em todo job.
+
+Referências de estilo (pacotes livres baixados à mão; nada é baixado aqui):
+
+```bash
+python -m assetflow.referencias importar <zip|pasta> --pacote <id> --fonte <url> \
+    --autor "<nome>" --licenca CC0-1.0 --licenca-url <url> --parte "PADRAO:TIPO[:CORPO][:QUADRO]"
+python -m assetflow.referencias listar      # o que está ativo e os avisos
+python -m assetflow.referencias calibrar    # propõe ajustes; não altera YAML
+```
+
+Pacotes em `backend/data/referencias/` (fora do git); quais valem, em
+`config/pixel_knowledge/referencias.yaml`. Ver
+[backend/docs/REFERENCIAS.md](backend/docs/REFERENCIAS.md).
 
 Frontend (a partir de `frontend/`):
 
@@ -140,6 +153,21 @@ Feito:
     `proporcoes.yaml` diz qual corpo vive nele — do mesmo tamanho
     (`tamanhos`) ou menor (`quadros`, como corpo de 32 em 48×48, centrado e
     com o chão do quadro). O profile `pixel_character_48` pede esse quadro.
+
+Adiantado antes da Fase 4: a **biblioteca de referências**
+(`assetflow/referencias/`), que importa e mede pacotes de pixel art livres e
+entrega ao Claude uma linha `referências:` no recorte e a ferramenta
+`ver_referencia`. Detalhes: [backend/docs/REFERENCIAS.md](backend/docs/REFERENCIAS.md).
+Quatro regras ao mexer ali:
+  - **só CC0 entra direto**; outra licença exige `aceitar_atribuicao: true`
+    na lista de ativos;
+  - **referência mede estilo, não vira receita**: o recorte só traz números
+    somados, com **peso igual por pacote**, e `ver_referencia` só imagem;
+  - **porte compara pelo corpo, não pelo quadro**: a altura do corpo vem de
+    `proporcoes.yaml`; chão, margem e ocupação não se comparam entre pacotes;
+  - **o módulo não importa gaveta, kernel, pipeline, job, API, storage nem
+    MCP**, e `pixel_knowledge` não o importa (o recorte recebe a linha por
+    parâmetro). Testes só com imagens geradas no próprio teste.
 
 ## Arquitetura
 
@@ -398,6 +426,7 @@ peça que conhece as duas pontas. Detalhes em
   desenhista, Fase 3): paletas e rampas, direção de luz, proporções por forma
   e tamanho, moldes-base em `silhuetas/`. Só YAML; só a porta MCP a lê.
   Diretório ausente não quebra o boot: o recorte sai vazio.
+  `referencias.yaml` diz quais pacotes de `data/referencias/` estão ativos.
 
 ### Fronteiras verificadas por teste
 

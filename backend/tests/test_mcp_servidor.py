@@ -44,13 +44,13 @@ def _chamar(servidor, ferramenta: str, argumentos: dict):
     return run(cenario())
 
 
-def test_tres_ferramentas_com_descricao_curta(servidor):
+def test_ferramentas_com_descricao_curta(servidor):
     async def cenario():
         async with Client(servidor) as cliente:
             return (await cliente.list_tools()).tools
 
     ferramentas = {f.name: f for f in run(cenario())}
-    assert set(ferramentas) == {"consultar_pedido", "desenhar", "ver_asset"}
+    assert set(ferramentas) == {"consultar_pedido", "desenhar", "ver_asset", "ver_referencia"}
     for ferramenta in ferramentas.values():
         assert ferramenta.description
         assert len(ferramenta.description) <= TETO_DA_DESCRICAO, ferramenta.name
@@ -127,5 +127,11 @@ def test_o_servidor_sobe_por_stdio():
         async with Client(parametros) as cliente:
             return [f.name for f in (await cliente.list_tools()).tools]
 
-    assert sorted(run(cenario())) == ["consultar_pedido", "desenhar", "ver_asset"]
+    assert sorted(run(cenario())) == ["consultar_pedido", "desenhar", "ver_asset", "ver_referencia"]
     assert NOME == "assetflow"
+
+
+def test_ver_referencia_sem_pacote_ativo_diz_o_que_fazer(servidor):
+    resultado = _chamar(servidor, "ver_referencia", {"pedido": "cavaleiro 32x32"})
+    assert resultado.is_error
+    assert "não há referência ativa de character/humanoid" in resultado.content[0].text

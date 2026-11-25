@@ -30,7 +30,7 @@ from ..generation.schemas import (
     AssetOutputOverrides,
     EngineSelector,
 )
-from ..pixel_knowledge import montar_recorte
+from ..pixel_knowledge import montar_recorte, porte
 from ..storage.records import GenerationRecord
 from .laudo import formatar_consulta, formatar_laudo
 from .remendo import RemendoInvalido, aplicar_remendo
@@ -59,7 +59,7 @@ class ErroDoPedido(Exception):
 
 
 class ServicoDesenhista:
-    """As três ferramentas, sobre um container já montado."""
+    """As ferramentas do desenhista, sobre um container já montado."""
 
     def __init__(self, container: AppContainer, *, timeout_s: float | None = None) -> None:
         self._container = container
@@ -85,7 +85,12 @@ class ServicoDesenhista:
         # O recorte lê o spec já resolvido e só acrescenta orientação: o que
         # o pedido virou (tamanho, paleta, tipo) não muda por causa da base.
         # A receita do molde só vem quando pedida — por padrão, só as medidas.
-        recorte = montar_recorte(spec, self._container.conhecimento, molde=molde)
+        recorte = montar_recorte(
+            spec,
+            self._container.conhecimento,
+            molde=molde,
+            referencias=self._container.referencias,
+        )
         return formatar_consulta(texto, perfil, spec, conhecimento=recorte)
 
     # ------------------------------------------------------------------
@@ -154,6 +159,28 @@ class ServicoDesenhista:
             f"{saida.status or 'sem veredito'}"
         )
         return buffer.getvalue(), legenda
+
+    # ------------------------------------------------------------------
+    def ver_referencia(self, pedido: str, perfil: str | None = None) -> tuple[bytes, str]:
+        """UM quadro de referência do tipo do pedido, ampliado, e a legenda.
+
+        O tipo, o corpo e a altura do corpo saem do spec resolvido, pelo mesmo
+        ``porte`` que monta a linha ``referências:`` do recorte.
+        """
+        perfil = self._perfil(perfil)
+        texto = self._texto(pedido)
+        spec = self._resolver(texto, perfil)
+        alvo = porte(spec, self._container.conhecimento)
+        if alvo is None:
+            raise ErroDoPedido("o pedido não é Pixel Art: não há referência para ele")
+        exemplo = self._container.referencias.exemplo(alvo.tipo, alvo.corpo, alvo.altura)
+        if exemplo is None:
+            onde = alvo.tipo + (f"/{alvo.corpo}" if alvo.corpo else "")
+            raise ErroDoPedido(
+                f"não há referência ativa de {onde}: importe e ative um pacote "
+                "(python -m assetflow.referencias listar)"
+            )
+        return exemplo
 
     # ------------------------------------------------------------------
     # Internos
