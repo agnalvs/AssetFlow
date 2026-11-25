@@ -162,9 +162,7 @@ class EngineResolver:
         if selector.mode == "manual" and selector.engine_id:
             return await self._resolve_manual(capability, selector, request, excluded)
 
-        ordered = self._ordered_ids(
-            capability, excluded, hint=selector.preferred_engine_id
-        )
+        ordered = self._ordered_ids(capability, excluded)
         candidates = await self._build_candidates(ordered, capability, request, rejected)
 
         if not candidates:
@@ -245,20 +243,12 @@ class EngineResolver:
     # ------------------------------------------------------------------
     # Ordenação e filtragem
     # ------------------------------------------------------------------
-    def _ordered_ids(
-        self,
-        capability: Capability,
-        excluded: set[str],
-        *,
-        hint: str | None = None,
-    ) -> list[str]:
-        """Ordem de preferência: dica, depois política, depois o resto.
+    def _ordered_ids(self, capability: Capability, excluded: set[str]) -> list[str]:
+        """Ordem de preferência: a da política de rotas, depois o resto.
 
-        A ``hint`` vem da :class:`~.auto_policy.AutoEnginePolicy` e vale só no
-        modo ``auto``. Ela entra **na frente** da lista, e não no lugar dela:
-        uma preferência que não puder atender perde a vez em silêncio e o
-        roteamento por capacidade segue — que é a diferença entre sugerir e
-        exigir (plano de motores §16 e §25).
+        "O resto" — gavetas que declaram a capacidade sem estar na rota — só
+        entra com ``allow_unlisted_engines``. O ``capabilities.yaml`` do app o
+        desliga: fora dos testes, a cadeia é só o que a rota lista.
         """
         preferred = [
             engine_id
@@ -273,8 +263,6 @@ class EngineResolver:
         ]
 
         ordered: list[str] = []
-        if hint and hint not in excluded and hint in set(declaring):
-            ordered.append(hint)
         ordered.extend(
             engine_id
             for engine_id in preferred

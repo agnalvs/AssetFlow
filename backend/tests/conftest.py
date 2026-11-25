@@ -14,7 +14,8 @@ from typing import Any, Awaitable, Callable, TypeVar
 import pytest
 
 from assetflow.bootstrap import AppContainer, build_container
-from assetflow.settings import Settings, load_settings
+from assetflow.generation.kernel import RoutingPolicy
+from assetflow.settings import AppEnvironment, Settings, load_settings
 
 T = TypeVar("T")
 
@@ -38,8 +39,17 @@ def run_fixture() -> Callable[[Awaitable[Any]], Any]:
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    """Configuração real do projeto, com dados isolados em ``tmp_path``."""
-    return load_settings(base_dir=BACKEND_ROOT, data_dir=tmp_path)
+    """Configuração real do projeto, com dados isolados em ``tmp_path``.
+
+    No ambiente de testes (``AppEnvironment.TEST``), o único que registra as
+    gavetas de referência. O app (development ou production) nunca as
+    registra: desde a Fase A do plano do app, um mock não pode gerar no lugar
+    da desenhista. Quem quer conferir o app como ele roda monta o container
+    sem esta fixture (``tests/test_gerador_unico.py``).
+    """
+    settings = load_settings(base_dir=BACKEND_ROOT, data_dir=tmp_path)
+    settings.app_env = AppEnvironment.TEST
+    return settings
 
 
 #: Gavetas que exigem GPU baixam gigabytes e levam minutos por imagem. Ficam
@@ -66,6 +76,30 @@ RUN_REAL_ENGINES = os.environ.get("ASSETFLOW_TEST_REAL_ENGINES", "").lower() in 
 #: cobrado, com o motor dito pelo nome.
 REFERENCE_ENGINES = frozenset({"mock-image-v1", "mock-pixel-alt-v1"})
 
+#: O roteamento com que a suíte trabalha, no lugar do ``capabilities.yaml``.
+#:
+#: O do app só lista a desenhista, sem fallback e sem motor fora da lista
+#: (Fase A do plano do app). Os testes de mecanismo — roteamento por
+#: capacidade, troca de motor, fallback, retry — precisam de motores
+#: previsíveis e de fallback ligado, e é esta a política deles: a mesma que o
+#: ``capabilities.yaml`` tinha antes da Fase A. Ela existe só aqui.
+ROTEAMENTO_DE_TESTE = {
+    "routing": {
+        "text_to_image.pixel": ["mock-pixel-alt-v1", "mock-image-v1"],
+        "text_to_image.general": ["mock-image-v1"],
+        "character.pixel": ["mock-pixel-alt-v1", "mock-image-v1"],
+        "character.2d": ["mock-image-v1"],
+        "prop.pixel": ["mock-pixel-alt-v1", "mock-image-v1"],
+        "background.2d": ["mock-image-v1"],
+    },
+    "fallback": {
+        "enabled": True,
+        "max_engine_attempts": 3,
+        "allow_degraded_as_last_resort": True,
+    },
+    "allow_unlisted_engines": True,
+}
+
 
 @pytest.fixture
 def container(settings: Settings) -> AppContainer:
@@ -78,6 +112,7 @@ def container(settings: Settings) -> AppContainer:
     # Sem backoff: o retry é exercitado pelo comportamento, não pelo relógio.
     settings.worker.retry_base_delay_s = 0.0
     built = build_container(settings)
+    built.resolver.set_policy(RoutingPolicy.from_config(ROTEAMENTO_DE_TESTE))
 
     for record in built.registry.list():
         if record.id in REFERENCE_ENGINES:

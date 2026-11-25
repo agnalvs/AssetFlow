@@ -105,7 +105,12 @@ class JsonLinesGenerationRecordRepository(GenerationRecordRepository):
                     if not line:
                         continue
                     try:
-                        records.append(GenerationRecord.model_validate_json(line))
+                        dados = json.loads(line)
+                        if not isinstance(dados, dict):
+                            continue
+                        # Tolerante a campos que saíram do modelo: registros
+                        # antigos continuam legíveis (``do_historico``).
+                        records.append(GenerationRecord.do_historico(dados))
                     except Exception:
                         continue
             return records

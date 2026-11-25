@@ -1,37 +1,21 @@
 /**
  * Tipos da interface.
  *
- * Regra arquitetural (plano da tela §32 e §46, atualizada pelo plano de
- * motores §4 e §24): esta camada conhece **Pixel Art** e **2D Normal**,
- * traduzidos para *capacidades*.
+ * Regra arquitetural (plano da tela §32 e §46): esta camada conhece **Pixel
+ * Art**, traduzido para uma *capacidade*, e mais nada.
  *
- Sobre motores, a tela **oferece** a escolha mas continua sem **conhecer**
- * nenhum: a lista vem inteira de `GET /api/generation/engines/catalog`, com
- * id, nome, resumo, selos e disponibilidade. Nenhum id de motor está escrito
- * neste código.
+ * Desde a Fase A do plano do app (backend/docs/PLANO_APP_DESENHISTA.md) o
+ * AssetFlow tem um gerador só, a desenhista, e a tela não pergunta mais nada
+ * de tecnologia: saíram o seletor de motor, o modo "Automático" e o modo 2D
+ * Normal. Nenhum id de motor está escrito neste código — e agora nenhum
+ * aparece na tela.
  *
- * Existe **uma** pergunta de tecnologia, e é essa (plano Optimizer §25 e §26):
- *
- *     Com qual motor?   Automático | <cada gaveta visível no catálogo>
- *
- * Não há um seletor de "método de criação", e a ausência é deliberada. Ele já
- * existiu, oferecendo "Modelo de imagem" e "Agente Pixel" como se fossem
- * alternativas — e não são: o motor produz a imagem, e o AssetFlow Pixel
- * Optimizer corrige a imagem produzida, sempre, em toda geração (§46 e §79).
- * Perguntar qual dos dois usar era pedir à pessoa que escolhesse entre duas
- * metades do mesmo pipeline.
- *
- * O Optimizer, por isso, **não** aparece em lista nenhuma da interface (§76).
- * Ele aparece no resultado, contando o que fez.
- *
- * A diferença importa. Se amanhã entrar uma gaveta nova, ela aparece no
- * seletor sozinha; se um id de motor estivesse escrito aqui, cada motor novo
- * exigiria uma alteração no frontend — o "hardcode de nomes de modelos em
- * múltiplos lugares" que o §24 lista entre as coisas a não fazer.
+ * O AssetFlow Pixel Optimizer também não aparece em lista nenhuma (§76): ele
+ * corrige toda geração, e aparece no resultado contando o que fez.
  */
 
-/** Os dois modos de criação oferecidos ao usuário. */
-export type GenerationMode = "pixel" | "studio";
+/** O modo de criação: o app só gera Pixel Art (Fase A do plano do app). */
+export type GenerationMode = "pixel";
 
 /** Estados genéricos do fluxo, independentes de backend. */
 export type GenerationState =
@@ -67,19 +51,7 @@ export const MODES: Readonly<Record<GenerationMode, ModeConfig>> = {
       "Ex.: Um cavaleiro medieval com armadura azul, espada curta, visto de lado, estilo RPG.",
     pixelated: true,
   },
-  studio: {
-    id: "studio",
-    label: "2D Normal",
-    description: "Assets ilustrados em estilos 2D convencionais.",
-    capability: "text_to_image.general",
-    profile: "studio_character",
-    placeholder:
-      "Ex.: Um guerreiro de fantasia usando armadura azul, corpo inteiro, vista lateral, estilo cartoon 2D.",
-    pixelated: false,
-  },
 };
-
-export const MODE_LIST: readonly ModeConfig[] = [MODES.pixel, MODES.studio];
 
 // ---------------------------------------------------------------------------
 // Contratos da API (espelham o backend, sem qualquer detalhe de motor)
@@ -121,93 +93,6 @@ export interface SemanticPrompt {
   composition: SemanticComposition;
   technical: SemanticTechnical;
   extra: Record<string, unknown>;
-}
-
-// ---------------------------------------------------------------------------
-// A escolha de tecnologia (plano Optimizer §25 e §26)
-// ---------------------------------------------------------------------------
-
-/**
- * O que a tela escolheu sobre **com o quê** criar.
- *
- * Um campo só, e é esse o ponto. Este objeto já teve quatro — método, motor,
- * agente e modo de qualidade —, e três deles descreviam uma bifurcação que
- * não existe mais (plano Optimizer §27).
- *
- * `engineId` a `null` significa "Automático": o backend escolhe e explica o
- * motivo antes de gerar.
- */
-export interface CreationSelection {
-  engineId: string | null;
-}
-
-export const AUTO_CREATION: CreationSelection = { engineId: null };
-
-// ---------------------------------------------------------------------------
-// Catálogo de motores (plano de motores §6) — o que o seletor de motor desenha
-// ---------------------------------------------------------------------------
-
-/** A tecnologia por trás da gaveta. A tela usa só para agrupar e rotular. */
-export type EngineFamily =
-  | "diffusion"
-  | "native_sprite"
-  | "optimization"
-  | "agentic"
-  | "procedural";
-
-export type EngineQualityTier = "draft" | "standard" | "high" | "reference";
-
-export type EngineSpeedTier = "instant" | "fast" | "moderate" | "slow" | "very_slow";
-
-/**
- * Um motor como o backend o apresenta.
- *
- * Espelha `EngineCatalogEntry`. Todo texto exibido no seletor sai daqui —
- * inclusive o resumo e os selos —, e é por isso que a tela pode oferecer um
- * motor que ela não conhece.
- */
-export interface EngineCatalogEntry {
-  engine_id: string;
-  display_name: string;
-  engine_family: EngineFamily;
-  version: string;
-  description: string;
-  summary: string;
-  highlights: string[];
-  badges: string[];
-
-  supports_pixel_art: boolean;
-  supports_image_editing: boolean;
-  supports_reference_image: boolean;
-  supports_palette_control: boolean;
-  supports_exact_resolution: boolean;
-  supports_background_transparency: boolean;
-  supports_seed: boolean;
-  supported_logical_sizes: number[];
-
-  quality_tier: EngineQualityTier;
-  speed_tier: EngineSpeedTier;
-  license_type: string;
-
-  /** `active` | `disabled` | `unavailable` | `incompatible`. */
-  status: string;
-  /** Dá para escolher este motor agora? */
-  available: boolean;
-  /** Por que não dá, em português. `null` quando dá. */
-  unavailable_reason: string | null;
-
-  capabilities: string[];
-  model_id: string | null;
-  provider: string;
-  gpu_required: boolean;
-  recommended_vram_mb: number;
-  recommended_timeout_s: number;
-}
-
-/** A resposta de `GET /api/generation/engines/catalog`. */
-export interface EngineCatalogResponse {
-  items: EngineCatalogEntry[];
-  capability: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -596,10 +481,6 @@ export interface HistoryEntry {
   variant: AssetVariant;
   /** A leitura que produziu esta imagem, para poder reabri-la exatamente. */
   preview: PromptPreview | null;
-  /** Reabrir uma geração antiga precisa reabrir o aviso junto com ela. */
-  fallbackUsed: boolean;
-  /** Quem gerou esta entrada — é o que torna o histórico comparável. */
-  engine: EngineSelectionView | null;
   warnings: string[];
   createdAt: number;
 }

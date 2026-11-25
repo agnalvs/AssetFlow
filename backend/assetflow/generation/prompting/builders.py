@@ -28,7 +28,6 @@ from typing import Any, Iterable
 
 from ..schemas import (
     AssetGenerationRequest,
-    AssetMode,
     FinalResolvedSpec,
     SemanticComposition,
     SemanticPrompt,
@@ -41,9 +40,6 @@ __all__ = [
     "PixelPropPromptBuilder",
     "PromptBuilder",
     "PromptBuilderRegistry",
-    "StudioBackgroundPromptBuilder",
-    "StudioCharacterPromptBuilder",
-    "StudioPropPromptBuilder",
     "resolve_semantic_prompt",
 ]
 
@@ -272,94 +268,6 @@ class PixelBackgroundPromptBuilder(PixelCharacterPromptBuilder):
         )
 
 
-class StudioCharacterPromptBuilder(PromptBuilder):
-    """Personagens em arte 2D convencional."""
-
-    id = "studio.character"
-    default_avoid = (
-        "pixel art",
-        "low resolution",
-        "text",
-        "watermark",
-        "extra limbs",
-        "cropped",
-    )
-
-    def build(
-        self, request: AssetGenerationRequest, spec: FinalResolvedSpec
-    ) -> SemanticPrompt:
-        return SemanticPrompt(
-            subject=self._subject(request, spec),
-            medium=str(self._attr(request, "medium", "cartoon_2d")),
-            style=self._attr(request, "style", "clean game art"),
-            view=self._view(request, spec, "front"),
-            pose=self._attr(request, "pose"),
-            appearance=self._appearance(request),
-            details=self._details(request),
-            avoid=self._avoid(request),
-            composition=SemanticComposition(
-                single_subject=True,
-                centered=spec.composition.centered,
-                full_body=bool(self._attr(request, "full_body", True)),
-                isolated_background=spec.background.transparent,
-            ),
-            technical=SemanticTechnical(
-                clean_silhouette=True,
-                sharp_edges=False,
-                limited_palette=self._palette(spec),
-                transparent_background=spec.background.transparent,
-            ),
-        )
-
-
-class StudioPropPromptBuilder(StudioCharacterPromptBuilder):
-    """Props e objetos em arte 2D convencional."""
-
-    id = "studio.prop"
-    default_avoid = (
-        "pixel art",
-        "low resolution",
-        "text",
-        "watermark",
-        "characters",
-        "people",
-        "hands",
-    )
-
-    def build(
-        self, request: AssetGenerationRequest, spec: FinalResolvedSpec
-    ) -> SemanticPrompt:
-        prompt = super().build(request, spec)
-        return prompt.model_copy(
-            update={
-                "pose": None,
-                "composition": prompt.composition.model_copy(update={"full_body": None}),
-            }
-        )
-
-
-class StudioBackgroundPromptBuilder(StudioCharacterPromptBuilder):
-    """Cenários e fundos em arte 2D convencional."""
-
-    id = "studio.background"
-    default_avoid = ("pixel art", "text", "watermark", "characters in foreground")
-
-    def build(
-        self, request: AssetGenerationRequest, spec: FinalResolvedSpec
-    ) -> SemanticPrompt:
-        prompt = super().build(request, spec)
-        return prompt.model_copy(
-            update={
-                "composition": SemanticComposition(
-                    single_subject=False,
-                    centered=False,
-                    full_body=None,
-                    isolated_background=False,
-                )
-            }
-        )
-
-
 class PromptBuilderRegistry:
     """Resolve o builder a partir do spec resolvido."""
 
@@ -375,9 +283,6 @@ class PromptBuilderRegistry:
                 PixelCharacterPromptBuilder(),
                 PixelPropPromptBuilder(),
                 PixelBackgroundPromptBuilder(),
-                StudioCharacterPromptBuilder(),
-                StudioPropPromptBuilder(),
-                StudioBackgroundPromptBuilder(),
             )
         )
 
@@ -414,12 +319,9 @@ class PromptBuilderRegistry:
             if candidate and (builder := self._builders.get(candidate)):
                 return builder
 
-        fallback = (
-            "pixel.character"
-            if spec.asset.mode is AssetMode.PIXEL
-            else "studio.character"
-        )
-        builder = self._builders.get(fallback)
+        # Os builders do modo Studio saíram na Fase A do plano do app: o app só
+        # gera Pixel Art, e o modo que sobrar no contrato cai no Pixel.
+        builder = self._builders.get("pixel.character")
         if builder is None:  # pragma: no cover - registro vazio
             raise KeyError(f"nenhum prompt builder disponível para '{spec.spec_id}'")
         return builder

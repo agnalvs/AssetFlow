@@ -272,10 +272,14 @@ def test_logical_resolution_is_refused_in_studio_mode(container: AppContainer):
     Arte 2D convencional não tem grid lógico. Guardar 32×32 em um pedido
     Studio produziria um spec que ninguém honra — exatamente o sintoma que
     este plano existe para eliminar.
+
+    Os profiles Studio saíram na Fase A do plano do app, mas o modo continua
+    no contrato: o pedido chega a ele pelo campo ``mode``.
     """
     request = AssetGenerationRequest(
         project_id="project_spec",
-        profile="studio_character",
+        profile="pixel_character_64",
+        mode="studio",
         prompt="cartoon knight",
         spec_overrides=SpecOverrides(logical_width=32, logical_height=32),
     )

@@ -21,9 +21,10 @@ Este módulo resolve a lacuna somando as três fontes em uma entrada só:
   + estado + health    (se dá para usar agora)
   = EngineCatalogEntry
 
-O catálogo **não decide nada**. Ele descreve. Quem escolhe é a pessoa (modo
-manual), a :class:`~.auto_policy.AutoEnginePolicy` (modo auto) ou o
-roteamento por capacidade — nesta ordem de precedência.
+O catálogo **não decide nada**. Ele descreve. Quem escolhe é quem pede o
+motor pelo nome (modo manual) ou o roteamento por capacidade. Desde a Fase A
+do plano do app, a tela não oferece mais escolha de motor: o catálogo serve
+ao diagnóstico, pela API.
 
 Uma nota sobre o layout: o plano de motores §23 sugere ``assetflow/engines/catalog/``.
 Aqui o catálogo mora dentro do kernel porque é uma **leitura** da estante que

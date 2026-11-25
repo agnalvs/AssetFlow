@@ -20,8 +20,15 @@
 > recebe o desenho do Claude como uma receita — ver
 > [PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md) e
 > [DESENHISTA.md](DESENHISTA.md). A infraestrutura descrita aqui (catálogo,
-> política do modo Automático, governança) continuou inteira: ela foi escrita
-> para não depender de motor nenhum.
+> governança) continuou inteira: ela foi escrita para não depender de motor
+> nenhum.
+
+> **Fase A do plano do app** ([PLANO_APP_DESENHISTA.md](PLANO_APP_DESENHISTA.md)).
+> A desenhista virou o gerador único do app. Saíram o seletor de motor da tela,
+> o modo "Automático" (`kernel/auto_policy.py`, `config/engine_policy.yaml`,
+> `spec/engine_advisor.py`) e o fallback para mock. As gavetas de referência
+> continuam existindo, só nos testes. O que segue descreve o estado depois
+> dessa fase.
 
 O AssetFlow deixou de ser uma interface com um gerador e passou a ser uma
 plataforma com motores intercambiáveis. Este documento explica o que mudou,
@@ -31,42 +38,15 @@ onde cada peça mora e como acrescentar a próxima gaveta.
 
 ## 1. O que a pessoa vê
 
-A tela mostra o seletor de motor, preenchido pelo catálogo:
+Nada de motor. A tela não tem seletor nem crédito de motor: o app tem um
+gerador só, a `desenhista-v1`, que desenha a partir de uma receita escrita pelo
+Claude na conversa, pelo servidor MCP ([MCP.md](MCP.md)). A tela não manda
+receita, e por isso o botão "Gerar" está desligado até a fila da Fase B do
+plano do app, com uma frase dizendo isso.
 
-```
-Motor:  [ Automático ▾ ]
-        Automático
-        <cada gaveta visível no catálogo>
-        <outra gaveta>      (indisponível)
-```
-
-Escolhido um motor, aparece um resumo do que ele faz bem e o que ele custa. Em
-**Automático**, aparece o motor que o AssetFlow escolheu e **por quê**, antes
-de gerar:
-
-```
-Motor resolvido: <nome do motor>
-Motivo: <o `reason` da regra de engine_policy.yaml que casou>
-```
-
-Depois de gerar, o resultado diz quem gerou — e, se o motor pedido não pôde
-atender, diz isso em vez de entregar outro em silêncio.
-
-**Hoje o seletor do modo Pixel Art tem "Automático" e "Desenhista (Claude via
-MCP)".** A desenhista apareceu ali sozinha, pelo manifesto, sem mudança no
-frontend. As gavetas de referência ficam fora da vitrine (`catalog.hidden`).
-
-A desenhista só desenha a partir de uma receita, e a tela não manda receita —
-quem manda é o servidor MCP, pela conversa com o Claude ([MCP.md](MCP.md)).
-Escolhida no seletor, ela falha com a mensagem dela (regra 1: motor escolhido
-é motor usado). Em "Automático", ela recusa e o fallback entra — em
-desenvolvimento, nos mocks; em produção não há mocks, e a mensagem chega à
-tela.
-
-**Nenhum id de motor está escrito no frontend.** A lista inteira vem de
-`GET /api/generation/engines/catalog`. Uma gaveta nova aparece no seletor sem
-que nenhum arquivo de React mude — e o Pixel Optimizer **nunca** aparece nele,
-porque não é um motor.
+**Nenhum id de motor está escrito no frontend.** O catálogo continua em
+`GET /api/generation/engines/catalog`, para diagnóstico — e o Pixel Optimizer
+**nunca** aparece nele, porque não é um motor.
 
 ---
 
@@ -75,7 +55,7 @@ porque não é um motor.
 | id | família | estado padrão | para quê |
 |---|---|---|---|
 | `desenhista-v1` | agêntica | **habilitada** | o Claude desenha: receita de camadas → sprite na grade lógica ([DESENHISTA.md](DESENHISTA.md)) |
-| `mock-image-v1` | procedural | **habilitada** | gaveta de referência: valida a arquitetura sem GPU |
+| `mock-image-v1` | procedural | habilitada **nos testes** | gaveta de referência: exercita a arquitetura sem GPU |
 | `mock-pixel-alt-v1` | procedural | desabilitada | só existe para testar troca de motor |
 
 A desenhista entrega a grade lógica 1:1 (`catalog.exact_resolution: true`),
@@ -83,16 +63,17 @@ não usa seed e entrega uma variação por pedido. Nenhuma das três precisa de
 GPU.
 
 As de referência produzem um padrão determinístico, não arte. Elas declaram
-`catalog.dev_only` e **deixam de ser registradas** com
-`ASSETFLOW_APP_ENV=production` — em produção sobra só a desenhista. Não há
-caminho que desenhe sozinho: o Pixel Optimizer corrige o que um motor
+`catalog.dev_only` e só são **registradas** no ambiente de testes
+(`AppEnvironment.TEST`, que o `tests/conftest.py` e o
+`scripts/preview_engine.py` ligam por código; `ASSETFLOW_APP_ENV=test` é
+recusado). Em `development` e em `production`, o app tem só a desenhista. Não
+há caminho que desenhe sozinho: o Pixel Optimizer corrige o que um motor
 produziu, e sem motor não há o que corrigir
 ([PIXEL_OPTIMIZER.md](PIXEL_OPTIMIZER.md) §5).
 
 Para ver o estado real da sua instalação, sem adivinhar:
-`GET /api/generation/engines/catalog?include_hidden=true` — é a mesma lista
-que o seletor da tela consome, com `available` e `unavailable_reason` por
-gaveta. Uma gaveta ligada mas mal configurada diz exatamente o que falta.
+`GET /api/generation/engines/catalog?include_hidden=true`, com `available` e
+`unavailable_reason` por gaveta. Uma gaveta ligada mas mal configurada diz exatamente o que falta.
 
 > **Um defeito que já esteve aqui, e cuja correção continua no kernel.** As
 > antigas pontes para executáveis externos ficaram *permanentemente*
@@ -113,13 +94,13 @@ gaveta. Uma gaveta ligada mas mal configurada diz exatamente o que falta.
 
 ## 3. Como um motor é escolhido
 
-Três camadas, nesta ordem:
+Duas camadas, nesta ordem:
 
 ```
-1. seleção manual        a pessoa escolheu   ->  é usado, ou o job falha
-2. AutoEnginePolicy      "Automático"        ->  preferência + motivo
-3. roteamento por        último recurso      ->  capabilities.yaml
-   capacidade
+1. seleção manual        quem pediu nomeou   ->  é usado, ou o job falha
+                         o motor (o MCP)
+2. roteamento por        ninguém nomeou      ->  capabilities.yaml
+   capacidade            ("auto")
 ```
 
 A decisão vira o campo `engine` do **Final Resolved Spec**, resolvido uma vez
@@ -129,14 +110,17 @@ na submissão, com precedência como qualquer outro campo:
 padrão global < profile < inferência < interface < prompt < correção manual
 ```
 
-`AutoEnginePolicy` (`config/engine_policy.yaml`) é uma lista de regras
-avaliadas em ordem — da mais específica para a mais geral. Cada regra declara
-critérios (tipo de asset, tamanho lógico, paleta, qualidade, modo), uma ordem
-de preferência e um **motivo em português**, que é o que a tela mostra.
+Em `auto`, o `engine_id` do spec fica vazio, e o kernel percorre a rota da
+capacidade. No app, as três rotas Pixel (`text_to_image.pixel`,
+`character.pixel`, `prop.pixel`) listam só a `desenhista-v1`, o fallback está
+desligado e `allow_unlisted_engines: false` impede que uma gaveta fora da lista
+entre na cadeia. Os testes de mecanismo trocam essa política pela deles
+(`ROTEAMENTO_DE_TESTE`, no `tests/conftest.py`), com os mocks e o fallback.
 
-A lista entregue tem **uma** regra, `pixel_geral`: todo pedido Pixel Art
-prefere a `desenhista-v1`. Sem regra que case (o modo 2D Normal), a política
-se cala e o roteamento por capacidade decide.
+A política do modo "Automático" (`AutoEnginePolicy`), que preferia um motor
+por regras e explicava o motivo, saiu na Fase A do plano do app: com um
+gerador só, não havia o que escolher, e era ela que, com o fallback, deixava um
+mock gerar quando a desenhista recusava um pedido sem receita.
 
 ### Lotes e seed
 
@@ -148,16 +132,13 @@ Por isso, para ela, um pedido acima do limite **falha** com
 imagens iguais. A regra lê o manifesto e não cita gaveta nenhuma
 (`kernel/service.py`, `_run_candidate`).
 
-A política nunca obriga e nunca inventa: ela só sugere motores registrados,
-habilitados e que declarem a capacidade pedida. Regra que casou mas não tem
-motor de pé cede a vez à próxima.
-
 ### As quatro regras de governança (plano §25)
 
 1. **O motor escolhido é respeitado.** Se não puder atender, o job falha
    dizendo por quê — nunca vira outro motor em silêncio.
 2. **Fallback só em `auto`**, ou quando alguém pediu explicitamente. Em
-   seleção manual, `allow_fallback` nasce `False`.
+   seleção manual, `allow_fallback` nasce `False`. No app, a configuração
+   desliga o fallback de todo; a regra age nos testes.
 3. **A resposta mostra os três**: motor pedido, motor usado, versão e modelo
    (`JobResponse.engine_selection`).
 4. **O validador usa o spec**, nunca defaults internos.
@@ -204,13 +185,14 @@ Nada em `assetflow/` precisa mudar. O caminho é:
 
 1. crie `generation/engines/<nome>/` com `manifest.json` e `engine.py`;
 2. no manifesto, declare `capabilities`, `supports`, `limits` e o bloco
-   `catalog` (família, tiers, resumo, tópicos, selos) — é o `catalog` que
-   preenche o seletor da tela sozinho;
+   `catalog` (família, tiers, resumo, tópicos, selos) — é o que o catálogo da
+   API mostra;
 3. implemente `ImageGenerationEngine` (ou herde de
    `BaseImageGenerationEngine`);
 4. acrescente o id à `discovery.allowlist` e um bloco em `engines.yaml`;
-5. se fizer sentido, cite o motor em `capabilities.yaml` e/ou em
-   `engine_policy.yaml`;
+5. cite o motor numa rota de `capabilities.yaml` — com
+   `allow_unlisted_engines: false`, gaveta fora da rota não é usada em
+   `auto`;
 6. se a gaveta precisar de biblioteca própria, declare um extra com o nome
    dela no `pyproject.toml` — e importe essa biblioteca só de dentro da
    gaveta (o teste de fronteiras cobra).
@@ -239,12 +221,10 @@ Opções que dependem da máquina (caminhos, limites) entram por
 
 ```
 generation/kernel/catalog.py       a vitrine: manifesto + estado -> entrada de catálogo
-generation/kernel/auto_policy.py   o que "Automático" prefere, e por quê
-generation/kernel/resolver.py      capacidade -> cadeia de candidatos (+ dica do auto)
+generation/kernel/resolver.py      capacidade -> cadeia de candidatos
 generation/spec/resolver.py        a decisão de motor entra no Final Resolved Spec
-generation/spec/engine_advisor.py  o Protocol que separa spec de estante
 generation/engines/<gaveta>/       cada motor, isolado
-config/engine_policy.yaml          as regras do modo Automático
+config/capabilities.yaml           as rotas por capacidade (no app: só a desenhista)
 ```
 
 O catálogo mora no kernel, e não em `assetflow/engines/catalog/` como o plano

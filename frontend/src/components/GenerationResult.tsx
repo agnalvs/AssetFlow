@@ -1,16 +1,13 @@
-import type { UseEngineCatalog } from "../hooks/useEngineCatalog";
 import type { GenerationOutcome } from "../hooks/useGenerationJob";
-import { MODES } from "../types";
+import { optimizationLabel } from "../labels";
+import { MODES, type PixelOptimization } from "../types";
 import { AssetPreview } from "./AssetPreview";
-import { EngineCredit } from "./EngineCredit";
 import { GenerationNotices } from "./GenerationNotices";
 import { ResultActions } from "./ResultActions";
 
 interface GenerationResultProps {
   outcome: GenerationOutcome;
   busy: boolean;
-  /** Os nomes dos motores, vindos do catálogo do backend. */
-  catalog: UseEngineCatalog;
   onRegenerate: () => void;
   onNewPrompt: () => void;
 }
@@ -19,7 +16,6 @@ interface GenerationResultProps {
 export function GenerationResult({
   outcome,
   busy,
-  catalog,
   onRegenerate,
   onNewPrompt,
 }: GenerationResultProps) {
@@ -35,15 +31,8 @@ export function GenerationResult({
       <p className="result__prompt" title={outcome.prompt}>
         {outcome.prompt}
       </p>
-      <GenerationNotices
-        warnings={outcome.warnings}
-        fallbackUsed={outcome.fallbackUsed}
-      />
-      <EngineCredit
-        selection={outcome.engine}
-        optimization={outcome.variant.optimization}
-        catalog={catalog}
-      />
+      <GenerationNotices warnings={outcome.warnings} />
+      <OptimizationLine optimization={outcome.variant.optimization} />
       <ResultActions
         variant={outcome.variant}
         fileName={`assetflow-${outcome.jobId}.png`}
@@ -52,5 +41,27 @@ export function GenerationResult({
         onNewPrompt={onNewPrompt}
       />
     </section>
+  );
+}
+
+/**
+ * O que o Pixel Optimizer fez, em uma linha (plano Optimizer §30).
+ *
+ * Era a segunda linha do crédito de motor, que saiu na Fase A do plano do app
+ * junto com a escolha de motor. Esta fica: ela não fala de motor, fala do
+ * estágio que corrige toda geração. Aparece **sempre** que houver laudo,
+ * inclusive quando nada foi corrigido — "nenhuma correção necessária" é
+ * informação, e esconder a linha faria parecer que o estágio às vezes não
+ * roda (§46).
+ */
+function OptimizationLine({ optimization }: { optimization: PixelOptimization | null }) {
+  if (!optimization) return null;
+  return (
+    <div className="result__optimization">
+      <p>
+        <span className="result__optimization-key">Otimização</span>{" "}
+        <strong>{optimizationLabel(optimization)}</strong>
+      </p>
+    </div>
   );
 }

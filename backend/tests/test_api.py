@@ -191,7 +191,8 @@ def test_profiles_endpoint(client: TestClient):
     profiles = {item["id"]: item for item in client.get("/api/generation/profiles").json()}
     assert profiles["pixel_character_64"]["logical_size"] == [64, 64]
     assert profiles["pixel_character_64"]["capability"] == "text_to_image.pixel"
-    assert profiles["studio_character"]["logical_size"] is None
+    # O app só gera Pixel Art (Fase A do plano do app): todo profile tem grade.
+    assert all(item["logical_size"] for item in profiles.values())
     # Nenhum profile cita um motor.
     assert all("engine" not in item for item in profiles.values())
 
@@ -307,7 +308,12 @@ def test_unknown_profile_returns_404_with_normalized_error(client: TestClient):
 def test_capability_without_engine_returns_503(client: TestClient):
     response = client.post(
         "/api/generation/jobs",
-        json={"project_id": "p", "capability": "inpainting.general", "prompt": "x"},
+        json={
+            "project_id": "p",
+            "capability": "tileset.pixel",
+            "prompt": "x",
+            "output": {"logical_width": 16, "logical_height": 16},
+        },
     )
     # O job é criado; a indisponibilidade aparece no job (não no POST),
     # porque a resolução acontece no worker.
@@ -315,6 +321,21 @@ def test_capability_without_engine_returns_503(client: TestClient):
     job = _wait_for_terminal(client, response.json()["job_id"])
     assert job["status"] == "failed"
     assert job["error"]["code"] == "no_engine_available"
+
+
+def test_a_capability_that_is_not_pixel_is_refused_up_front(client: TestClient):
+    """O app só gera Pixel Art (Fase A do plano do app): sem os pipelines
+    Studio e Raw, uma capacidade de outro modo não tem por onde passar, e o
+    pedido é recusado no POST, com a razão — e não aceito para falhar depois."""
+    response = client.post(
+        "/api/generation/jobs",
+        json={"project_id": "p", "capability": "inpainting.general", "prompt": "x"},
+    )
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["code"] == "invalid_request"
+    assert "só gera Pixel Art" in body["message"]
 
 
 def test_job_listing_and_events(client: TestClient):

@@ -17,8 +17,6 @@ import {
 import type { AssetSelection } from "../components/AssetControls";
 import {
   type AssetVariant,
-  type CreationSelection,
-  type EngineSelectionView,
   type GenerationMode,
   type GenerationState,
   type PromptPreview,
@@ -40,8 +38,6 @@ export interface GenerationRequestInput {
   spec?: SpecOverrides | null;
   /** Semântica corrigida no painel. Ausente, o AssetFlow interpreta a frase. */
   semantic?: SemanticPrompt | null;
-  /** Como criar, escolhido na tela. Ausente ou `null` = Automático. */
-  creation?: CreationSelection | null;
 }
 
 export interface GenerationOutcome {
@@ -57,15 +53,6 @@ export interface GenerationOutcome {
    * o backend preencheu por padrão.
    */
   preview: PromptPreview | null;
-  /** O asset saiu de um gerador alternativo, não do preferido do modo. */
-  fallbackUsed: boolean;
-  /**
-   * Motor pedido × motor usado (plano de motores §25, regra 3).
-   *
-   * Vem do job, e não do que a tela mandou: só o backend sabe qual motor
-   * realmente rodou e qual modelo foi carregado.
-   */
-  engine: EngineSelectionView | null;
   /** Avisos do backend sobre esta geração, prontos para exibir. */
   warnings: string[];
 }
@@ -124,7 +111,6 @@ export function useGenerationJob(): UseGenerationJob {
       selection,
       spec,
       semantic,
-      creation,
     }: GenerationRequestInput) => {
       setError(null);
       setResult(null);
@@ -135,7 +121,7 @@ export function useGenerationJob(): UseGenerationJob {
         // O mesmo construtor da pré-visualização: o que o painel mostrou é o
         // que vai. Montar o corpo aqui de novo abriria espaço para diferença.
         const submission = await createGenerationJob(
-          buildJobPayload({ mode, prompt, selection, spec, semantic, creation }),
+          buildJobPayload({ mode, prompt, selection, spec, semantic }),
         );
 
         for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
@@ -160,8 +146,6 @@ export function useGenerationJob(): UseGenerationJob {
               prompt,
               variant,
               preview: job.prompt,
-              fallbackUsed: Boolean(job.fallback_used),
-              engine: job.engine_selection ?? null,
               warnings: job.warnings ?? [],
             });
             setState("completed");

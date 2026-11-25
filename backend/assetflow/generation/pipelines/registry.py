@@ -22,7 +22,11 @@ class PipelineRegistry:
     def with_defaults(
         cls, pixel_profiles: Any = None, optimizer: Any = None, validator: Any = None
     ) -> "PipelineRegistry":
-        """Registro padrão do produto.
+        """Registro padrão do produto: só o pipeline Pixel.
+
+        Os pipelines Studio e Raw saíram na Fase A do plano do app
+        (``PLANO_APP_DESENHISTA.md``): o app só gera Pixel Art, e nenhuma
+        gaveta dele atende ``text_to_image.general``.
 
         Args:
             pixel_profiles: :class:`~assetflow.pixel.PixelProfileRegistry` com
@@ -37,16 +41,8 @@ class PipelineRegistry:
                 limiares do plano.
         """
         from .pixel import PixelCharacterPipeline
-        from .raw import RawImagePipeline
-        from .studio import StudioCharacterPipeline
 
-        return cls(
-            (
-                PixelCharacterPipeline(pixel_profiles, optimizer, validator),
-                StudioCharacterPipeline(),
-                RawImagePipeline(),
-            )
-        )
+        return cls((PixelCharacterPipeline(pixel_profiles, optimizer, validator),))
 
     def register(self, pipeline: AssetPipeline) -> None:
         self._pipelines[pipeline.id] = pipeline

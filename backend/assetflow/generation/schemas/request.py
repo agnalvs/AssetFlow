@@ -155,14 +155,6 @@ class EngineSelector(AssetFlowModel):
     engine_id: str | None = None
     allow_fallback: bool = True
 
-    #: Dica da :class:`AutoEnginePolicy` para o modo ``auto`` (plano de motores §16).
-    #:
-    #: É preferência, não exigência, e a diferença importa: um ``engine_id``
-    #: em ``manual`` que não possa atender faz o job falhar; uma dica que não
-    #: possa atender simplesmente perde a vez e o roteamento por capacidade
-    #: segue. Ninguém escolheu — logo, não há escolha para desrespeitar.
-    preferred_engine_id: str | None = None
-
     @model_validator(mode="after")
     def _validate(self) -> "EngineSelector":
         if self.mode == "manual" and not self.engine_id:

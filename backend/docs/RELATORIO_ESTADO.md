@@ -1,6 +1,6 @@
 # Relatório de estado — branch `desenhista-mcp`
 
-Data: 2026-11-25 (atualizado depois da segunda leva de referências). Base: `main` em `be3e9aa`. Escrito para quem revisa pelo
+Data: 2026-11-25 (atualizado depois da Fase A do plano do app). Base: `main` em `be3e9aa`. Escrito para quem revisa pelo
 GitHub, sem acesso à máquina onde o trabalho foi feito. Onde um número veio de
 dado que só existe nessa máquina (assets gerados, pacotes de referência), o
 texto diz isso.
@@ -10,14 +10,16 @@ Documentos que este relatório resume e que valem ler junto:
 [PIXEL_KNOWLEDGE.md](PIXEL_KNOWLEDGE.md) (a pesquisa que vira configuração),
 [DESENHISTA.md](DESENHISTA.md) (a gaveta e a receita), [MCP.md](MCP.md)
 (servidor, laudo, remendo e recorte), [REFERENCIAS.md](REFERENCIAS.md)
-(biblioteca de referências) e o [CLAUDE.md](../../CLAUDE.md) da raiz.
+(biblioteca de referências), [PLANO_APP_DESENHISTA.md](PLANO_APP_DESENHISTA.md)
+(o plano do app, que começa pela Fase A) e o [CLAUDE.md](../../CLAUDE.md) da raiz.
 
 ---
 
 ## 1. Linha do tempo
 
 Todos os commits do branch, em ordem. Cada um passou com `pytest -q` sem
-falhas e com o ruff no mesmo baseline de 154 achados.
+falhas e sem achado novo do ruff: o baseline foi de 154 até a Fase A do plano
+do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 
 | Commit | Fase | O que mudou | Testes |
 |---|---|---|---|
@@ -33,7 +35,9 @@ falhas e com o ruff no mesmo baseline de 154 achados.
 | `d77cb6a` | Estado | Lista de ativos com os cinco pacotes importados, `PIXEL_STYLES.md`, `REFERENCIAS_FONTES.md` e este relatório. Nenhum código. | 1410 / 1 |
 | `40e4bae` | Correções da revisão | Pendências 1, 2 e 12: Retraissance reimportada com quadro 64×128; importador ganha `--excluir` (com teste) e o Ninja Adventure é reimportado sem `Faceset.png` e `SpriteInHand.png`; `calibrar` refeito; `.env` e `.env.*` no `.gitignore`, `.env.example` continua versionado. | 1411 / 1 |
 | `9795710` | Calibração | Pendências 1 e 4. **Nota:** limiares de blocos pequenos (84%) e cores raras (a partir da 4ª) em `config/quality.yaml`, `a_calibrar`, pela regra "p90 do pacote mais alto"; um validador só, do `bootstrap`, no pipeline, no Optimizer e na rota de dev; `quality.calibration` no relatório; validador 1.2.0. **Referências:** `minimo_por_pacote` (30) e `minimo_de_pacotes` (2) por parte, na linha, no `ver_referencia` (cai para o estilo) e no `calibrar` (que marca a parte insuficiente e propõe os limiares do validador). | 1440 / 1 |
-| (este) | Segunda leva de referências | Cinco pacotes CC0 importados e ativos (`pixel-adventure`, `sunny-land`, `hylsy-64-character`, `ninja-animated`, `super-sprite-boy`), com o quadro conferido nos arquivos; Character Prototype (não é pixel art) e Pixel Boy (pintura com centenas de cores) baixados e não importados. Só lista de ativos e documentação: nenhum limiar nem valor da base mudou. | 1440 / 1 |
+| `fab1337` | Segunda leva de referências | Cinco pacotes CC0 importados e ativos (`pixel-adventure`, `sunny-land`, `hylsy-64-character`, `ninja-animated`, `super-sprite-boy`), com o quadro conferido nos arquivos; Character Prototype (não é pixel art) e Pixel Boy (pintura com centenas de cores) baixados e não importados. Só lista de ativos e documentação: nenhum limiar nem valor da base mudou. | 1440 / 1 |
+| `7e02362` | Corpo do personagem | `character.yaml` com uma linha por palavra (masculino, feminino e plurais) e os nomes das formas de corpo; `category_body_types` (`humanoid -> humanoid`) deduz o corpo no resolvedor do spec, com a origem nova `category_inference` ("inferido da categoria"); o recorte diz "corpo não identificado" em vez de sair sem medidas. Teste das flexões em `test_taxonomia_flexoes.py`. | 1461 / 1 |
+| (este) | Fase A do plano do app — simplificação | Saem o seletor e o crédito de motor e o modo 2D Normal da tela; o modo "Automático" (`auto_policy.py`, `engine_policy.yaml`, `engine_advisor.py`, `EngineAdvice`, `EngineSuggestion`, a dica `preferred_engine_id`); os pipelines Studio e Raw, o pós-processamento e os prompt builders Studio, os profiles `studio_character`, `studio_background` e `raw_image`. Mocks só no ambiente de testes (`AppEnvironment.TEST`), rotas Pixel só com a desenhista, fallback desligado. "Gerar" desligado com a frase da fila. Leitor do histórico tolerante a campos antigos. `prompting/`, `AssetMode.STUDIO`, o campo `engine` da API e o `SessionHistory` ficam. | 1448 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -61,16 +65,18 @@ assetflow/
 │   ├── spec/                  Texto -> FinalResolvedSpec (extrator, classificador, resolver, taxonomia).
 │   ├── schemas/  [alterado]   Contratos: FinalResolvedSpec, pedidos, motores (família `agentic` usada).
 │   ├── kernel/   [alterado]   Descoberta de gavetas, resolver de capacidade, fallback, execução.
+│   │                          Fase A do app: sai auto_policy.py (o modo "Automático").
 │   │                          Regra nova: gaveta sem seed não é dividida em lotes.
 │   ├── engines/
 │   │   ├── desenhista/ [novo] A gaveta desenhista-v1: receita.py (lê e valida), rasterizador.py
 │   │   │                      (formas, px, espelho, balde -> grade), engine.py, manifest.json.
-│   │   ├── mock_image/        Gaveta de referência (testes).
-│   │   ├── mock_pixel_alt/    Gaveta de referência (testes, desabilitada).
+│   │   ├── mock_image/        Gaveta de referência (registrada só no ambiente de testes).
+│   │   ├── mock_pixel_alt/    Gaveta de referência (idem, e desabilitada).
 │   │   └── (removidas: diffusers_sdxl, flux_pixel, gpt_image, pixel_forge, sdpixl)
-│   ├── pipelines/             pixel.character (PixelCharacterPipeline) e studio (dormente).
-│   ├── postprocessing/        Ponte Pixel (PixelExactProcessor) e Studio.
-│   ├── prompting/, profiles/
+│   ├── pipelines/ [alterado]  Só pixel.character (PixelCharacterPipeline); Studio e Raw saíram.
+│   ├── postprocessing/        Ponte Pixel (PixelExactProcessor); o Studio saiu.
+│   ├── prompting/ [alterado]  Prompt semântico de todo job Pixel; só os builders Pixel.
+│   ├── profiles/
 │   └── (removido: benchmark/)
 ├── pixel/        [alterado]   Ilha Pixel Exact: processamento, validação, Optimizer, aceite, preview.
 │   ├── validation/ [alterado] PixelValidator, analisadores, QualityScorer (seção 9);
@@ -94,7 +100,8 @@ assetflow/
 │   ├── remendo.py             Receita parcial sobre a receita de um asset anterior.
 │   └── __main__.py            python -m assetflow.mcp
 ├── jobs/                      Fila, store e GenerationWorker (o MCP roda o worker ele mesmo).
-├── storage/                   Assets, artefatos e histórico (data/history/generations.jsonl).
+├── storage/   [alterado]      Assets, artefatos e histórico (data/history/generations.jsonl);
+│                              o leitor ignora campos de topo que saíram do modelo.
 └── llm/                       Revisor opcional do Optimizer por modelo (não usado por padrão).
 ```
 
@@ -103,9 +110,9 @@ assetflow/
 ```
 config/
 ├── engines.yaml          [alterado]  Allowlist: desenhista-v1 + as duas de referência.
-├── engine_policy.yaml    [alterado]  Regra geral pixel_geral prefere a desenhista no "Automático".
-├── capabilities.yaml     [alterado]  Sem os motores removidos.
-├── profiles.yaml         [alterado]  + pixel_character_48 (corpo de 32 em 48×48).
+├── (engine_policy.yaml)  [removido]  O modo "Automático" saiu na Fase A do app.
+├── capabilities.yaml     [alterado]  Rotas Pixel só com a desenhista; sem fallback nem motor fora da rota.
+├── profiles.yaml         [alterado]  + pixel_character_48; − studio_character, studio_background, raw_image.
 ├── pixel_profiles.yaml   [alterado]  + pixel_character_48_strict (48×48, 12 cores, prévia 10×).
 ├── optimizer.yaml                    Teto de iterações, revisor, interruptor.
 ├── quality.yaml          [novo]      Limiares da nota: blocos pequenos e cores raras (seção 9).
@@ -119,7 +126,8 @@ config/
 ```
 
 Testes novos: `test_desenhista.py`, `test_mcp.py`, `test_mcp_servidor.py`,
-`test_pixel_knowledge.py`, `test_referencias.py`, `pixel/test_quality_calibration.py`, e seções novas em
+`test_pixel_knowledge.py`, `test_referencias.py`, `pixel/test_quality_calibration.py`,
+`test_taxonomia_flexoes.py`, `test_gerador_unico.py`, `test_historico_antigo.py`, e seções novas em
 `test_architecture_boundaries.py`.
 
 ---
@@ -676,7 +684,7 @@ pendência da Fase 5 (seção 12).
 
 ## 10. Testes e lint
 
-`pytest -q`: **1440 passando, 1 pulado** (1.441 coletados), cerca de 60 s.
+`pytest -q`: **1448 passando, 1 pulado** (1.449 coletados), cerca de 65 s.
 
 O pulado: `tests/contract/test_engine_contract.py:282`, "gaveta declara que não
 suporta seed" — o teste de reprodutibilidade por seed não se aplica à
@@ -685,50 +693,52 @@ quando o extra `mcp` está instalado; sem ele, é pulado inteiro.
 
 | Arquivo | Testes |
 |---|---|
-| test_architecture_boundaries.py | 728 (parametrizado por arquivo) |
+| test_architecture_boundaries.py | 705 (parametrizado por arquivo) |
 | pixel/test_engine_agnostic.py | 132 |
-| test_desenhista.py | 64 |
-| test_pixel_knowledge.py | 56 |
-| test_mcp.py | 46 |
+| test_desenhista.py | 63 |
+| test_pixel_knowledge.py | 57 |
+| test_mcp.py | 50 |
 | test_referencias.py | 30 |
-| test_asset_taxonomy.py | 28 |
+| test_asset_taxonomy.py | 29 |
+| test_body_type_and_style.py | 28 |
 | test_resolved_spec.py | 27 |
 | contract/test_engine_contract.py | 25 |
-| test_engine_selection.py | 23 |
 | test_pixel_optimizer.py | 21 |
-| pixel/test_pixel_profiles_config.py | 20 |
-| pixel/test_quality_calibration.py | 19 |
-| test_body_type_and_style.py | 18 |
-| test_api.py | 17 |
+| pixel/test_quality_calibration.py, pixel/test_pixel_profiles_config.py | 19 cada |
+| test_api.py | 18 |
 | pixel/test_stages_geometry.py | 17 |
-| pixel/test_stages_color.py | 16 |
-| pixel/test_quality.py | 15 |
+| test_gerador_unico.py, pixel/test_stages_color.py | 16 cada |
+| test_engine_selection.py, pixel/test_quality.py | 15 cada |
 | test_job_system.py | 13 |
-| test_prompt_preview.py | 12 |
-| test_registry.py, test_pixel_pipeline.py, test_kernel.py, pixel/test_dev_api.py | 11 cada |
+| test_registry.py, test_prompt_preview.py, test_kernel.py, pixel/test_dev_api.py | 11 cada |
 | test_resolver.py, pixel/test_validator.py | 10 cada |
+| test_pixel_pipeline.py | 9 |
 | test_mcp_servidor.py, test_llm_pixel_reviewer.py | 8 cada |
 | test_engine_persistence.py, test_capabilities.py, pixel/test_golden.py | 7 cada |
-| test_settings.py | 6 |
+| test_settings.py, test_historico_antigo.py | 6 cada |
+| test_taxonomia_flexoes.py | 5 |
 | test_third_party_engine.py | 4 |
 | test_engine_swap.py | 3 |
 
-A suíte usa as gavetas de referência (mocks); testes que precisam da
-desenhista a habilitam pelo nome. Os testes de referências usam só imagens
+A suíte usa as gavetas de referência (mocks), no ambiente de testes
+(`AppEnvironment.TEST`) e com o roteamento dos testes (`ROTEAMENTO_DE_TESTE`,
+no `conftest`); testes que precisam da desenhista a habilitam pelo nome. O
+`test_gerador_unico.py` monta o app sem essas fixtures, como ele roda. Os testes de referências usam só imagens
 geradas no próprio teste. Os testes da ilha Pixel usam o validador do plano
 (`PixelValidator()` sem calibração), de propósito: fixam o mecanismo; os de
 `test_quality_calibration.py` fixam o efeito de `quality.yaml`.
 
-`ruff check .` (sem config própria, regras padrão): **154 achados**, o mesmo
-baseline do início do branch; o código novo não acrescentou nenhum.
+`ruff check .` (sem config própria, regras padrão): **144 achados**. Até a
+Fase A do plano do app eram 154; os 10 que sumiram estavam em arquivos
+apagados. Nenhum código novo acrescentou achado.
 
 ```text
-35 UP037 quoted-annotation        31 RUF022 unsorted-dunder-all     21 BLE001 blind-except
-17 UP035 deprecated-import        16 I001  unsorted-imports          5 SIM102 collapsible-if
- 4 RUF100 unused-noqa              4 TRY004 type-check-without-type-error
- 4 UP041 timeout-error-alias       2 B017 assert-raises-exception    2 F401 unused-import
- 2 RET501 unnecessary-return-none  2 RUF046 unnecessary-cast-to-int  1 B008, B010, ISC004,
- PYI034, PYI045, RUF023, RUF059, S112, UP017 (1 cada)                Found 154 errors.
+33 UP037 quoted-annotation        30 RUF022 unsorted-dunder-all     20 BLE001 blind-except
+16 I001  unsorted-imports         16 UP035 deprecated-import          4 TRY004 type-check-without-type-error
+ 4 UP041 timeout-error-alias       3 RUF100 unused-noqa               2 B017 assert-raises-exception
+ 2 F401  unused-import             2 RET501 unnecessary-return-none   2 RUF046 unnecessary-cast-to-int
+ 1 B008, B010, ISC004, PYI034, PYI045, RUF023, RUF059, S112, SIM102, UP017 (1 cada)
+                                                                     Found 144 errors.
 ```
 
 ---
@@ -748,6 +758,11 @@ baseline do início do branch; o código novo não acrescentou nenhum.
 | Processo | Desenhar pelo servidor MCP. | Depois da Fase 3, a consulta (e o desenho do mago) rodou por script no mesmo `ServicoDesenhista`. | O servidor MCP da sessão não foi reconectado e seguia com o código anterior. |
 | Fase 5 | Calibrar o validador na Fase 5, com limiares em `pixel_knowledge/validacao.yaml`. | Blocos pequenos e cor rara calibrados antes da Fase 5, em `config/quality.yaml`. Órfãos ficam para a Fase 5. | Pedido da autora. O arquivo fica fora de `pixel_knowledge/` porque vale para todo pipeline Pixel, não só para o MCP. |
 | Fases 4 a 7 | — | Não começadas. | — |
+| App, Fase A | Apagar `generation/prompting/`, depois de conferir. | Mantido; saem só os três builders Studio. | O pipeline Pixel monta o prompt semântico em todo job, inclusive os do MCP; o histórico e a pré-visualização da tela o usam. |
+| App, Fase A | Tirar o fallback para mock nas rotas do `capabilities.yaml`. | Três travas: mocks registrados só em `AppEnvironment.TEST`; rotas Pixel só com a desenhista e `allow_unlisted_engines: false`; fallback desligado. | Só as rotas não bastavam: `allow_unlisted_engines: true` e o registro em development punham o mock na cadeia. "Mocks só nos testes" estava em "Muda de papel" e entrou já na A. |
+| App, Fase A | Studio: pipeline, pós-processamento e profiles. | Também os prompt builders Studio, o profile e o pipeline `raw_image` e a saída `studio.character` do serviço. `AssetMode.STUDIO` e as capacidades 2D ficam no contrato. | Peças do mesmo modo que o plano não citava; o contrato fica para não mexer em manifestos e testes de mecanismo. |
+| App, Fase A | `SessionHistory` sai da tela (seção 3). | Fica até a galeria da Fase C. | Não estava na seção 4. |
+| App, Fase A | — | Leitor do histórico tolerante a campos antigos (`GenerationRecord.do_historico`). | A conferência pedida antes de apagar campos achou 18 de 91 registros, da era do STRATEGY, sumindo em silêncio para `ver_asset` e `desenhar(base=...)`. |
 
 ---
 
@@ -777,10 +792,10 @@ Em ordem de gravidade. São as coisas que eu olharia primeiro.
    cor rara** (seção 9): limiares em `config/quality.yaml`, referências com
    mediana 80 a 100, desenhos da desenhista com 99–100. Os requisitos duros
    não mudaram. O que sobra está nos itens 17 e 18.
-5. **O caminho MCP por um cliente Claude Code real.** Na máquina de
-   desenvolvimento, o servidor da sessão nunca foi reconectado depois da Fase
-   3; a revisão confirmou numa máquina limpa que os testes passam e que o
-   serviço MCP roda de ponta a ponta.
+5. ~~O caminho MCP por um cliente Claude Code real~~ — **resolvido**. A
+   arqueira (`asset_c7fab4e5d482`) foi desenhada pelo servidor MCP da sessão
+   do Claude Code, e a conferência da Fase A também rodou por ele, depois de
+   reconectá-lo pelo `/mcp`.
 6. **Constantes do medidor estão no código, sem `a_calibrar`.** Limiares de
    contorno (0,7 / 0,6 / 0,4), margem de "mais escuro" (0,02), neutro
    (saturação 0,15, brilho 0,12), salto de matiz (30°), fundo sólido (30%) e
@@ -815,10 +830,10 @@ Em ordem de gravidade. São as coisas que eu olharia primeiro.
 14. **Busca de asset por varredura do histórico.** `remendo` e `ver_asset`
     leem o `generations.jsonl` inteiro (`list(limit=1_000_000)`); fica lento
     com histórico grande.
-15. **Interface e produção.** A tela continua oferecendo "Gerar" com a
-    desenhista, que falha sem receita (mensagem clara). Com
-    `ASSETFLOW_APP_ENV=production` os mocks somem e só sobra a desenhista. O
-    modo Studio está dormente.
+15. **Interface sem gerar.** Desde a Fase A do plano do app, "Gerar" está
+    desligado (`GERAR_LIGADO` no `App.tsx`), com a frase dizendo que os
+    pedidos vão para uma fila na Fase B; o desenho só acontece pela conversa.
+    O campo `engine` da API continua aceito: tirá-lo é da Fase B.
 16. **Configuração lida uma vez.** Base de conhecimento, referências e
     `quality.yaml` carregam no boot: mudar YAML ou a lista de ativos exige
     reiniciar o backend e reconectar o MCP (`/mcp`). Nada avisa que o
@@ -843,6 +858,22 @@ Em ordem de gravidade. São as coisas que eu olharia primeiro.
     dois candidatos de 50 px (Enemy Biker e Yakuza Enemy, de Rancic) estão
     indisponíveis, e o Pixel Boy (53 px) não foi importado.
 
+20. **A mensagem da desenhista sem receita ainda diz "ou escolha outro
+    motor".** Ela mora na gaveta (`engines/desenhista/engine.py`), que a Fase
+    A não tocou; com um gerador só, a última frase não vale mais.
+21. **Textos que ficaram fora do escopo da Fase A:** o comentário do
+    `config/optimizer.yaml` ainda cita o `engine_policy.yaml`; o
+    `config/pixel_profiles.yaml` diz que a interface conhece "2D Normal"; o
+    `GeneratorHero` da tela diz "Escolha o estilo". Ficaram porque a fase não
+    mexia no Optimizer, no Pixel Exact nem nesse componente.
+22. **Restos de contrato do modo automático.** `ResolvedEngine.reason` fica
+    sempre vazio, e o campo `dev_only` do manifesto mantém o nome com o
+    significado novo ("só nos testes").
+23. **O leitor do histórico ainda pula em silêncio** a linha que falhar por
+    outro motivo (JSON quebrado, tipo errado). Os 91 registros locais são
+    lidos hoje; a troca por índice ou SQLite da Fase C é a hora de tornar isso
+    visível.
+
 ---
 
 ## 13. O que não está no GitHub
@@ -860,8 +891,8 @@ Só existe na máquina local:
 - **`.mcp.json`** na raiz (ignorado): o registro do servidor MCP com o caminho
   do Python da venv.
 - **`backend/.venv`** e o extra `mcp` instalado.
-- **A configuração do Claude Code** da sessão (servidor MCP conectado, ainda
-  com o código anterior à Fase 3).
+- **A configuração do Claude Code** da sessão (servidor MCP conectado; ele lê
+  código e YAML ao subir, e é reconectado pelo `/mcp` depois de cada mudança).
 - **Arquivos temporários** usados para conferir desenhos e importações
   (receitas de rascunho, prévias, cópia isolada de importação).
 

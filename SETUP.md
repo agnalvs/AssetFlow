@@ -137,16 +137,15 @@ Depois: **http://localhost:5173**
 
 ### 5.1 O que você vê
 
-Dois modos — **Pixel Art** e **2D Normal** —, um campo de descrição, o seletor
-de motor e o botão de gerar. A interface não conhece motor nenhum: a lista do
-seletor vem do backend. No modo Pixel Art ela tem **Automático** e
-**Desenhista (Claude via MCP)**.
+Um campo de descrição, os controles do asset (tipo, resolução, cores, vista,
+corpo, detalhe, contorno) e o botão de gerar. Só Pixel Art: o modo 2D Normal, o
+seletor de motor e o modo "Automático" saíram na Fase A do plano do app
+([backend/docs/PLANO_APP_DESENHISTA.md](backend/docs/PLANO_APP_DESENHISTA.md)).
 
-A desenhista precisa de receita, e o botão de gerar não manda uma. Escolhida
-no seletor, ela falha com uma mensagem dizendo isso. Em Automático, ela recusa
-e o motor de referência gera no lugar, com o aviso de fallback — em
-desenvolvimento; em produção não há motor de referência, e a mensagem aparece.
-O desenho de verdade vem pela conversa com o Claude (passo 10).
+O único gerador é a desenhista, que precisa de uma receita escrita pelo Claude
+— e a tela não manda receita. Por isso o botão **"Gerar" está desligado**, com
+uma frase dizendo que os pedidos passam a ir para uma fila na próxima fase. O
+desenho de verdade vem pela conversa com o Claude (passo 10).
 
 Entre a descrição e o botão fica o painel **"O que o AssetFlow entendeu"**,
 fechado por padrão. Ele mostra a estrutura que o sistema montou da sua frase —
@@ -165,7 +164,9 @@ entregue. Veja [backend/docs/PIXEL_EXACT.md](backend/docs/PIXEL_EXACT.md).
 ## 6. A primeira geração
 
 A gaveta `mock-image-v1` percorre o caminho inteiro — job, fila, Pixel Exact,
-Pixel Optimizer, validação, storage, histórico — em segundos e sem baixar nada:
+Pixel Optimizer, validação, storage, histórico — em segundos e sem baixar nada.
+Ela só existe nos testes e no script de prévia, que monta o ambiente de testes;
+o app não a registra:
 
 ```bash
 cd backend
@@ -192,9 +193,9 @@ está em [backend/docs/DESENHISTA.md](backend/docs/DESENHISTA.md).
 > uma alternativa ao motor: virou o **AssetFlow Pixel Optimizer**, que revisa o
 > sprite depois de qualquer motor
 > ([backend/docs/PIXEL_OPTIMIZER.md](backend/docs/PIXEL_OPTIMIZER.md)). A
-> contrapartida: sem um motor real, não há geração Pixel Art de verdade. Com
-> `ASSETFLOW_APP_ENV=production`, as gavetas de referência nem são
-> registradas, e sobra só a desenhista, que exige receita.
+> contrapartida: sem um motor real, não há geração Pixel Art de verdade. As
+> gavetas de referência nem são registradas no app (em `development` ou em
+> `production`); sobra só a desenhista, que exige receita.
 
 Um job que precise de mais tempo pode alargar o teto do worker, que envolve o
 pipeline inteiro (padrão 900s):
@@ -404,7 +405,7 @@ registrado à mão (passo 2): o erro de verdade aparece no terminal.
 | [backend/docs/PLANO_DESENHISTA_MCP.md](backend/docs/PLANO_DESENHISTA_MCP.md) | O plano em andamento: o motor passa a ser o Claude, por MCP. |
 | [backend/docs/PIXEL_KNOWLEDGE.md](backend/docs/PIXEL_KNOWLEDGE.md) | Práticas de pixel art e animação que viram configuração e validação. |
 | [backend/docs/ARCHITECTURE.md](backend/docs/ARCHITECTURE.md) | A infraestrutura de geração: trocar o motor sem tocar no produto. |
-| [backend/docs/ENGINES.md](backend/docs/ENGINES.md) | Catálogo, modo Automático e como acrescentar uma gaveta. |
+| [backend/docs/ENGINES.md](backend/docs/ENGINES.md) | Catálogo, roteamento e como acrescentar uma gaveta. |
 | [backend/docs/DESENHISTA.md](backend/docs/DESENHISTA.md) | O formato da receita de desenho da gaveta `desenhista-v1`. |
 | [backend/docs/MCP.md](backend/docs/MCP.md) | O servidor MCP: ferramentas, laudo e remendo. |
 | [backend/docs/PIXEL_EXACT.md](backend/docs/PIXEL_EXACT.md) | A tecnologia de Pixel Art: por que "parecer Pixel Art" não basta. |

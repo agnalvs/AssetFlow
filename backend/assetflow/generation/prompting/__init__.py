@@ -7,9 +7,6 @@ from .builders import (
     PixelPropPromptBuilder,
     PromptBuilder,
     PromptBuilderRegistry,
-    StudioBackgroundPromptBuilder,
-    StudioCharacterPromptBuilder,
-    StudioPropPromptBuilder,
     resolve_semantic_prompt,
 )
 
@@ -20,9 +17,6 @@ __all__ = [
     "PixelPropPromptBuilder",
     "PromptBuilder",
     "PromptBuilderRegistry",
-    "StudioBackgroundPromptBuilder",
-    "StudioCharacterPromptBuilder",
-    "StudioPropPromptBuilder",
     "render_semantic_prompt",
     "resolve_semantic_prompt",
 ]

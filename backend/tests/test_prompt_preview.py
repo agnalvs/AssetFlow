@@ -211,21 +211,6 @@ def test_preview_and_generation_cannot_disagree(client: TestClient):
         assert job["prompt"]["positive"] == preview["positive"]
 
 
-def test_studio_mode_has_its_own_reading(client: TestClient):
-    """A leitura é do profile, não do modo Pixel.
-
-    Arte 2D convencional passa por outro builder: nada de paleta limitada,
-    nada de borda dura, e a lista de ``avoid`` inclui "pixel art". Se o painel
-    mostrasse a leitura Pixel aqui, ele estaria descrevendo outro produto.
-    """
-    preview = _preview(client, profile="studio_character")
-
-    assert preview["capability"] == "text_to_image.general"
-    assert preview["semantic"]["medium"] == "cartoon_2d"
-    assert preview["semantic"]["technical"]["limited_palette"] is None
-    assert "pixel art" in preview["semantic"]["avoid"]
-
-
 def test_unknown_profile_fails_the_same_way_as_generation(client: TestClient):
     """Erro normalizado, igual ao do POST de job — a tela já sabe tratar."""
     response = client.post(
@@ -295,12 +280,17 @@ def test_an_impossible_request_is_refused_with_the_reason(client: TestClient):
 
     A mensagem é escrita em português e chega ao cliente inteira — é a única
     família de erro em que a frase do backend serve para ser lida na tela.
+
+    O caso é grade lógica num pedido de outro modo. Os profiles Studio saíram
+    na Fase A do plano do app; o modo continua no contrato, e é pelo campo
+    ``mode`` do pedido que se chega a ele.
     """
     response = client.post(
         "/api/generation/prompt/preview",
         json={
             "project_id": "project_preview",
-            "profile": "studio_character",
+            "profile": "pixel_character_64",
+            "mode": "studio",
             "prompt": PROMPT,
             "spec_overrides": {"logical_width": 32, "logical_height": 32},
         },

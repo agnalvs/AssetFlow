@@ -94,22 +94,9 @@ export function diffSpec(
     overrides.variations = variations;
   }
 
-  // O motor também se corrige por aqui (plano de motores §5). Editar o id no
-  // JSON é seleção manual — o nível mais alto da precedência —, e por isso o
-  // modo vai junto: sem ele, o backend receberia um id em modo `auto` e leria
-  // como preferência, que é outra coisa.
-  const engine = spec.engine;
-  if (engine && engine.engine_id !== original.engine.engine_id) {
-    overrides.engine_id = engine.engine_id;
-    overrides.engine_mode = engine.engine_id ? "manual" : "auto";
-  } else if (
-    engine &&
-    engine.selection_mode &&
-    engine.selection_mode !== original.engine.selection_mode
-  ) {
-    overrides.engine_mode = engine.selection_mode;
-    if (engine.selection_mode === "manual") overrides.engine_id = engine.engine_id;
-  }
+  // O bloco `engine` do JSON não vira correção: desde a Fase A do plano do
+  // app a tela não escolhe motor, e editar o id ali seria escolher um por uma
+  // porta lateral. Ele continua visível no JSON, porque é parte do contrato.
 
   return Object.keys(overrides).length > 0 ? overrides : null;
 }

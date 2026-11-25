@@ -142,46 +142,5 @@ profiles:
       validate_grid: true
       thumbnail_scale: 4
 
-  studio_character:
-    display_name: "Personagem 2D convencional"
-    capability: "text_to_image.general"
-    pipeline: "studio.character"
-    asset:
-      type: "character"
-      mode: "studio"
-    output:
-      render_width: 1024
-      render_height: 1024
-      variations: 2
-      transparent: true
-    postprocessing:
-      thumbnail_scale: 0.25
-
-  studio_background:
-    display_name: "Background 2D convencional"
-    capability: "text_to_image.general"
-    pipeline: "studio.character"
-    asset:
-      type: "background"
-      mode: "studio"
-    output:
-      render_width: 1024
-      render_height: 576
-      variations: 2
-      transparent: false
-    postprocessing:
-      thumbnail_scale: 0.25
-
-  raw_image:
-    display_name: "Geração bruta (diagnóstico de motor)"
-    capability: "text_to_image.general"
-    pipeline: "raw.image"
-    asset:
-      type: "raw"
-      mode: "studio"
-    output:
-      render_width: 512
-      render_height: 512
-      variations: 1
-      transparent: false
-    postprocessing: {}
+  # Os profiles do modo Studio (studio_character, studio_background) e o
+  # raw_image saíram na Fase A do plano do app: o app só gera Pixel Art.

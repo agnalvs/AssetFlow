@@ -510,21 +510,6 @@ def test_sem_receita_o_job_falha_com_a_mensagem(container: AppContainer):
     assert job.error.message == MENSAGEM_SEM_RECEITA
 
 
-def test_no_automatico_sem_receita_o_fallback_entra(container: AppContainer):
-    """A regra geral do `engine_policy.yaml` prefere a desenhista; sem receita,
-    ela recusa, e em "Automático" ninguém escolheu motor — o mock atende."""
-    from assetflow.api.schemas import JobResponse
-
-    container.registry.enable(ID)
-    job = _rodar(container, _pedido_de_asset(None, motor=EngineSelector(mode="auto")))
-
-    assert job.status.value == "completed", job.error
-    selecao = JobResponse.from_job(job).engine_selection
-    assert selecao.requested_engine_id == ID
-    assert selecao.resolved_engine_id != ID
-    assert selecao.fallback_used is True
-
-
 def test_varias_variacoes_sao_recusadas_antes_dos_lotes(container: AppContainer):
     """Com max_variations 1 o kernel dividiria em lotes — e cada lote seria a
     mesma receita, a mesma imagem. A regra genérica do kernel recusa antes."""

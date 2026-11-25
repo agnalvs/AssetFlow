@@ -10,6 +10,12 @@
 # referência. Os motores de difusão, as pontes para projetos externos e a API
 # paga saíram na Fase 0 do plano desenhista
 # (backend/docs/PLANO_DESENHISTA_MCP.md).
+#
+# Desde a Fase A do plano do app (backend/docs/PLANO_APP_DESENHISTA.md), a
+# desenhista é o único gerador do app. As gavetas de referência continuam aqui
+# porque a suíte de testes roda sobre elas, mas só são REGISTRADAS no ambiente
+# de testes (`AppEnvironment.TEST`, ligado por código no tests/conftest.py):
+# em development e em production elas não existem para o app.
 # ---------------------------------------------------------------------------
 
 # Versão do Engine API que este backend implementa (plano §10).
@@ -47,7 +53,8 @@ engines:
     enabled: true
 
   # -------------------------------------------------------------------------
-  # Gaveta de referência sem IA — valida toda a arquitetura antes da GPU.
+  # Gaveta de referência sem IA — exercita a arquitetura nos testes.
+  # Só é registrada no ambiente de testes (catalog.dev_only no manifesto).
   # -------------------------------------------------------------------------
   mock-image-v1:
     enabled: true
@@ -58,7 +65,8 @@ engines:
 
   # -------------------------------------------------------------------------
   # Segunda gaveta — existe para provar a substituição de motores (plano §67).
-  # Desabilitada por padrão; o Swap Engine Test liga/desliga em runtime.
+  # Desabilitada por padrão; o Swap Engine Test liga/desliga em runtime. Como a
+  # de cima, só é registrada no ambiente de testes.
   # -------------------------------------------------------------------------
   mock-pixel-alt-v1:
     enabled: false

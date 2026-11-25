@@ -8,6 +8,7 @@ comparar motores.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
@@ -107,6 +108,22 @@ class GenerationRecord(AssetFlowModel):
     timings: StageTimings = Field(default_factory=StageTimings)
     warnings: tuple[str, ...] = ()
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def do_historico(cls, dados: Mapping[str, Any]) -> GenerationRecord:
+        """Um registro lido do histórico, tolerando campos que saíram.
+
+        O modelo é estrito para **gravar** (``extra="forbid"``): um campo
+        desconhecido num registro novo é erro de quem escreve. Para **ler**, o
+        histórico é dado de versões anteriores, e um campo de topo que o
+        modelo deixou de ter — ``strategy``, ``agent_id``, ``planner_model``,
+        da época do STRATEGY — é ignorado em vez de fazer a linha inteira
+        sumir. Sem isso, ``ver_asset`` e ``desenhar(base=...)`` não achavam
+        esses assets. Profile ou gaveta que não existem mais são só texto
+        aqui: o registro não os resolve. Os dados no arquivo não mudam.
+        """
+        conhecidos = cls.model_fields
+        return cls.model_validate({chave: valor for chave, valor in dados.items() if chave in conhecidos})
 
     @classmethod
     def engine_fields(cls, engine: EngineRef | None) -> dict[str, Any]:

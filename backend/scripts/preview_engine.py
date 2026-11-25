@@ -15,16 +15,16 @@ Exemplos::
     # personagem 32x32, 4 variações, seed fixa
     python scripts/preview_engine.py --profile pixel_character_32 -n 4 --seed 7
 
-    # arte 2D convencional
-    python scripts/preview_engine.py --profile studio_character \\
-        --prompt "cartoon knight with a red cape"
-
     # a gaveta desenhista, a partir de uma receita em arquivo (uma variação)
     python scripts/preview_engine.py --engine desenhista-v1 \\
         --receita assetflow/generation/engines/desenhista/exemplos/pocao_16x16.json \\
         --profile pixel_prop_64 --prompt "poção vermelha 16x16"
 
 Os PNGs vão para ``backend/data/preview/`` (ignorado pelo git).
+
+O script monta o sistema no ambiente de testes (``AppEnvironment.TEST``), o
+único em que as gavetas de referência são registradas: ele é diagnóstico, não
+o app, e liga só a gaveta nomeada. O app (API e MCP) nunca registra os mocks.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ from assetflow.generation.schemas import (  # noqa: E402
     JobStatus,
     QualityLevel,
 )
-from assetflow.settings import load_settings  # noqa: E402
+from assetflow.settings import AppEnvironment, load_settings  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -207,6 +207,9 @@ async def main() -> int:
     # que sai `engines/<id>/` — a pasta de trabalho de cada gaveta. Um
     # rmtree em cima disso apagaria o que as gavetas guardam entre execuções.
     settings = load_settings()
+    # Diagnóstico, não o app: é o ambiente que registra as gavetas de
+    # referência, para que `--engine mock-image-v1` continue funcionando.
+    settings.app_env = AppEnvironment.TEST
     settings.storage.root = str(out_dir / "assets")
     settings.storage.history_file = str(out_dir / "history" / "generations.jsonl")
     settings.worker.embedded = False  # o script controla quando o job roda

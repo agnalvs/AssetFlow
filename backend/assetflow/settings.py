@@ -48,25 +48,26 @@ _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 class AppEnvironment(str, Enum):
     """Onde o AssetFlow está rodando (plano de correção §6).
 
-    A única coisa que isto muda hoje é se as gavetas de referência — os mocks
-    — são registradas. Elas são ferramenta interna: em produção, oferecer
-    "Mock Image Engine" a quem quer um sprite é ruído, e pior, é um caminho
-    para alguém gerar um placeholder achando que gerou arte.
+    A única coisa que isto decide é se as gavetas de referência — os mocks —
+    são registradas, e desde a Fase A do plano do app
+    (``PLANO_APP_DESENHISTA.md``) a resposta é: **só nos testes**. O app tem
+    um gerador, a desenhista; um mock que gerasse no lugar dela entregaria um
+    placeholder a quem achou que pediu arte. Em ``development`` e em
+    ``production`` o app registra só as gavetas de produto.
 
-    O padrão é ``development``, e a escolha é deliberada. O contrário —
-    esconder por padrão e exigir um flag para desenvolver — deixaria uma
-    máquina sem GPU sem nenhum motor utilizável logo depois do `git clone`,
-    e a primeira experiência do projeto seria uma tela que não gera nada.
-    Produção é um ambiente que alguém configura; desenvolvimento é onde se
-    cai sem configurar.
+    ``TEST`` não vem de variável de ambiente: ``ASSETFLOW_APP_ENV=test`` é
+    recusado por :func:`_app_env`. Ele só existe quando um código o escreve —
+    o ``tests/conftest.py`` e o ``scripts/preview_engine.py``, que é
+    diagnóstico e liga só a gaveta nomeada.
     """
 
     DEVELOPMENT = "development"
     PRODUCTION = "production"
+    TEST = "test"
 
     @property
     def shows_mock_engines(self) -> bool:
-        return self is AppEnvironment.DEVELOPMENT
+        return self is AppEnvironment.TEST
 
 
 class StorageSettings(AssetFlowModel):
@@ -123,9 +124,6 @@ class Settings(AssetFlowModel):
     #: `pixel_profiles.yaml` — o contrato Pixel Exact de cada profile
     #: (resolução lógica, paleta, alpha, canvas, preview). Plano Pixel §64.
     pixel_profiles_config: dict[str, Any] = Field(default_factory=dict)
-    #: `engine_policy.yaml` — o que o modo "Auto" prefere (plano de motores §16). Ausente,
-    #: `auto` volta a ser só o roteamento por capacidade, como antes dele.
-    engine_policy_config: dict[str, Any] = Field(default_factory=dict)
     #: `optimizer.yaml` — o estágio que toda geração Pixel atravessa: teto de
     #: iterações, revisor e o interruptor de instalação (plano Optimizer §33,
     #: §42 e §46). Ausente, valem os padrões do próprio Optimizer.
@@ -137,7 +135,7 @@ class Settings(AssetFlowModel):
 
     @property
     def show_mock_engines(self) -> bool:
-        """As gavetas de referência entram nesta instalação?"""
+        """As gavetas de referência entram nesta instalação? Só em ``TEST``."""
         return self.app_env.shows_mock_engines
 
     # ------------------------------------------------------------------
@@ -253,7 +251,6 @@ def load_settings(
     capabilities_config = _read_yaml(configs / "capabilities.yaml")
     profiles_config = _read_yaml(configs / "profiles.yaml")
     pixel_profiles_config = _read_yaml(configs / "pixel_profiles.yaml")
-    engine_policy_config = _read_yaml(configs / "engine_policy.yaml")
     optimizer_config = _read_yaml(configs / "optimizer.yaml")
     quality_config = _read_yaml(configs / "quality.yaml")
 
@@ -289,7 +286,6 @@ def load_settings(
         capabilities_config=capabilities_config,
         profiles_config=profiles_config,
         pixel_profiles_config=pixel_profiles_config,
-        engine_policy_config=engine_policy_config,
         optimizer_config=optimizer_config,
         quality_config=quality_config,
     )
@@ -298,23 +294,27 @@ def load_settings(
 def _app_env() -> AppEnvironment:
     """Lê ``ASSETFLOW_APP_ENV``, tolerando valor desconhecido.
 
-    Um valor errado cai em ``development`` **e** avisa: silenciar um
-    ``ASSETFLOW_APP_ENV=prod`` (em vez de ``production``) faria uma instalação
-    achar que está escondendo os mocks quando não está.
+    Um valor errado cai em ``development`` **e** avisa. ``test`` também é
+    recusado: é o único ambiente que registra os mocks, e ele não pode ser
+    ligado por uma variável esquecida no terminal — só por código de teste.
     """
     raw = (_env("APP_ENV") or "").strip().lower()
     if not raw:
         return AppEnvironment.DEVELOPMENT
+    validos = (AppEnvironment.DEVELOPMENT, AppEnvironment.PRODUCTION)
     try:
-        return AppEnvironment(raw)
+        ambiente = AppEnvironment(raw)
     except ValueError:
+        ambiente = None
+    if ambiente not in validos:
         _LOG.warning(
-            "ASSETFLOW_APP_ENV=%r não é reconhecido; usando 'development'. "
+            "ASSETFLOW_APP_ENV=%r não é aceito; usando 'development'. "
             "Valores válidos: %s",
             raw,
-            ", ".join(item.value for item in AppEnvironment),
+            ", ".join(item.value for item in validos),
         )
         return AppEnvironment.DEVELOPMENT
+    return ambiente
 
 
 def _parse_queue_routes(raw: str | None) -> dict[str, str]:

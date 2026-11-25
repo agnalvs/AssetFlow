@@ -5,63 +5,44 @@
 # A ordem abaixo é a ordem de preferência; o EngineResolver percorre a lista
 # e usa o primeiro motor registrado, habilitado, compatível e saudável.
 #
-# Substituir o motor de Pixel Art = reordenar esta lista. Nada mais.
+# Desde a Fase A do plano do app (backend/docs/PLANO_APP_DESENHISTA.md) o app
+# tem um gerador só: a `desenhista-v1`. As rotas Pixel listam só ela, não há
+# rota para as capacidades 2D (o modo Studio saiu), o fallback está desligado
+# e motor fora da lista não entra na cadeia. Um mock nunca gera no lugar da
+# desenhista: além desta lista, as gavetas de referência nem são registradas
+# fora dos testes (`AppEnvironment.TEST`).
 #
-# Hoje as listas só têm as gavetas de referência: os motores de difusão e as
-# pontes externas saíram na Fase 0 do plano desenhista
-# (backend/docs/PLANO_DESENHISTA_MCP.md). A `desenhista-v1` entra pela regra
-# `pixel_geral` de `engine_policy.yaml`, e não aqui: ela só atende pedidos com
-# receita, e no topo desta lista seria o primeiro motor tentado também quando
-# a política estiver desligada.
+# Os testes de mecanismo — roteamento, troca de motor, fallback — trocam esta
+# política pela deles, com as gavetas de referência (`tests/conftest.py`).
+#
+# A desenhista só desenha com receita. Um pedido sem receita falha com a
+# mensagem dela; não há outra gaveta para tentar.
 # ---------------------------------------------------------------------------
 
 routing:
   text_to_image.pixel:
     engines:
-      - mock-pixel-alt-v1
-      - mock-image-v1
-
-  text_to_image.general:
-    engines:
-      - mock-image-v1
+      - desenhista-v1
 
   character.pixel:
     engines:
-      - mock-pixel-alt-v1
-      - mock-image-v1
-
-  character.2d:
-    engines:
-      - mock-image-v1
+      - desenhista-v1
 
   prop.pixel:
     engines:
-      - mock-pixel-alt-v1
-      - mock-image-v1
-
-  background.2d:
-    engines:
-      - mock-image-v1
+      - desenhista-v1
 
 fallback:
-  # Fallback automático entre motores (plano §44).
-  enabled: true
+  # Fallback automático entre motores (plano §44). Desligado: com um gerador
+  # só, o único "outro motor" possível seria um mock.
+  enabled: false
   # Número máximo de motores tentados por request (o primeiro + N-1 fallbacks).
-  max_engine_attempts: 3
+  max_engine_attempts: 1
   # Se `true`, motores DEGRADED entram como último recurso quando não há
   # nenhuma alternativa saudável.
   allow_degraded_as_last_resort: true
 
-# Motores não listados em `routing` ainda podem ser resolvidos: o resolver
-# completa a lista com qualquer engine que declare a capacidade no manifesto,
-# ordenado alfabeticamente, depois dos motores explicitamente priorizados.
-allow_unlisted_engines: true
-
-# ---------------------------------------------------------------------------
-# Esta lista é o ÚLTIMO recurso, não a primeira palavra.
-#
-# Com o modo "Auto" da tela, quem responde primeiro é `engine_policy.yaml`,
-# que olha o tipo de asset, o tamanho e a paleta antes de preferir um motor. A
-# ordem acima só decide quando nenhuma regra de lá se aplica — e quando a
-# pessoa escolheu um motor à mão, nenhuma das duas decide nada.
-# ---------------------------------------------------------------------------
+# Com `true`, o resolver completaria a lista com qualquer gaveta registrada
+# que declarasse a capacidade — era por aí que um mock entrava no lugar da
+# desenhista no antigo modo "Automático". Fica desligado.
+allow_unlisted_engines: false

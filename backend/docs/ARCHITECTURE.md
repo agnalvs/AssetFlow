@@ -301,10 +301,10 @@ asset tecnicamente válido**. Detalhes em [PIXEL_EXACT.md](PIXEL_EXACT.md).
 | Plano Pixel §1–110 Pixel Exact | `assetflow/pixel/`, `config/pixel_profiles.yaml` — ver [PIXEL_EXACT.md](PIXEL_EXACT.md) |
 | Plano desenhista, Fase 2 — servidor MCP | `assetflow/mcp/` — ver [MCP.md](MCP.md) |
 | Plano T→J §1–46 Final Resolved Spec | `generation/spec/`, `schemas/resolved_spec.py`, `config/asset_taxonomy/` — ver [RESOLVED_SPEC.md](RESOLVED_SPEC.md) |
-| §60–61 Studio 2D | `pipelines/studio/` |
+| §60–61 Studio 2D | removido na Fase A do plano do app ([PLANO_APP_DESENHISTA.md](PLANO_APP_DESENHISTA.md)); `AssetMode.STUDIO` fica no contrato |
 | §63–65 Plugins e configuração | `kernel/discovery.py`, `config/`, `settings.py` |
 | §66–68 Testes de contrato e substituição | `tests/contract/`, `tests/test_engine_swap.py` |
-| §69 Mock Engine | `engines/mock_image/` |
+| §69 Mock Engine | `engines/mock_image/` — registrada só no ambiente de testes |
 | §70 Ordem de implementação | seguida integralmente |
 
 ---

@@ -1,5 +1,12 @@
 # AssetFlow — Backend de Geração
 
+> **Estado atual:** este README descreve a primeira etapa do backend. Desde a
+> Fase A do plano do app ([docs/PLANO_APP_DESENHISTA.md](docs/PLANO_APP_DESENHISTA.md)),
+> o app tem um gerador só, a `desenhista-v1`; as gavetas de referência
+> (`mock-image-v1`, `mock-pixel-alt-v1`) só existem nos testes, e os pipelines
+> Studio e Raw saíram. O estado do branch está em
+> [docs/RELATORIO_ESTADO.md](docs/RELATORIO_ESTADO.md).
+
 Primeira infraestrutura real de geração de imagens do AssetFlow, implementada
 segundo o *Plano de Implementação do Primeiro Motor de Geração*.
 
@@ -67,9 +74,10 @@ curl http://127.0.0.1:8000/api/generation/jobs/job_...
 # → {"status": "completed", "asset": {"variants": [...]}}
 ```
 
-Por padrão quem gera é a gaveta `mock-image-v1` — sem IA, sem GPU. É
-proposital: a arquitetura precisa estar provada **antes** de o modelo entrar
-(plano §69).
+Na primeira etapa, quem gerava era a gaveta `mock-image-v1` — sem IA, sem
+GPU —, para a arquitetura estar provada **antes** de o modelo entrar (plano
+§69). Hoje ela só existe nos testes: no app, um pedido sem receita falha com a
+mensagem da desenhista.
 
 ---
 
@@ -96,7 +104,7 @@ backend/
 │   │   ├── engines/              # AS GAVETAS (ver engines/README.md)
 │   │   ├── prompting/            # SemanticPrompt, PromptBuilders, adapters
 │   │   ├── profiles/             # Generation Profiles
-│   │   ├── pipelines/            # lógica de produto (Pixel, Studio, Raw)
+│   │   ├── pipelines/            # lógica de produto (só Pixel, desde a Fase A)
 │   │   ├── postprocessing/       # regras proprietárias de Pixel Art
 │   │   └── service.py            # fachada única do sistema de geração
 │   │
@@ -214,8 +222,6 @@ temporários. Para **olhar** o resultado, use o script de preview:
 python scripts/preview_engine.py                     # a gaveta ligada hoje
 python scripts/preview_engine.py --engine all        # compara todas as gavetas
 python scripts/preview_engine.py --profile pixel_character_32 -n 4 --seed 7
-python scripts/preview_engine.py --profile studio_character \
-    --prompt "cartoon knight with a red cape"
 python scripts/preview_engine.py --engine desenhista-v1 \
     --receita assetflow/generation/engines/desenhista/exemplos/pocao_16x16.json \
     --profile pixel_prop_64 --prompt "poção vermelha 16x16"

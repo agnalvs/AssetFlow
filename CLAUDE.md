@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1461 passed, 1 skipped)
+pytest -q                                # suíte completa (1448 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -30,7 +30,7 @@ O servidor MCP precisa do extra `mcp` (`pip install -e ".[mcp]"`); sem ele,
 código e `config/*.yaml` uma vez, quando sobe: depois de mudar qualquer um,
 reinicie a sessão do Claude Code (ou reconecte pelo `/mcp`).
 
-`ruff check .` tem **154 achados pré-existentes** (nenhuma config própria, então
+`ruff check .` tem **144 achados pré-existentes** (nenhuma config própria, então
 valem os defaults, bem mais rígidos que o estilo do projeto). Compare com esse
 baseline antes de concluir que uma alteração sua introduziu lint novo — e, se
 mexer nele, atualize o número aqui: o baseline só serve enquanto estiver certo.
@@ -50,7 +50,6 @@ Para **olhar** o que uma gaveta produz (os testes escrevem em tmp):
 
 ```bash
 python scripts/preview_engine.py --engine mock-image-v1 -n 2
-python scripts/preview_engine.py --engine mock-image-v1 --profile studio_character
 python scripts/preview_engine.py --engine desenhista-v1 \
     --receita assetflow/generation/engines/desenhista/exemplos/pocao_16x16.json \
     --profile pixel_prop_64 --prompt "poção vermelha 16x16"
@@ -59,7 +58,9 @@ python scripts/preview_engine.py --engine desenhista-v1 \
 Sempre nomeie a gaveta: o script liga só a gaveta nomeada e gera com ela. A
 `desenhista-v1` só gera com `--receita` (um JSON no formato de
 [backend/docs/DESENHISTA.md](backend/docs/DESENHISTA.md)); com ele, o padrão
-passa a ser uma variação.
+passa a ser uma variação. O script monta o sistema no ambiente de testes
+(`AppEnvironment.TEST`), o único que registra os mocks — ele é diagnóstico, não
+o app.
 
 O benchmark entre motores (`scripts/benchmark_engines.py`) saiu na Fase 0 do
 plano desenhista; as métricas de otimização continuam gravadas em todo job.
@@ -106,8 +107,8 @@ Feito:
 - **Fase 0** (limpeza) — saíram as gavetas de difusão (`diffusers-sdxl-v1`,
   `flux-pixel-v1`), as pontes externas (`sdpixl-v1`, `pixel-forge-v1`), a de
   API paga (`gpt-image-v1`), o benchmark entre motores e o extra `diffusers`
-  do `pyproject.toml`. O modo Studio (2D Normal) ficou, dormente: nenhum motor
-  real o atende.
+  do `pyproject.toml`. O modo Studio (2D Normal) ficou, dormente, até a Fase A
+  do plano do app, que o tirou.
 - **Fase 1** (gaveta desenhista) — `engines/desenhista/`, id `desenhista-v1`,
   família `agentic`. Recebe a receita em
   `engine_options["desenhista-v1"]["receita"]` e entrega a grade lógica 1:1.
@@ -173,6 +174,37 @@ Cinco regras ao mexer ali:
     MCP**, e `pixel_knowledge` não o importa (o recorte recebe a linha por
     parâmetro). Testes só com imagens geradas no próprio teste.
 
+### Plano do app
+
+Depois do plano desenhista, o projeto segue
+[backend/docs/PLANO_APP_DESENHISTA.md](backend/docs/PLANO_APP_DESENHISTA.md): a
+desenhista vira o gerador único do app, e a tela passa a montar pedidos, mostrar
+a galeria, pedir ajustes e exportar. Mesmas regras — uma fase por vez, um commit
+por fase, no branch `desenhista-mcp`. O estado do branch está em
+[backend/docs/RELATORIO_ESTADO.md](backend/docs/RELATORIO_ESTADO.md).
+
+Feito:
+
+- **Fase A** (simplificação) — saíram o seletor e o crédito de motor da tela,
+  o modo 2D Normal (tela, pipeline, pós-processamento, profiles e prompt
+  builders Studio), o profile e o pipeline `raw_image`, o modo "Automático"
+  (`kernel/auto_policy.py`, `config/engine_policy.yaml`,
+  `spec/engine_advisor.py`) e o fallback para mock. "Gerar" fica desligado,
+  com a frase dizendo que os pedidos vão para uma fila na Fase B. Três regras:
+  - **mock só nos testes, em três travas**: as gavetas de referência só são
+    registradas em `AppEnvironment.TEST` (o `conftest` o liga por código;
+    `ASSETFLOW_APP_ENV=test` é recusado); as rotas Pixel do
+    `capabilities.yaml` listam só a desenhista, com
+    `allow_unlisted_engines: false`; e o fallback está desligado. O
+    `tests/test_gerador_unico.py` monta o app como ele roda e cobra as três;
+  - **o `auto` do kernel continua**: é o roteamento por capacidade que o
+    pipeline usa, e no app ele só chega à desenhista. O campo `engine` da API,
+    `AssetMode.STUDIO` e `generation/prompting/` ficam: o pipeline Pixel monta
+    o prompt semântico em todo job, inclusive os do MCP;
+  - **o histórico lê registros antigos**: `GenerationRecord.do_historico`
+    ignora campos de topo que saíram do modelo (os da era do STRATEGY, que
+    faziam 18 linhas sumirem em silêncio). Gravar continua estrito.
+
 ## Arquitetura
 
 O README.md (986 linhas) é a **especificação do produto**, e o código inteiro
@@ -212,14 +244,13 @@ Um pipeline **nunca** importa uma gaveta. Ele pede uma **capacidade**
 ```
 API (/api/generation/jobs)
   -> GenerationService.submit       resolve o FinalResolvedSpec  <- uma única vez
-       AutoEnginePolicy             em "auto", escolhe o MOTOR + o motivo
   -> JobManager + JobQueue          jobs/
   -> GenerationWorker               jobs/worker.py     <- teto job_timeout_s
   -> Pipeline (pixel.character)     generation/pipelines/
        lê o FinalResolvedSpec       generation/spec/  (nunca o reinterpreta)
   -> GenerationKernel               generation/kernel/service.py
-       EngineResolver               capability -> cadeia ordenada de candidatos
-       fallback automático          se o preferido falhar/estiver indisponível
+       EngineResolver               capability -> cadeia (no app: só a desenhista)
+       fallback                     desligado no app; os testes de mecanismo o ligam
   -> Engine.generate()              generation/engines/<id>/
   -> Postprocessing                 generation/postprocessing/
        PixelPostProcessor           grade lógica, paleta, alpha binário
@@ -240,9 +271,7 @@ Peças-chave:
   código.
 - **`generation/kernel/resolver.py`** — capability → `[preferido, fallback, …]`.
 - **`generation/kernel/catalog.py`** — a vitrine: manifesto + estado viram a
-  lista que o seletor de motor da interface consome.
-- **`generation/kernel/auto_policy.py`** — o que o modo "Automático" prefere,
-  a partir de regras em `config/engine_policy.yaml`.
+  lista de `GET /api/generation/engines/catalog`, hoje só para diagnóstico.
 - **`settings.py`** — precedência **env (`ASSETFLOW_*`) > YAML > padrão**.
   Nada de motor/modelo/device/precisão fica hardcoded.
 
@@ -328,36 +357,26 @@ o documento que as docstrings citam como `plano T→J §N`.
 
 ### Seleção de motor
 
-A tela pergunta **uma** coisa de tecnologia: com qual motor. A pessoa escolhe —
-**Automático** ou uma das gavetas visíveis no catálogo — e a escolha é
-respeitada. Quatro regras organizam isso:
+Desde a Fase A do plano do app, o app tem **um** gerador, a `desenhista-v1`, e
+a tela não pergunta nada de tecnologia. A seleção de motor continua existindo
+como mecanismo do kernel — é por ela que o MCP pede a desenhista pelo nome —, e
+três regras de governança seguem valendo:
 
 1. **motor escolhido é motor usado.** Não podendo atender, o job falha dizendo
    por quê; nunca vira outro em silêncio;
 2. **fallback só em `auto`**, ou quando alguém pediu explicitamente — em
-   seleção manual, `allow_fallback` nasce `False`;
-3. **a resposta mostra os três**: motor pedido, motor usado, versão e modelo;
-4. a decisão vira o campo **`engine` do `FinalResolvedSpec`**, resolvido por
+   seleção manual, `allow_fallback` nasce `False`. No app o fallback está
+   desligado na configuração, então a regra só age nos testes;
+3. a decisão vira o campo **`engine` do `FinalResolvedSpec`**, resolvido por
    precedência como qualquer outro campo — e nenhuma camada posterior a
-   reabre.
+   reabre. Em `auto`, `engine_id` fica vazio e o roteamento por capacidade
+   decide; a política que preenchia esse campo saiu.
 
-Em `auto`, quem responde é a `AutoEnginePolicy` (`config/engine_policy.yaml`):
-regras por tipo de asset, tamanho lógico, paleta e qualidade, cada uma com um
-**motivo em português** que a tela exibe antes de gerar. Ela sugere, nunca
-obriga: um motor preferido que caia é substituído pelo fallback, porque em
-`auto` ninguém tinha escolhido.
-
-**Estado atual (depois da Fase 1):** as gavetas são `desenhista-v1` (habilitada,
-visível no catálogo) e as de referência, `mock-image-v1` (habilitada) e
-`mock-pixel-alt-v1` (desabilitada), ambas `catalog.hidden`. No modo Pixel Art,
-o seletor da tela mostra "Automático" e "Desenhista (Claude via MCP)". A regra
-geral `pixel_geral` do `engine_policy.yaml` prefere a desenhista em todo
-pedido Pixel Art.
-
-A desenhista só atende quem manda **receita**, e a tela não manda. Por isso:
-escolhida à mão na tela, ela falha com a mensagem em português (motor
-escolhido é motor usado); em "Automático", ela recusa e o fallback cai nos
-mocks em desenvolvimento — fora dele não há mocks, e a mensagem chega à tela.
+**Estado atual:** as gavetas são `desenhista-v1` e as de referência,
+`mock-image-v1` e `mock-pixel-alt-v1`, que só existem nos testes (três travas;
+ver "Plano do app"). A desenhista só atende quem manda **receita**, e a tela não
+manda: um pedido sem receita falha com a mensagem dela, e não há outra gaveta
+para tentar. Por isso "Gerar" está desligado até a fila da Fase B.
 
 **Gaveta sem seed não vira lotes.** O kernel divide um pedido em lotes pelo
 `max_variations` da gaveta, variando a seed. Para uma gaveta com
@@ -366,11 +385,7 @@ acima do limite com `InvalidGenerationRequest`, antes de carregar a gaveta
 (`kernel/service.py`, `_run_candidate`). A regra lê o manifesto; nenhum id é
 citado.
 
-**O frontend continua sem conhecer motor**: a lista vem de
-`GET /api/generation/engines/catalog`, com nome, resumo, selos e
-disponibilidade. Nenhum id está escrito no React — é o que faz uma gaveta nova
-aparecer no seletor sozinha.
-
+As rotas de motor da API (`/api/generation/engines…`) ficam para diagnóstico.
 Detalhes, incluindo como acrescentar a próxima gaveta:
 [backend/docs/ENGINES.md](backend/docs/ENGINES.md).
 
@@ -425,13 +440,11 @@ peça que conhece as duas pontas. Detalhes em
   `profiles.yaml` aponta para um bloco daqui. Defaults conservadores ainda
   existem nos modelos para compatibilidade com profiles antigos sem essa
   referência.
-- `capabilities.yaml` — catálogo descritivo, não restritivo. Com o modo
-  "Automático", ele é o **último recurso**: quem responde primeiro é
-  `engine_policy.yaml`.
-- `engine_policy.yaml` — as regras do motor no modo "Automático" (plano de
-  motores §16): tipo + tamanho + paleta → motor preferido + motivo. Ausente
-  ou sem regras, `auto` volta a ser só o
-  roteamento por capacidade.
+- `capabilities.yaml` — as rotas por capacidade. No app, as três rotas Pixel
+  listam só a desenhista, sem fallback e com `allow_unlisted_engines: false`.
+  Os testes trocam essa política pela deles (`ROTEAMENTO_DE_TESTE`, no
+  `tests/conftest.py`). O `engine_policy.yaml` do modo "Automático" saiu na
+  Fase A do plano do app.
 - `optimizer.yaml` — o estágio que **toda** geração Pixel atravessa (plano
   Optimizer §33 e §42): teto de iterações, revisor e o interruptor de
   instalação. Não há aqui uma chave por pedido: a otimização não é opção de
@@ -476,23 +489,21 @@ conteúdo vira `engine_options[<id>]` no pedido do contrato.
 
 ### Frontend
 
-React 18 + Vite + TS. A interface conhece **Pixel Art** e **2D Normal** e mais
-nada — esses rótulos viram capacidades em `src/types.ts`.
+React 18 + Vite + TS. A interface conhece **Pixel Art** e mais nada — o rótulo
+vira uma capacidade em `src/types.ts`. Desde a Fase A do plano do app ela não
+pergunta nada de tecnologia: saíram o seletor e o crédito de motor e o modo 2D
+Normal. **"Gerar" está desligado** (`GERAR_LIGADO` no `App.tsx`), com a frase
+explicando que os pedidos vão para uma fila na Fase B; o desenho acontece pela
+conversa com o Claude, pelo MCP. Nenhum id de motor está escrito no frontend.
 
-Sobre motores, a regra mudou de forma e não de espírito: a tela **oferece** a
-escolha (seletor + resumo de cada motor + "Motor resolvido: X, motivo Y" no
-automático), mas continua sem **conhecer** motor nenhum. Tudo vem de
-`GET /api/generation/engines/catalog`, e nenhum id de motor está escrito no
-frontend — se estivesse, cada gaveta nova exigiria uma alteração aqui. Além deles ela mostra
-o `FinalResolvedSpec` que o backend devolve: o painel "O que o AssetFlow
+A tela mostra o `FinalResolvedSpec` que o backend devolve: o painel "O que o AssetFlow
 entendeu" tem a aba **Interpretação** (o contrato em português, com a origem de
 cada valor) e a aba **JSON final** (o mesmo objeto, editável). Editar ali vira
 `spec_overrides` — correção manual, o nível mais alto da precedência. Os
 controles de tipo/resolução/paleta/fundo viram `output`, o nível da interface;
 um controle em "Automático" **não envia campo nenhum**, e é assim que o
 classificador e o profile continuam podendo responder. Nenhum componente
-sabe o que é um motor; se o backend cair no fallback, a tela não fica sabendo,
-continua acompanhando o mesmo `job_id`. Todo acesso à API passa por
+sabe o que é um motor, e o bloco `engine` do JSON não vira correção. Todo acesso à API passa por
 `src/services/generationApi.ts` (`BASE_URL = "/api/generation"`, mesma origem,
 sem CORS).
 
@@ -522,15 +533,18 @@ os imports são bare specifiers que só o Vite resolve.
 - **Credencial nunca vai no YAML.** Uma gaveta que precise de chave lê do
   ambiente, e o `engines.yaml` guarda no máximo o **nome** da variável. O
   caminho do desenhista não usa chave nenhuma.
-- **`ASSETFLOW_APP_ENV=production` remove as gavetas de referência.** Os
-  mocks declaram `catalog.dev_only` e deixam de ser **registrados** fora de
-  desenvolvimento — não são apenas escondidos. Em produção sobra só a
-  `desenhista-v1`, que exige receita: um "Gerar" da tela falha com a mensagem
-  dela, e não existe um caminho alternativo que desenhe sozinho — o Pixel
-  Optimizer corrige o que um motor produziu. O padrão é `development`.
-- **A suíte roda com as gavetas de referência, não com as entregues.** O
-  `container` de teste desabilita tudo fora de `REFERENCE_ENGINES`
-  (`tests/conftest.py`). A maior parte dos testes exercita *mecanismo* —
+- **As gavetas de referência só existem nos testes.** Os mocks declaram
+  `catalog.dev_only` (o nome ficou; o significado hoje é "só em
+  `AppEnvironment.TEST`") e não são **registrados** em `development` nem em
+  `production` — não são apenas escondidos. `ASSETFLOW_APP_ENV` deixou de mudar
+  o que o app gera, e `test` não é aceito pela variável: só o `conftest` e o
+  `scripts/preview_engine.py` ligam esse ambiente, por código. O app tem só a
+  `desenhista-v1`, que exige receita.
+- **A suíte roda com as gavetas de referência, não com as entregues.** A
+  fixture `settings` monta o ambiente `TEST`, e o `container` de teste troca a
+  política de rotas pela `ROTEAMENTO_DE_TESTE` e desabilita tudo fora de
+  `REFERENCE_ENGINES` (`tests/conftest.py`). Para conferir o app como ele roda,
+  monte o container sem essas fixtures (`tests/test_gerador_unico.py`). A maior parte dos testes exercita *mecanismo* —
   roteamento, troca de motor, fallback — e mecanismo se testa com motores
   previsíveis; amarrá-los ao conjunto que o projeto por acaso entrega
   habilitado os quebraria a cada gaveta nova. Um teste que precise de uma

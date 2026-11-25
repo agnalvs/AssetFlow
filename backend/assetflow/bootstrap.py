@@ -14,7 +14,6 @@ import logging
 from dataclasses import dataclass, field
 
 from .generation.kernel import (
-    AutoEnginePolicy,
     EngineCatalog,
     EngineRegistry,
     EngineResolver,
@@ -67,7 +66,6 @@ class AppContainer:
     settings: Settings
     registry: EngineRegistry
     catalog: EngineCatalog
-    engine_policy: AutoEnginePolicy
     resolver: EngineResolver
     kernel: GenerationKernel
     #: O estágio que toda geração Pixel atravessa (plano Optimizer §33).
@@ -130,13 +128,14 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         settings.engine_discovery_paths, allowlist=settings.engine_allowlist
     )
     for entry in discovered:
-        # Ferramenta interna não existe em produção (plano de correção §6).
-        # Note que ela é pulada no **registro**, e não escondida depois: uma
-        # gaveta registrada continua resolvível por capacidade, e "escondida
-        # mas usável" não é o que o §6 pede.
+        # Gaveta de referência (mock) só existe nos testes (Fase A do plano do
+        # app). Ela é pulada no **registro**, e não escondida depois: uma
+        # gaveta registrada continua resolvível por capacidade e habilitável
+        # pela API, e "escondida mas usável" é o que deixava um mock gerar no
+        # lugar da desenhista.
         if entry.manifest.catalog.dev_only and not settings.show_mock_engines:
             _LOG.info(
-                "gaveta '%s' é de desenvolvimento e foi ignorada (APP_ENV=%s)",
+                "gaveta '%s' é de referência (só nos testes) e foi ignorada (APP_ENV=%s)",
                 entry.manifest.id,
                 settings.app_env.value,
             )
@@ -158,11 +157,9 @@ def build_container(settings: Settings | None = None) -> AppContainer:
             "nenhuma gaveta registrada — verifique discovery.paths e a allowlist"
         )
 
-    # -- Vitrine e política de seleção automática (plano de motores §6 e §16) ------
-    # O catálogo descreve as gavetas para quem escolhe; a política diz o que
-    # "Auto" prefere. Nenhum dos dois executa nada — quem executa é o kernel.
+    # -- Vitrine (plano de motores §6) -----------------------------------
+    # Descreve as gavetas, para diagnóstico pela API. Não executa nada.
     catalog = EngineCatalog(registry)
-    engine_policy = AutoEnginePolicy.from_config(registry, settings.engine_policy_config)
 
     # -- Roteamento por capacidade ---------------------------------------
     policy = RoutingPolicy.from_config(settings.capabilities_config)
@@ -195,13 +192,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     # Resolved Spec (plano T→J §11 e §15). O vocabulário é configuração, como
     # profiles e contratos Pixel — nenhum termo mora em código.
     taxonomy = AssetTaxonomy.from_directory(settings.asset_taxonomy_dir)
-    # A política entra como *conselheiro* do resolver: é assim que o modo
-    # "Auto" ganha um motor e um motivo já na pré-visualização, sem que a
-    # camada que resolve o contrato precise conhecer a estante (plano de motores §17).
-    constraints = ConstraintResolver(
-        AssetTypeClassifier(taxonomy),
-        advisor=engine_policy,
-    )
+    constraints = ConstraintResolver(AssetTypeClassifier(taxonomy))
 
     # Base de conhecimento do desenhista: paletas, luz, proporções e moldes,
     # lidos como a taxonomia — YAML, sem código, e diretório ausente não
@@ -276,7 +267,6 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         settings=settings,
         registry=registry,
         catalog=catalog,
-        engine_policy=engine_policy,
         resolver=resolver,
         optimizer=optimizer,
         pixel_validator=pixel_validator,

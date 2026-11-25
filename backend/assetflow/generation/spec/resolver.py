@@ -40,7 +40,6 @@ from ..schemas import (
     AssetType,
     BodyType,
     DetailLevel,
-    EngineAdvice,
     FinalResolvedSpec,
     LogicalResolution,
     OutlineMode,
@@ -60,7 +59,6 @@ from ..schemas import (
 )
 from .classifier import AssetTypeClassifier, Classification
 from .constraints import ExplicitConstraintExtractor, ExplicitConstraints
-from .engine_advisor import EngineAdvisor
 
 _LOG = logging.getLogger("assetflow.generation.spec")
 
@@ -119,22 +117,13 @@ class ConstraintResolver:
         self,
         classifier: AssetTypeClassifier | None = None,
         extractor: ExplicitConstraintExtractor | None = None,
-        advisor: EngineAdvisor | None = None,
     ) -> None:
         self._classifier = classifier or AssetTypeClassifier()
         self._extractor = extractor or ExplicitConstraintExtractor()
-        # Sem conselheiro o resolver continua inteiro: o modo `auto` apenas
-        # não sugere motor nenhum, e o roteamento por capacidade decide —
-        # que é como o sistema funcionava antes de existir política.
-        self._advisor = advisor
 
     @property
     def classifier(self) -> AssetTypeClassifier:
         return self._classifier
-
-    @property
-    def advisor(self) -> EngineAdvisor | None:
-        return self._advisor
 
     # ------------------------------------------------------------------
     def resolve(
@@ -368,22 +357,7 @@ class ConstraintResolver:
 
         capability = request.capability or profile.capability
 
-        advice = self._advice(
-            capability=capability,
-            asset_type=resolved_type,
-            subject=subject.value or "",
-            mode=resolved_mode,
-            logical=logical,
-            palette=palette,
-            background=background.value or "transparent",
-            quality=request.quality,
-            variations=variations.value or 1,
-        )
-        engine = self._resolve_engine(
-            request=request,
-            advice=advice,
-            sources=sources,
-        )
+        engine = self._resolve_engine(request=request, sources=sources)
 
         spec = FinalResolvedSpec(
             profile_id=profile.id,
@@ -439,7 +413,6 @@ class ConstraintResolver:
         self,
         *,
         request: AssetGenerationRequest,
-        advice: EngineAdvice,
         sources: dict[str, SpecSource],
     ) -> ResolvedEngine:
         """Resolve **qual motor** por precedência, como qualquer outro campo.
@@ -495,24 +468,12 @@ class ConstraintResolver:
                 detail=_field_error("engine", "faltou o id do motor"),
             )
 
-        reason = ""
-        if selection_mode == "auto":
-            # `auto` só consulta a política quando ninguém escolheu, e o que
-            # volta é preferência — registrada como leitura do AssetFlow.
-            suggestion = self._suggest_engine(advice)
-            if suggestion is not None:
-                engine_id = suggestion.engine_id
-                reason = suggestion.reason
-                # A origem descreve de onde veio o **valor** de `engine_id`, e
-                # em `auto` ele sempre vem da política — mesmo quando foi a
-                # pessoa que escolheu "Automático" no seletor. Marcar isso
-                # como escolha de interface faria a tela exibir "escolhido na
-                # tela" ao lado de um motor que ninguém escolheu.
-                source = SpecSource.INFERENCE
-            elif source is SpecSource.UI_SELECTION:
-                # "Automático" sem sugestão nenhuma: ninguém decidiu motor, e
-                # o roteamento por capacidade vai decidir sozinho.
-                source = SpecSource.GLOBAL_DEFAULT
+        if selection_mode == "auto" and source is SpecSource.UI_SELECTION:
+            # `auto` explícito é o mesmo que não dizer nada: ninguém decidiu
+            # motor, e o roteamento por capacidade decide sozinho. Marcar isso
+            # como escolha de interface faria a tela dizer "escolhido" ao lado
+            # de um motor que ninguém escolheu.
+            source = SpecSource.GLOBAL_DEFAULT
 
         if allow_fallback is None:
             allow_fallback = selection_mode == "auto"
@@ -522,53 +483,6 @@ class ConstraintResolver:
             selection_mode=selection_mode,
             engine_id=engine_id,
             allow_fallback=allow_fallback,
-            reason=reason,
-        )
-
-    def _suggest_engine(self, advice: EngineAdvice):
-        """Pergunta ao conselheiro de motor, tolerando que ele falhe.
-
-        Uma política quebrada não pode derrubar uma geração: sem sugestão, o
-        roteamento por capacidade responde, que é o caminho que já existia
-        antes de a política existir.
-        """
-        if self._advisor is None:
-            return None
-        try:
-            return self._advisor.suggest(advice)
-        except Exception:  # pragma: no cover - política nunca derruba job
-            return None
-
-    # ------------------------------------------------------------------
-    def _advice(
-        self,
-        *,
-        capability,
-        asset_type: AssetType,
-        subject: str,
-        mode: AssetMode,
-        logical: LogicalResolution | None,
-        palette: ResolvedPalette | None,
-        background: str,
-        quality,
-        variations: int,
-    ) -> EngineAdvice:
-        """O pedido descrito para as duas políticas — estratégia e motor.
-
-        Um objeto só para as duas porque a pergunta é a mesma: *como é este
-        asset?*. Quem responde coisas diferentes são os conselheiros.
-        """
-        return EngineAdvice(
-            capability=capability,
-            asset_type=asset_type.value,
-            subject=subject,
-            mode=mode.value,
-            logical_width=logical.width if logical else None,
-            logical_height=logical.height if logical else None,
-            max_colors=palette.max_colors if palette else None,
-            transparent=background == "transparent",
-            quality=quality.value if hasattr(quality, "value") else str(quality),
-            variations=variations,
         )
 
     # ------------------------------------------------------------------

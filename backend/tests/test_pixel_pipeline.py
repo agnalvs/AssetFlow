@@ -12,7 +12,7 @@ from assetflow.generation.postprocessing import (
     PostProcessContext,
     build_pixel_chain,
 )
-from assetflow.generation.schemas import AssetGenerationRequest, AssetOutputOverrides, JobStatus
+from assetflow.generation.schemas import JobStatus
 
 from tests.conftest import process_next_job, run
 
@@ -128,23 +128,6 @@ def test_same_seed_produces_identical_assets(container: AppContainer, make_reque
     assert run(read(first.asset.variants[0].uri)) == run(read(second.asset.variants[0].uri))
 
 
-def test_studio_pipeline_uses_the_same_kernel(container: AppContainer):
-    """Plano §60: acrescentar o modo Studio não muda o Kernel."""
-    job = _completed_job(
-        container,
-        AssetGenerationRequest(
-            project_id="project_test",
-            profile="studio_character",
-            prompt="cartoon knight",
-            output=AssetOutputOverrides(variations=1),
-        ),
-    )
-    variant = job.asset.variants[0]
-    assert (variant.width, variant.height) == (1024, 1024)
-    assert variant.logical_width is None, "arte 2D não tem grid lógico"
-    assert job.asset.pipeline_id == "studio.character"
-
-
 # ---------------------------------------------------------------------------
 # Pós-processamento isolado
 # ---------------------------------------------------------------------------
@@ -204,29 +187,3 @@ def test_pixel_variant_carries_the_pixel_exact_seal(container: AppContainer, mak
         assert "raw.png" in variant.artifacts, "o bruto do motor fica guardado (§71)"
 
 
-def test_studio_asset_has_no_pixel_verdict(container: AppContainer):
-    """Arte 2D não tem grid lógico — perguntar se é Pixel Exact não faz sentido."""
-    job = _completed_job(
-        container,
-        AssetGenerationRequest(
-            project_id="project_test",
-            profile="studio_character",
-            prompt="cartoon knight",
-            output=AssetOutputOverrides(variations=1),
-        ),
-    )
-    variant = job.asset.variants[0]
-    assert variant.pixel_exact is None
-    assert variant.status is None
-    # O dossiê do plano §18 acompanha toda geração, inclusive esta: contrato,
-    # frase original, leitura, motor escolhido e motor usado. Depurar arte 2D
-    # precisa deles tanto quanto Pixel Art. O que não pode existir aqui é
-    # artefato do Pixel Exact — `logical.png`, `palette.json`, `preview.png`,
-    # `processing.json`, `validation.json`.
-    assert set(variant.artifacts) == {
-        "resolved_spec.json",
-        "raw_prompt.txt",
-        "parsed_spec.json",
-        "engine_selection.json",
-        "engine_output.json",
-    }

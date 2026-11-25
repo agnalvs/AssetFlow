@@ -34,8 +34,6 @@ __all__ = [
     "EngineDescriptor",
     "EngineRuntimeConfig",
     "EngineRef",
-    "EngineAdvice",
-    "EngineSuggestion",
 ]
 
 #: Versão do contrato implementada por este backend (plano §10).
@@ -221,12 +219,14 @@ class EngineCatalogInfo(AssetFlowModel):
     #: capacidade e continuam sendo escolhíveis por quem souber o id.
     hidden: bool = False
 
-    #: Ferramenta interna: só existe fora de produção (plano de correção §6).
+    #: Ferramenta interna: só existe nos testes (Fase A do plano do app). O
+    #: nome ficou da época em que valia em desenvolvimento; o significado hoje
+    #: é "registrada só em ``AppEnvironment.TEST``".
     #:
     #: Diferente de ``hidden``, que é sobre a vitrine. Uma gaveta ``hidden``
     #: continua registrada e resolvível; uma ``dev_only`` **não é registrada**
-    #: quando ``ASSETFLOW_APP_ENV=production``. É a diferença entre "não
-    #: ofereço" e "não existe aqui".
+    #: no app (development ou production). É a diferença entre "não ofereço" e
+    #: "não existe aqui".
     dev_only: bool = False
 
 
@@ -374,52 +374,3 @@ class EngineRuntimeConfig(AssetFlowModel):
     #: (uma GPU modesta com offload pode precisar de bem mais tempo).
     timeout_s: float | None = Field(default=None, gt=0)
     load_timeout_s: float | None = Field(default=None, gt=0)
-
-
-class EngineAdvice(AssetFlowModel):
-    """O que a política de seleção automática precisa saber (plano de motores §16).
-
-    Deliberadamente pequeno e sem nada de motor dentro: é o *pedido* descrito
-    em termos de asset. Quem responde é uma política, e a política pode ser
-    trocada sem que o resolver de spec saiba disso.
-
-    Ele existe em ``schemas/`` porque as duas pontas falam por ele — o
-    ``ConstraintResolver``, que pergunta, e a ``AutoEnginePolicy``, que
-    responde — e nenhuma das duas pode passar a depender da outra.
-    """
-
-    capability: Capability
-    asset_type: str
-    #: O que está sendo desenhado — "tree", "small medieval house".
-    #:
-    #: Importa porque nem toda estratégia atende todo sujeito: o Pixel Agent
-    #: desenha por receitas, e um sujeito fora do vocabulário dele produz uma
-    #: forma genérica. Sem este campo, a escolha automática mandaria para ele
-    #: coisas que ele não sabe desenhar (plano de correção §40).
-    subject: str = ""
-    mode: str
-    logical_width: int | None = None
-    logical_height: int | None = None
-    max_colors: int | None = None
-    transparent: bool = True
-    quality: str = "standard"
-    variations: int = 1
-
-    @property
-    def logical_size(self) -> int | None:
-        """O maior lado do grid lógico — a medida usada pelas regras."""
-        sides = [side for side in (self.logical_width, self.logical_height) if side]
-        return max(sides) if sides else None
-
-
-class EngineSuggestion(AssetFlowModel):
-    """A resposta da política: um motor e o porquê, em português (plano de motores §17).
-
-    O motivo não é enfeite. Sem ele, "Auto" é uma caixa preta e a pessoa só
-    descobre o que ele significava depois de gerar — que é exatamente a
-    experiência que o §17 existe para acabar.
-    """
-
-    engine_id: str
-    reason: str = ""
-    rule_id: str | None = None

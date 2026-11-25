@@ -1,3 +1,6 @@
+> **Aviso:** este README é a especificação original do produto, citada no código como `plano §N`, e não descreve o estado atual.
+> O estado atual do projeto está em [backend/docs/RELATORIO_ESTADO.md](backend/docs/RELATORIO_ESTADO.md).
+
 # AssetFlow
 ## Escopo Funcional, Técnico e Estratégico do Projeto
 

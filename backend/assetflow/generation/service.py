@@ -395,12 +395,18 @@ def _capability_payload(
 
 
 def _default_pipeline_for(capability: Capability) -> str:
-    """Pipeline padrão quando o pedido não indica um."""
+    """Pipeline padrão quando o pedido não indica um.
+
+    O app só gera Pixel Art (Fase A do plano do app): os pipelines Studio e
+    Raw saíram. Uma capacidade de outro modo é recusada aqui, com a razão, em
+    vez de cair num pipeline que não existe mais.
+    """
     if capability.variant == "pixel":
         return "pixel.character"
-    if capability.family in {"text_to_image", "character", "prop", "background"}:
-        return "studio.character"
-    return "raw.image"
+    raise InvalidGenerationRequest(
+        f"o AssetFlow só gera Pixel Art; a capacidade '{capability}' não tem "
+        "pipeline. Use um profile Pixel (pixel_character_32, 48, 64 ou pixel_prop_64)"
+    )
 
 
 def _constraint_map() -> dict[str, str]:

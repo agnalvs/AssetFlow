@@ -421,10 +421,8 @@ class ImageAssetPipeline(AssetPipeline):
 def _engine_selector(resolved: FinalResolvedSpec) -> EngineSelector:
     """A decisão de motor do spec, no formato que o Kernel entende.
 
-    Em ``auto`` o id vira **dica** (``preferred_engine_id``) e em ``manual``
-    vira **exigência** (``engine_id``). A tradução acontece aqui, uma vez, e é
-    o que garante que a diferença entre sugerir e exigir sobreviva até o
-    resolver — em vez de virar um booleano perdido no caminho.
+    Em ``manual`` o id vira **exigência** (``engine_id``); em ``auto`` não há
+    id, e o kernel resolve pela capacidade. A tradução acontece aqui, uma vez.
     """
     engine = resolved.engine
     if engine.selection_mode == "manual" and engine.engine_id:
@@ -433,11 +431,7 @@ def _engine_selector(resolved: FinalResolvedSpec) -> EngineSelector:
             engine_id=engine.engine_id,
             allow_fallback=engine.allow_fallback,
         )
-    return EngineSelector(
-        mode="auto",
-        allow_fallback=engine.allow_fallback,
-        preferred_engine_id=engine.engine_id,
-    )
+    return EngineSelector(mode="auto", allow_fallback=engine.allow_fallback)
 
 
 def _parsed_document(

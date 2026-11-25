@@ -1,15 +1,22 @@
 # AssetFlow — Web
 
-Primeira interface web do AssetFlow: escolher o estilo, descrever o asset,
-gerar, acompanhar e baixar.
+Primeira interface web do AssetFlow: descrever o asset, ver o que o AssetFlow
+entendeu do pedido e, quando o caminho estiver ligado, gerar, acompanhar e
+baixar.
+
+> **Fase A do plano do app** ([../backend/docs/PLANO_APP_DESENHISTA.md](../backend/docs/PLANO_APP_DESENHISTA.md)).
+> O app tem um gerador só, a desenhista, que desenha a partir de uma receita
+> escrita pelo Claude. Saíram o seletor e o crédito de motor e o modo 2D Normal.
+> O botão "Gerar" está desligado (`GERAR_LIGADO` no `App.tsx`), com uma frase
+> dizendo que os pedidos passam a ir para uma fila na próxima fase.
 
 ## A regra que governa esta camada
 
-> A interface conhece **Pixel Art** e **2D Normal**. Nada mais.
+> A interface conhece **Pixel Art**. Nada mais.
 
-Esses dois rótulos viram *capacidades* (`text_to_image.pixel` e
-`text_to_image.general`) em um único arquivo — [`src/types.ts`](src/types.ts).
-Daí para baixo, nenhum componente sabe o que é um motor.
+O rótulo vira uma *capacidade* (`text_to_image.pixel`) em um único arquivo —
+[`src/types.ts`](src/types.ts). Daí para baixo, nenhum componente sabe o que é
+um motor.
 
 Você **não** vai encontrar aqui:
 
@@ -20,12 +27,11 @@ if (mode === "pixel") useSDXL();   // ERRADO
 E sim:
 
 ```ts
-capability: mode === "pixel" ? "text_to_image.pixel" : "text_to_image.general"
+capability: MODES[mode].capability   // "text_to_image.pixel"
 ```
 
-Qual gaveta atende o pedido — SDXL hoje, outro modelo amanhã — é decisão
-exclusiva do backend. Se um motor falhar e o backend usar o fallback, a tela
-nem fica sabendo: ela continua acompanhando o mesmo `job_id`.
+Qual gaveta atende o pedido é decisão exclusiva do backend — hoje, a desenhista,
+sem fallback.
 
 ## Rodar
 
@@ -92,7 +98,7 @@ serviço de API traduz o código normalizado do backend para uma frase útil; o
 detalhe técnico fica no log do servidor.
 
 **Profile junto da capacidade.** O pedido envia `capability` *e* `profile`
-(`pixel_character_64` / `studio_character`). O profile é quem carrega a
+(`pixel_character_64`). O profile é quem carrega a
 resolução lógica de 64×64 e a paleta de 16 cores — e, como profiles nunca
 citam motor, a independência continua intacta.
 

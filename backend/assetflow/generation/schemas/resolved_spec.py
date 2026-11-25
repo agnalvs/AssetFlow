@@ -249,19 +249,18 @@ class ResolvedEngine(FrozenModel):
     podia reinterpretar — e a interface não tinha como afirmar qual motor
     seria usado antes de gerar.
 
-    ``engine_id`` está preenchido nos dois modos, e significa coisas
-    diferentes em cada um:
-
     ``manual``
-        o motor **exigido**. Se ele não puder atender, o job falha com a razão
-        — trocar por outro em silêncio é o que o plano de motores §24 proíbe.
+        ``engine_id`` é o motor **exigido**. Se ele não puder atender, o job
+        falha com a razão — trocar por outro em silêncio é o que o plano de
+        motores §24 proíbe. É como o MCP pede a ``desenhista-v1``.
     ``auto``
-        o motor **preferido** pela :class:`AutoEnginePolicy`, com o motivo em
-        ``reason``. É preferência, não exigência: se ele cair, o fallback
-        entra, porque em ``auto`` a escolha nunca foi da pessoa (plano de motores §25, regra 2).
+        ``engine_id`` fica vazio: ninguém escolheu, e o roteamento por
+        capacidade (``config/capabilities.yaml``) decide. No app, a rota Pixel
+        só lista a ``desenhista-v1`` e o fallback está desligado na
+        configuração; ``allow_fallback`` aqui diz só o que o pedido permite.
 
-    ``None`` significa que ninguém opinou e nenhuma política respondeu — o
-    roteamento por capacidade decide sozinho, como sempre decidiu.
+    A política do modo "Automático", que preenchia ``engine_id`` e ``reason``
+    em ``auto``, saiu na Fase A do plano do app (PLANO_APP_DESENHISTA.md).
     """
 
     selection_mode: Literal["auto", "manual"] = "auto"
@@ -269,8 +268,8 @@ class ResolvedEngine(FrozenModel):
     #: Trocar de motor quando o escolhido falhar. Em ``manual`` o padrão é
     #: ``False``: respeitar a escolha é a regra 1 do plano de motores §25.
     allow_fallback: bool = True
-    #: Por que este motor, em português. Vazio em seleção manual: o motivo é
-    #: "foi pedido", e escrever isso seria ruído.
+    #: Por que este motor, em português. Era o motivo da política automática;
+    #: sem ela, fica vazio. O campo fica porque é contrato da API e da tela.
     reason: str = ""
 
 

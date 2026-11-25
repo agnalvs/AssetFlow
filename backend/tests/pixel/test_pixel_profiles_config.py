@@ -178,22 +178,3 @@ def test_resolved_spec_comes_from_the_pixel_profile(profile_id: str):
         profile.output.logical_width,
         profile.output.logical_height,
     )
-
-
-# ---------------------------------------------------------------------------
-# O outro lado: arte 2D não tem contrato Pixel
-# ---------------------------------------------------------------------------
-def test_studio_profile_has_no_pixel_contract():
-    """``studio_character`` não é Pixel Art — perguntar não faz sentido (§10).
-
-    ``spec_from_profile`` devolvendo ``None`` é o que faz o
-    ``PixelExactProcessor`` se declarar inaplicável e sair da cadeia. Se ele
-    devolvesse um spec qualquer, o modo Studio ganharia resolução lógica,
-    paleta reduzida e alpha binário — arte 2D convencional processada como
-    sprite.
-    """
-    profile = PROFILES.get("studio_character")
-
-    assert profile.pixel_profile is None
-    assert profile.output.is_logical is False
-    assert spec_from_profile(profile, PIXEL_PROFILES) is None

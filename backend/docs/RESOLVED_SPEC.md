@@ -214,10 +214,13 @@ motivo escrito em português. Nunca um valor trocado por outro sem aviso.
 
 ```text
 resolução 4×4                 → recusa: o limite é de 8 a 1024 por lado
-32×32 em profile Studio       → recusa: resolução lógica só existe em Pixel Art
+32×32 em pedido modo Studio   → recusa: resolução lógica só existe em Pixel Art
 só a largura informada        → recusa: o outro lado viria do profile
-paleta em profile Studio      → recusa: limite de cores não se aplica
+paleta em pedido modo Studio  → recusa: limite de cores não se aplica
 ```
+
+Os profiles Studio saíram na Fase A do plano do app; o modo continua no
+contrato (`AssetMode.STUDIO`), e o pedido chega a ele pelo campo `mode`.
 
 O caso da metade da resolução merece nota: aceitar `logical_width=32` sozinho
 produziria 32×64, uma proporção nova que ninguém pediu. Aceitar e ignorar é a

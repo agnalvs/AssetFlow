@@ -12,7 +12,6 @@ import {
 } from "../components/AssetControls";
 import {
   type CreateJobPayload,
-  type CreationSelection,
   type GenerationMode,
   type Job,
   type JobSubmission,
@@ -20,7 +19,6 @@ import {
   type PromptPreview,
   type SemanticPrompt,
   type SpecOverrides,
-  type EngineCatalogResponse,
 } from "../types";
 
 const BASE_URL = "/api/generation";
@@ -52,7 +50,6 @@ export function buildJobPayload(input: {
   selection?: AssetSelection | null;
   spec?: SpecOverrides | null;
   semantic?: SemanticPrompt | null;
-  creation?: CreationSelection | null;
 }): CreateJobPayload {
   const config = MODES[input.mode];
   const selection = input.selection ?? null;
@@ -69,30 +66,8 @@ export function buildJobPayload(input: {
     output: selection ? selectionToOutput(selection) : { variations: 1 },
     ...(input.spec ? { spec_overrides: input.spec } : {}),
     ...(input.semantic ? { semantic_prompt: input.semantic } : {}),
-    ...creationPayload(input.creation ?? null),
-  };
-}
-
-/**
- * O bloco de motor do pedido (plano Optimizer §26).
- *
- * Uma escolha só, porque existe uma só. Esta função já teve três caminhos —
- * agente, modelo e automático —, e dois deles descreviam uma bifurcação que
- * não existe mais: a otimização não é uma alternativa ao motor, é o que vem
- * depois dele, em toda geração (§46).
- *
- * Por isso o pedido também **não** carrega nada sobre otimização. Ela é
- * imposta pelo servidor (§33 e §34); um campo aqui sugeriria uma escolha que
- * o backend ignoraria.
- */
-function creationPayload(creation: CreationSelection | null) {
-  // Auto vai só com o modo. Mandar um `engine_id` junto de `auto` seria dizer
-  // "escolha por mim, mas use este" — e o backend, corretamente, trataria
-  // isso como escolha manual.
-  return {
-    engine: creation?.engineId
-      ? { mode: "manual" as const, engine_id: creation.engineId }
-      : { mode: "auto" as const },
+    // Sem campo de motor: o app tem um gerador só (Fase A do plano do app), e
+    // o backend resolve pela capacidade.
   };
 }
 
@@ -189,27 +164,6 @@ export function previewPrompt(
   return request<PromptPreview>(`${BASE_URL}/prompt/preview`, {
     method: "POST",
     body: JSON.stringify(payload),
-    signal,
-  });
-}
-
-/**
- * Os motores oferecíveis (plano de motores §6, plano Optimizer §26).
- *
- * É a **única** lista de tecnologia que a interface consome. O AssetFlow
- * Pixel Optimizer não está nela e nunca estará: ele não é escolhível, é o
- * estágio que todo motor atravessa depois de gerar (§76).
- *
- * O filtro por capacidade importa: em Pixel Art e em 2D convencional os
- * motores disponíveis não são os mesmos, e oferecer um motor que o backend
- * vai recusar é pior do que não oferecer.
- */
-export function listEngineCatalog(
-  capability?: string,
-  signal?: AbortSignal,
-): Promise<EngineCatalogResponse> {
-  const query = capability ? `?capability=${encodeURIComponent(capability)}` : "";
-  return request<EngineCatalogResponse>(`${BASE_URL}/engines/catalog${query}`, {
     signal,
   });
 }

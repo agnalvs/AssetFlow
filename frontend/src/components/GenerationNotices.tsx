@@ -1,7 +1,5 @@
 interface GenerationNoticesProps {
   warnings: readonly string[];
-  /** O aviso de substituição de motor já é mostrado pelo `EngineCredit`. */
-  fallbackUsed: boolean;
 }
 
 /**
@@ -19,20 +17,12 @@ interface GenerationNoticesProps {
  * consequência — "não sei desenhar isto", "este motor ignora a seed". O que
  * fica de fora é erro, que tem caminho próprio.
  */
-export function GenerationNotices({
-  warnings,
-  fallbackUsed,
-}: GenerationNoticesProps) {
-  // A substituição de motor tem um aviso próprio, maior e com consequência
-  // explicada. Repeti-la aqui seria dizer a mesma coisa duas vezes.
-  const visible = warnings.filter(
-    (warning) => !(fallbackUsed && warning.includes("fallback")),
-  );
-  if (visible.length === 0) return null;
+export function GenerationNotices({ warnings }: GenerationNoticesProps) {
+  if (warnings.length === 0) return null;
 
   return (
     <ul className="result__notices" role="status">
-      {visible.map((warning) => (
+      {warnings.map((warning) => (
         <li key={warning} className="result__notice">
           <span aria-hidden="true">ⓘ</span> {warning}
         </li>
