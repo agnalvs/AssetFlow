@@ -50,16 +50,24 @@ enabled: true
 
 # As regras são avaliadas NA ORDEM. A primeira que casar e tiver um motor de
 # pé responde. Portanto: da mais específica para a mais geral.
-#
-# Vazia de propósito. As regras antigas preferiam motores de difusão e pontes
-# externas que saíram na Fase 0 do plano desenhista
-# (backend/docs/PLANO_DESENHISTA_MCP.md). A regra geral que aponta para a
-# gaveta `desenhista-v1` entra na Fase 1, junto com a gaveta — apontar agora
-# para um id que ainda não existe seria uma regra que sempre perde a vez.
-#
-# Enquanto isso, o "Auto" cai no roteamento por capacidade de
-# `capabilities.yaml`, que hoje só conhece as gavetas de referência.
-rules: []
+rules:
+  # -------------------------------------------------------------------------
+  # Pixel Art em geral: o Claude desenha (plano desenhista, Fase 1).
+  #
+  # A gaveta só atende quem manda receita, o que hoje significa o servidor
+  # MCP. Um "Gerar" da tela em "Auto" chega aqui sem receita: a gaveta recusa
+  # dizendo por quê, e — como em "Auto" ninguém escolheu motor — o fallback
+  # do roteamento por capacidade entra. Fora de desenvolvimento não há
+  # fallback (os mocks não são registrados), e a mensagem chega à tela.
+  # -------------------------------------------------------------------------
+  - id: pixel_geral
+    when:
+      mode: ["pixel"]
+    prefer:
+      - desenhista-v1
+    reason: >-
+      Pixel Art desenhado pelo Claude direto na grade lógica, com a paleta
+      da receita; o AssetFlow faz o acabamento e a validação
 
 # Quando nenhuma regra casa, a política se cala e o roteamento por capacidade
 # de `capabilities.yaml` decide — que é exatamente o comportamento que existia

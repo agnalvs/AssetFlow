@@ -43,7 +43,7 @@ python -m venv .venv
 .venv\Scripts\activate            # Windows;  source .venv/bin/activate no Linux/macOS
 pip install -e ".[dev]"
 
-pytest                             # 1112 testes sem GPU e sem rede
+pytest                             # 1186 testes sem GPU e sem rede (+1 pulado)
 uvicorn assetflow.main:app --reload
 ```
 
@@ -153,14 +153,16 @@ Ver [`assetflow/generation/engines/README.md`](assetflow/generation/engines/READ
 
 | id | O que é | Padrão |
 |---|---|---|
+| `desenhista-v1` | O Claude desenha: transforma uma receita de camadas em sprite na grade lógica. Só atende quem manda receita (o servidor MCP). | habilitada |
 | `mock-image-v1` | Referência determinística sem IA. Valida a arquitetura inteira sem GPU. | habilitada |
 | `mock-pixel-alt-v1` | Implementação independente (não herda nada da primeira). Prova a substituição. | desabilitada |
 
 As gavetas de difusão (SDXL, FLUX), as pontes para projetos externos (SD-πXL,
 Pixel Forge) e a de API paga (GPT Image) saíram na Fase 0 do plano desenhista
 — ver [`docs/PLANO_DESENHISTA_MCP.md`](docs/PLANO_DESENHISTA_MCP.md). A
-próxima gaveta real é a `desenhista-v1` (Fase 1), que recebe o desenho do
-Claude por um servidor MCP. Ela não exige GPU, torch nem download de modelo.
+gaveta real agora é a `desenhista-v1` (Fase 1), que não exige GPU, torch nem
+download de modelo. O formato da receita está em
+[`docs/DESENHISTA.md`](docs/DESENHISTA.md).
 
 Cada gaveta tem uma pasta própria em `backend/data/engines/<engine_id>/`
 (`workspace_dir`), para o que precisar guardar entre execuções.
@@ -213,7 +215,13 @@ python scripts/preview_engine.py --engine all        # compara todas as gavetas
 python scripts/preview_engine.py --profile pixel_character_32 -n 4 --seed 7
 python scripts/preview_engine.py --profile studio_character \
     --prompt "cartoon knight with a red cape"
+python scripts/preview_engine.py --engine desenhista-v1 \
+    --receita assetflow/generation/engines/desenhista/exemplos/pocao_16x16.json \
+    --profile pixel_prop_64 --prompt "poção vermelha 16x16"
 ```
+
+Sem `--receita`, a `desenhista-v1` falha com a mensagem dizendo que só desenha
+a partir de uma receita — e `--engine all` mostra essa falha na linha dela.
 
 Ele imprime, por variação, o tamanho lógico, a contagem de cores, a seed, os
 tempos por etapa e o **caminho absoluto** do PNG — mais um `_thumb.png`
@@ -266,5 +274,7 @@ Destaques:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — decisões, camadas e o mapa
   plano → código.
+- [`docs/DESENHISTA.md`](docs/DESENHISTA.md) — a receita de desenho da gaveta
+  `desenhista-v1`.
 - [`assetflow/generation/engines/README.md`](assetflow/generation/engines/README.md)
   — guia de quem escreve uma gaveta.

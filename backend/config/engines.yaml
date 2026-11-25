@@ -6,10 +6,10 @@
 #
 # Trocar um motor por outro é uma alteração de CONFIGURAÇÃO, não de código.
 #
-# Hoje só existem as duas gavetas de referência. Os motores de difusão, as
-# pontes para projetos externos e a API paga saíram na Fase 0 do plano
-# desenhista (backend/docs/PLANO_DESENHISTA_MCP.md); a próxima gaveta é a
-# `desenhista-v1`, que entra pela Fase 1 — pelo manifesto, como qualquer outra.
+# Gavetas: a `desenhista-v1` (o Claude desenha, por MCP) e as duas de
+# referência. Os motores de difusão, as pontes para projetos externos e a API
+# paga saíram na Fase 0 do plano desenhista
+# (backend/docs/PLANO_DESENHISTA_MCP.md).
 # ---------------------------------------------------------------------------
 
 # Versão do Engine API que este backend implementa (plano §10).
@@ -23,6 +23,7 @@ discovery:
   # Allowlist de segurança (plano §64): somente estes engine ids podem ser
   # carregados. `null` desativa a verificação (apenas para desenvolvimento).
   allowlist:
+    - "desenhista-v1"
     - "mock-image-v1"
     - "mock-pixel-alt-v1"
 
@@ -35,6 +36,16 @@ defaults:
   lazy_load: true
 
 engines:
+  # -------------------------------------------------------------------------
+  # O Claude desenha (plano desenhista, Fase 1). A gaveta transforma uma
+  # receita curta de camadas em sprite na grade lógica; não carrega modelo e
+  # não usa GPU. Só atende pedidos que tragam a receita em
+  # engine_options["desenhista-v1"]["receita"] — o servidor MCP manda; o botão
+  # "Gerar" da tela não. Formato da receita: backend/docs/DESENHISTA.md.
+  # -------------------------------------------------------------------------
+  desenhista-v1:
+    enabled: true
+
   # -------------------------------------------------------------------------
   # Gaveta de referência sem IA — valida toda a arquitetura antes da GPU.
   # -------------------------------------------------------------------------

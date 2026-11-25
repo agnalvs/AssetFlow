@@ -56,13 +56,17 @@ ou do frontend.
 
 | id | Descrição | Estado padrão |
 |---|---|---|
+| `desenhista-v1` | O Claude desenha: receita de camadas → sprite na grade lógica ([formato](../../../docs/DESENHISTA.md)). | habilitada |
 | `mock-image-v1` | Gaveta de referência sem IA. Valida toda a arquitetura sem GPU. | habilitada |
 | `mock-pixel-alt-v1` | Segunda gaveta, existe para provar a substituição (§67). | desabilitada |
 
 As gavetas de difusão, as pontes para projetos externos e a de API paga
 saíram na Fase 0 do plano desenhista
-([PLANO_DESENHISTA_MCP.md](../../../docs/PLANO_DESENHISTA_MCP.md)). A próxima
-é a `desenhista-v1`, da Fase 1.
+([PLANO_DESENHISTA_MCP.md](../../../docs/PLANO_DESENHISTA_MCP.md)).
+
+Uma gaveta que só gera com uma entrada própria (como a receita da
+`desenhista-v1`) põe um `exemplo_contrato.json` ao lado do `manifest.json`: o
+teste de contrato envia o conteúdo em `engine_options[<id>]`.
 
 ## O que a gaveta **não** deve fazer
 

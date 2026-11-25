@@ -1,0 +1,67 @@
+{
+  "id": "desenhista-v1",
+  "name": "Desenhista (Claude via MCP)",
+  "version": "1.0.0",
+  "engine_api_version": "1",
+  "type": "image_generation",
+  "provider": "local_cpu",
+  "description": "Desenha o sprite na grade lógica a partir de uma receita curta de camadas (paleta, formas e linhas de pixels) enviada pelo Claude pelo servidor MCP do AssetFlow. Não carrega modelo nem usa GPU.",
+  "entrypoint": "assetflow.generation.engines.desenhista.engine:DesenhistaEngine",
+  "capabilities": [
+    "text_to_image.pixel",
+    "character.pixel",
+    "prop.pixel"
+  ],
+  "supports": {
+    "seed": false,
+    "negative_prompt": false,
+    "batch": false,
+    "transparency": true,
+    "progress_reporting": true,
+    "cancellation": true,
+    "lora": false,
+    "controlnet": false,
+    "image_reference": false,
+    "inpainting": false
+  },
+  "limits": {
+    "min_width": 8,
+    "min_height": 8,
+    "max_width": 4096,
+    "max_height": 4096,
+    "max_variations": 1,
+    "dimension_multiple_of": null
+  },
+  "resources": {
+    "gpu_required": false,
+    "recommended_vram_mb": 0,
+    "minimum_vram_mb": 0,
+    "supports_offloading": false,
+    "supports_quantization": false
+  },
+  "timeouts": {
+    "recommended_timeout_s": 30,
+    "load_timeout_s": 10
+  },
+  "catalog": {
+    "family": "agentic",
+    "quality_tier": "standard",
+    "speed_tier": "instant",
+    "license_type": "proprietary",
+    "summary": "O Claude desenha pixel a pixel na grade lógica; o AssetFlow faz o acabamento e a validação. Só atende pedidos feitos na conversa, pelo MCP.",
+    "highlights": [
+      "desenha direto na grade, sem redução",
+      "paleta exata, escolhida na receita",
+      "sem GPU e sem download de modelo"
+    ],
+    "badges": [
+      "MCP"
+    ],
+    "exact_resolution": true,
+    "palette_control": true,
+    "hidden": false,
+    "dev_only": false
+  },
+  "status": "enabled",
+  "requires": []
+}

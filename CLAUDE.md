@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1112 passed)
+pytest -q                                # suíte completa (1186 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -43,11 +43,15 @@ Para **olhar** o que uma gaveta produz (os testes escrevem em tmp):
 ```bash
 python scripts/preview_engine.py --engine mock-image-v1 -n 2
 python scripts/preview_engine.py --engine mock-image-v1 --profile studio_character
+python scripts/preview_engine.py --engine desenhista-v1 \
+    --receita assetflow/generation/engines/desenhista/exemplos/pocao_16x16.json \
+    --profile pixel_prop_64 --prompt "poção vermelha 16x16"
 ```
 
-Sempre nomeie a gaveta. Hoje `--engine all` e `--engine config` (o padrão) só
-alcançam as gavetas de referência, mas o hábito vale para quando houver uma
-gaveta real: o script liga a gaveta nomeada e gera de verdade.
+Sempre nomeie a gaveta: o script liga só a gaveta nomeada e gera com ela. A
+`desenhista-v1` só gera com `--receita` (um JSON no formato de
+[backend/docs/DESENHISTA.md](backend/docs/DESENHISTA.md)); com ele, o padrão
+passa a ser uma variação.
 
 O benchmark entre motores (`scripts/benchmark_engines.py`) saiu na Fase 0 do
 plano desenhista; as métricas de otimização continuam gravadas em todo job.
@@ -75,11 +79,20 @@ vira `config/pixel_knowledge/` está em
 [backend/docs/PIXEL_KNOWLEDGE.md](backend/docs/PIXEL_KNOWLEDGE.md). Leia os dois
 antes de mexer numa fase.
 
-Feito: **Fase 0** (limpeza) — saíram as gavetas de difusão (`diffusers-sdxl-v1`,
-`flux-pixel-v1`), as pontes externas (`sdpixl-v1`, `pixel-forge-v1`), a de API
-paga (`gpt-image-v1`), o benchmark entre motores e o extra `diffusers` do
-`pyproject.toml`. O modo Studio (2D Normal) ficou, dormente: nenhum motor real
-o atende.
+Feito:
+
+- **Fase 0** (limpeza) — saíram as gavetas de difusão (`diffusers-sdxl-v1`,
+  `flux-pixel-v1`), as pontes externas (`sdpixl-v1`, `pixel-forge-v1`), a de
+  API paga (`gpt-image-v1`), o benchmark entre motores e o extra `diffusers`
+  do `pyproject.toml`. O modo Studio (2D Normal) ficou, dormente: nenhum motor
+  real o atende.
+- **Fase 1** (gaveta desenhista) — `engines/desenhista/`, id `desenhista-v1`,
+  família `agentic`. Recebe a receita em
+  `engine_options["desenhista-v1"]["receita"]` e entrega a grade lógica 1:1.
+  Formato, espelho por camada, erros e avisos:
+  [backend/docs/DESENHISTA.md](backend/docs/DESENHISTA.md). O rasterizador
+  mora **dentro** da gaveta: o teste de fronteiras proíbe gaveta importar
+  `assetflow.pixel`, então o `PixelCanvas` não é reusado.
 
 ## Arquitetura
 
@@ -241,12 +254,24 @@ regras por tipo de asset, tamanho lógico, paleta e qualidade, cada uma com um
 obriga: um motor preferido que caia é substituído pelo fallback, porque em
 `auto` ninguém tinha escolhido.
 
-**Estado atual (depois da Fase 0):** as únicas gavetas são as de referência,
-`mock-image-v1` (habilitada) e `mock-pixel-alt-v1` (desabilitada). As duas são
-`catalog.hidden`, então o catálogo da tela vem **vazio** e o seletor só mostra
-"Automático". O `engine_policy.yaml` está com `rules: []` de propósito: a regra
-geral que prefere `desenhista-v1` entra na Fase 1, junto com a gaveta. Até lá,
-"Automático" cai no roteamento por capacidade de `capabilities.yaml`.
+**Estado atual (depois da Fase 1):** as gavetas são `desenhista-v1` (habilitada,
+visível no catálogo) e as de referência, `mock-image-v1` (habilitada) e
+`mock-pixel-alt-v1` (desabilitada), ambas `catalog.hidden`. No modo Pixel Art,
+o seletor da tela mostra "Automático" e "Desenhista (Claude via MCP)". A regra
+geral `pixel_geral` do `engine_policy.yaml` prefere a desenhista em todo
+pedido Pixel Art.
+
+A desenhista só atende quem manda **receita**, e a tela não manda. Por isso:
+escolhida à mão na tela, ela falha com a mensagem em português (motor
+escolhido é motor usado); em "Automático", ela recusa e o fallback cai nos
+mocks em desenvolvimento — fora dele não há mocks, e a mensagem chega à tela.
+
+**Gaveta sem seed não vira lotes.** O kernel divide um pedido em lotes pelo
+`max_variations` da gaveta, variando a seed. Para uma gaveta com
+`supports.seed: false`, isso só copiaria a imagem: o kernel recusa o pedido
+acima do limite com `InvalidGenerationRequest`, antes de carregar a gaveta
+(`kernel/service.py`, `_run_candidate`). A regra lê o manifesto; nenhum id é
+citado.
 
 **O frontend continua sem conhecer motor**: a lista vem de
 `GET /api/generation/engines/catalog`, com nome, resumo, selos e
@@ -299,7 +324,7 @@ peça que conhece as duas pontas. Detalhes em
 ### Configuração (`backend/config/`)
 
 - `engines.yaml` — quais gavetas existem (allowlist) e como cada uma é
-  configurada. Hoje só as duas de referência.
+  configurada: `desenhista-v1` e as duas de referência.
 - `profiles.yaml` — Generation Profiles: descrevem **o que** produzir
   (resolução lógica, paleta, variações), nunca **com qual motor**.
 - `pixel_profiles.yaml` — contratos Pixel Exact (`PixelOutputSpec`): fonte dos
@@ -312,7 +337,7 @@ peça que conhece as duas pontas. Detalhes em
   `engine_policy.yaml`.
 - `engine_policy.yaml` — as regras do motor no modo "Automático" (plano de
   motores §16): tipo + tamanho + paleta → motor preferido + motivo. Ausente
-  ou sem regras (o caso atual, até a Fase 1), `auto` volta a ser só o
+  ou sem regras, `auto` volta a ser só o
   roteamento por capacidade.
 - `optimizer.yaml` — o estágio que **toda** geração Pixel atravessa (plano
   Optimizer §33 e §42): teto de iterações, revisor e o interruptor de
@@ -339,7 +364,9 @@ sistema a uma tecnologia de IA. Ele proíbe, via AST:
 `tests/contract/test_engine_contract.py` gera casos automaticamente a partir
 dos manifestos descobertos: **toda gaveta nova é testada sem escrever teste
 novo**. Gavetas cujas dependências não estão instaladas são puladas, não
-falhadas.
+falhadas. Uma gaveta que precise de entrada própria para gerar (a desenhista
+precisa de receita) põe um `exemplo_contrato.json` ao lado do manifesto: o
+conteúdo vira `engine_options[<id>]` no pedido do contrato.
 
 ### Frontend
 
@@ -391,10 +418,10 @@ os imports são bare specifiers que só o Vite resolve.
   caminho do desenhista não usa chave nenhuma.
 - **`ASSETFLOW_APP_ENV=production` remove as gavetas de referência.** Os
   mocks declaram `catalog.dev_only` e deixam de ser **registrados** fora de
-  desenvolvimento — não são apenas escondidos. Até a gaveta desenhista existir
-  (Fase 1), isso deixa a geração **sem nenhum motor utilizável**, e não existe
-  um caminho alternativo que desenhe sozinho: o Pixel Optimizer corrige o que
-  um motor produziu. O padrão é `development`.
+  desenvolvimento — não são apenas escondidos. Em produção sobra só a
+  `desenhista-v1`, que exige receita: um "Gerar" da tela falha com a mensagem
+  dela, e não existe um caminho alternativo que desenhe sozinho — o Pixel
+  Optimizer corrige o que um motor produziu. O padrão é `development`.
 - **A suíte roda com as gavetas de referência, não com as entregues.** O
   `container` de teste desabilita tudo fora de `REFERENCE_ENGINES`
   (`tests/conftest.py`). A maior parte dos testes exercita *mecanismo* —

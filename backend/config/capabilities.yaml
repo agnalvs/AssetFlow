@@ -9,7 +9,10 @@
 #
 # Hoje as listas só têm as gavetas de referência: os motores de difusão e as
 # pontes externas saíram na Fase 0 do plano desenhista
-# (backend/docs/PLANO_DESENHISTA_MCP.md).
+# (backend/docs/PLANO_DESENHISTA_MCP.md). A `desenhista-v1` entra pela regra
+# `pixel_geral` de `engine_policy.yaml`, e não aqui: ela só atende pedidos com
+# receita, e no topo desta lista seria o primeiro motor tentado também quando
+# a política estiver desligada.
 # ---------------------------------------------------------------------------
 
 routing:

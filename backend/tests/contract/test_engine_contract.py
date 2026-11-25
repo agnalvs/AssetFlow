@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
 
@@ -45,6 +46,30 @@ from assetflow.generation.schemas import (
 
 ENGINES_ROOT = Path(__file__).resolve().parents[2] / "assetflow" / "generation" / "engines"
 DISCOVERED = discover_manifests([ENGINES_ROOT])
+
+#: Nome do arquivo opcional, ao lado do ``manifest.json``, com a entrada de
+#: exemplo que a gaveta precisa para gerar.
+EXEMPLO_CONTRATO = "exemplo_contrato.json"
+
+
+def _exemplo_de(source: Path) -> dict:
+    """As ``engine_options`` de exemplo que a gaveta declara, ou ``{}``.
+
+    Uma gaveta que só desenha a partir de uma entrada própria — a
+    ``desenhista-v1`` recebe uma receita — falharia em todo caso de geração
+    com o pedido genérico deste arquivo, e o contrato deixaria de cobrar
+    justamente o que importa nela. O arquivo dá ao contrato uma entrada
+    válida; o conteúdo vira ``engine_options[<id da gaveta>]``. Gavetas sem
+    ele recebem o pedido de sempre, e nenhum caso é pulado por causa disto.
+    """
+    caminho = source.parent / EXEMPLO_CONTRATO
+    if not caminho.exists():
+        return {}
+    return json.loads(caminho.read_text(encoding="utf-8"))
+
+
+#: Opções de exemplo por id de gaveta, lidas uma vez.
+EXEMPLOS = {entry.manifest.id: _exemplo_de(entry.source) for entry in DISCOVERED}
 
 #: Gavetas que exigem GPU baixam vários GB e levam minutos por imagem. Ficam
 #: fora da suíte padrão e entram sob demanda::
@@ -133,6 +158,9 @@ def _request(manifest: EngineManifest, *, seed: int | None = 1234) -> ImageGener
             max_colors=16,
         ),
         generation={"seed": seed} if seed is not None else {},
+        engine_options=(
+            {manifest.id: EXEMPLOS[manifest.id]} if EXEMPLOS.get(manifest.id) else {}
+        ),
     )
 
 

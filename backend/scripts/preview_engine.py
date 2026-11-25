@@ -19,6 +19,11 @@ Exemplos::
     python scripts/preview_engine.py --profile studio_character \\
         --prompt "cartoon knight with a red cape"
 
+    # a gaveta desenhista, a partir de uma receita em arquivo (uma variação)
+    python scripts/preview_engine.py --engine desenhista-v1 \\
+        --receita assetflow/generation/engines/desenhista/exemplos/pocao_16x16.json \\
+        --profile pixel_prop_64 --prompt "poção vermelha 16x16"
+
 Os PNGs vão para ``backend/data/preview/`` (ignorado pelo git).
 """
 
@@ -26,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -68,7 +74,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--prompt", default="young warrior with blue armor", help="Descrição do asset."
     )
-    parser.add_argument("-n", "--variations", type=int, default=2, help="Quantas variações.")
+    parser.add_argument(
+        "-n",
+        "--variations",
+        type=int,
+        default=None,
+        help="Quantas variações (padrão: 2; com --receita, 1).",
+    )
+    parser.add_argument(
+        "--receita",
+        type=Path,
+        default=None,
+        help=(
+            "Arquivo JSON com a receita de desenho, enviada em "
+            "engine_options[<gaveta>]['receita']. Exige --engine com o id da gaveta."
+        ),
+    )
     parser.add_argument("--seed", type=int, default=None, help="Seed (fixa = resultado repetível).")
     parser.add_argument(
         "--quality",
@@ -86,10 +107,7 @@ def parse_args() -> argparse.Namespace:
         "--render",
         type=int,
         default=None,
-        help=(
-            "Resolução quadrada pedida ao motor, sobrepondo o profile. "
-            "SDXL foi treinado em 1024; abaixo disso a composição degrada."
-        ),
+        help="Resolução quadrada pedida ao motor, sobrepondo o profile.",
     )
     parser.add_argument(
         "--out",
@@ -99,7 +117,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--keep", action="store_true", help="Não limpa a pasta de saída antes de gerar."
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.receita is not None and args.engine in {"all", "config"}:
+        parser.error("--receita exige --engine com o id da gaveta (ex.: desenhista-v1)")
+    if args.variations is None:
+        # Uma receita é um desenho só: mais variações seriam cópias, e a
+        # gaveta desenhista recusa. Fora dela, o padrão de sempre.
+        args.variations = 1 if args.receita is not None else 2
+    return args
 
 
 def activate_only(container, engine_id: str) -> None:
@@ -111,6 +136,11 @@ def activate_only(container, engine_id: str) -> None:
 
 async def generate(container, args, engine_id: str | None) -> list[dict]:
     """Roda um job e devolve a descrição das variações produzidas."""
+    engine_options = {}
+    if args.receita is not None and engine_id is not None:
+        receita = json.loads(args.receita.read_text(encoding="utf-8"))
+        engine_options[engine_id] = {"receita": receita}
+
     request = AssetGenerationRequest(
         project_id="preview",
         profile=args.profile,
@@ -123,6 +153,7 @@ async def generate(container, args, engine_id: str | None) -> list[dict]:
         ),
         seed=args.seed,
         quality=QualityLevel(args.quality),
+        engine_options=engine_options,
     )
 
     job = await container.service.submit(request)
@@ -173,8 +204,8 @@ async def main() -> int:
 
     # Atenção: só os *assets* vão para a pasta de preview, que é apagada a
     # cada execução. O `data_dir` continua sendo o do projeto, porque é dele
-    # que sai `engines/<id>/` — onde mora o modelo baixado (vários GB). Um
-    # rmtree em cima disso significaria rebaixar o SDXL toda vez.
+    # que sai `engines/<id>/` — a pasta de trabalho de cada gaveta. Um
+    # rmtree em cima disso apagaria o que as gavetas guardam entre execuções.
     settings = load_settings()
     settings.storage.root = str(out_dir / "assets")
     settings.storage.history_file = str(out_dir / "history" / "generations.jsonl")

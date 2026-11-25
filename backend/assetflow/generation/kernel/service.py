@@ -224,6 +224,22 @@ class GenerationKernel:
         manifest = candidate.record.manifest
         timings = StageTimings()
 
+        # Lotes repetem o pedido com seeds diferentes. Para uma gaveta que não
+        # usa seed, repetir é copiar: N lotes dariam N imagens idênticas, e um
+        # pedido de N variações seria atendido só na aparência. A regra vem do
+        # manifesto — nenhuma gaveta é citada aqui — e roda antes de carregar
+        # qualquer coisa.
+        limite = manifest.limits.max_variations
+        if request.output.variations > limite and not manifest.supports.seed:
+            raise InvalidGenerationRequest(
+                f"o motor '{manifest.id}' entrega no máximo {limite} variação(ões) "
+                f"por pedido e não usa seed: dividir as {request.output.variations} "
+                "variações pedidas em lotes só daria cópias idênticas. "
+                f"Peça no máximo {limite}.",
+                engine_id=manifest.id,
+                detail={"requested": request.output.variations, "max_variations": limite},
+            )
+
         was_loaded = handle.is_loaded
         execution.progress(0.02, "resolving_engine", engine_id=candidate.engine_id)
 

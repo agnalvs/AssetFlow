@@ -1,0 +1,33 @@
+{
+  "grade": [16, 16],
+  "paleta": {
+    "k": "#2d3436",
+    "v": "#a8d8e8",
+    "r": "#b03a2e",
+    "R": "#e3584a",
+    "m": "#8b5a2b",
+    "b": "#ffffff"
+  },
+  "camadas": [
+    {"nome": "silhueta", "espelho": "x", "ops": [
+      {"elipse": [3, 5, 10, 10], "cor": "k"},
+      {"ret": [6, 2, 2, 4], "cor": "k"}
+    ]},
+    {"nome": "vidro", "espelho": "x", "ops": [
+      {"elipse": [4, 6, 8, 8], "cor": "v"},
+      {"ret": [7, 3, 1, 4], "cor": "v"}
+    ]},
+    {"nome": "superficie", "espelho": "x", "ops": [
+      {"linha": [4, 9, 7, 9], "cor": "R"}
+    ]},
+    {"nome": "liquido", "ops": [
+      {"balde": [7, 11], "cor": "r"}
+    ]},
+    {"nome": "rolha", "espelho": "x", "ops": [
+      {"ret": [6, 1, 2, 2], "cor": "m"}
+    ]},
+    {"nome": "brilho", "ops": [
+      {"px": ["b.", ".b"], "em": [5, 7]}
+    ]}
+  ]
+}

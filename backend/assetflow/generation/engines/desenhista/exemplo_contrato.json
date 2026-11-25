@@ -1,0 +1,16 @@
+{
+  "receita": {
+    "grade": [32, 32],
+    "paleta": {"k": "#2d3436", "a": "#3a6ea5", "A": "#5b8fd1", "o": "#d4a017"},
+    "camadas": [
+      {"nome": "escudo", "espelho": "x", "ops": [
+        {"poligono": [6, 4, 15, 4, 15, 26, 10, 22, 6, 14], "cor": "a"},
+        {"linha": [15, 4, 6, 4, 6, 14, 10, 22, 15, 26], "cor": "k"}
+      ]},
+      {"nome": "brasao", "ops": [
+        {"elipse": [12, 9, 8, 8], "cor": "o"},
+        {"px": ["AA", "A."], "em": [8, 6]}
+      ]}
+    ]
+  }
+}

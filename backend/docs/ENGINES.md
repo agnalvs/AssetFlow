@@ -16,11 +16,12 @@
 > **Fase 0 do plano desenhista.** As gavetas de difusão (`diffusers-sdxl-v1`,
 > `flux-pixel-v1`), as pontes para projetos externos (`sdpixl-v1`,
 > `pixel-forge-v1`), a de API paga (`gpt-image-v1`) e o benchmark entre
-> motores saíram do repositório. A próxima gaveta é a `desenhista-v1`, que
-> recebe o desenho do Claude por um servidor MCP — ver
-> [PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md). A infraestrutura descrita
-> aqui (catálogo, política do modo Automático, governança) continua inteira:
-> ela foi escrita para não depender de motor nenhum.
+> motores saíram do repositório. Na Fase 1 entrou a `desenhista-v1`, que
+> recebe o desenho do Claude como uma receita — ver
+> [PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md) e
+> [DESENHISTA.md](DESENHISTA.md). A infraestrutura descrita aqui (catálogo,
+> política do modo Automático, governança) continuou inteira: ela foi escrita
+> para não depender de motor nenhum.
 
 O AssetFlow deixou de ser uma interface com um gerador e passou a ser uma
 plataforma com motores intercambiáveis. Este documento explica o que mudou,
@@ -51,10 +52,15 @@ Motivo: <o `reason` da regra de engine_policy.yaml que casou>
 Depois de gerar, o resultado diz quem gerou — e, se o motor pedido não pôde
 atender, diz isso em vez de entregar outro em silêncio.
 
-**Hoje o seletor só tem "Automático".** As duas gavetas que sobraram são de
-referência e ficam fora da vitrine (`catalog.hidden`); em "Automático", o
-roteamento por capacidade cai nelas. A gaveta `desenhista-v1` aparece no
-seletor sozinha quando entrar, sem mudança no frontend.
+**Hoje o seletor do modo Pixel Art tem "Automático" e "Desenhista (Claude via
+MCP)".** A desenhista apareceu ali sozinha, pelo manifesto, sem mudança no
+frontend. As gavetas de referência ficam fora da vitrine (`catalog.hidden`).
+
+A desenhista só desenha a partir de uma receita, e a tela não manda receita.
+Escolhida no seletor, ela falha com a mensagem dela (regra 1: motor escolhido
+é motor usado). Em "Automático", ela recusa e o fallback entra — em
+desenvolvimento, nos mocks; em produção não há mocks, e a mensagem chega à
+tela.
 
 **Nenhum id de motor está escrito no frontend.** A lista inteira vem de
 `GET /api/generation/engines/catalog`. Uma gaveta nova aparece no seletor sem
@@ -67,14 +73,19 @@ porque não é um motor.
 
 | id | família | estado padrão | para quê |
 |---|---|---|---|
+| `desenhista-v1` | agêntica | **habilitada** | o Claude desenha: receita de camadas → sprite na grade lógica ([DESENHISTA.md](DESENHISTA.md)) |
 | `mock-image-v1` | procedural | **habilitada** | gaveta de referência: valida a arquitetura sem GPU |
 | `mock-pixel-alt-v1` | procedural | desabilitada | só existe para testar troca de motor |
 
-As duas produzem um padrão determinístico, não arte. Elas declaram
+A desenhista entrega a grade lógica 1:1 (`catalog.exact_resolution: true`),
+não usa seed e entrega uma variação por pedido. Nenhuma das três precisa de
+GPU.
+
+As de referência produzem um padrão determinístico, não arte. Elas declaram
 `catalog.dev_only` e **deixam de ser registradas** com
-`ASSETFLOW_APP_ENV=production` — o que, até a gaveta desenhista existir, deixa
-a produção sem motor nenhum. É o comportamento esperado: o Pixel Optimizer
-corrige o que um motor produziu, e sem motor não há o que corrigir
+`ASSETFLOW_APP_ENV=production` — em produção sobra só a desenhista. Não há
+caminho que desenhe sozinho: o Pixel Optimizer corrige o que um motor
+produziu, e sem motor não há o que corrigir
 ([PIXEL_OPTIMIZER.md](PIXEL_OPTIMIZER.md) §5).
 
 Para ver o estado real da sua instalação, sem adivinhar:
@@ -122,10 +133,19 @@ avaliadas em ordem — da mais específica para a mais geral. Cada regra declara
 critérios (tipo de asset, tamanho lógico, paleta, qualidade, modo), uma ordem
 de preferência e um **motivo em português**, que é o que a tela mostra.
 
-A lista entregue está **vazia** nesta fase: as regras antigas preferiam os
-motores que saíram, e a regra geral da gaveta desenhista entra junto com ela,
-na Fase 1. Sem regra que case, a política se cala e o roteamento por
-capacidade decide.
+A lista entregue tem **uma** regra, `pixel_geral`: todo pedido Pixel Art
+prefere a `desenhista-v1`. Sem regra que case (o modo 2D Normal), a política
+se cala e o roteamento por capacidade decide.
+
+### Lotes e seed
+
+O kernel divide um pedido de N variações em lotes que respeitam o
+`limits.max_variations` da gaveta, variando a seed de lote para lote. Uma
+gaveta com `supports.seed: false` não tem como variar: os lotes seriam cópias.
+Por isso, para ela, um pedido acima do limite **falha** com
+`InvalidGenerationRequest`, antes de a gaveta carregar — em vez de entregar N
+imagens iguais. A regra lê o manifesto e não cita gaveta nenhuma
+(`kernel/service.py`, `_run_candidate`).
 
 A política nunca obriga e nunca inventa: ela só sugere motores registrados,
 habilitados e que declarem a capacidade pedida. Regra que casou mas não tem
@@ -198,6 +218,11 @@ O teste de contrato gera os casos sozinho a partir do manifesto — **motor novo
 é testado sem escrever teste novo**. Gavetas cujas dependências não estão
 instaladas, ou que se declaram indisponíveis no `health_check()`, são puladas
 em vez de falhadas.
+
+Se a gaveta só gera com uma entrada própria — a desenhista precisa de
+receita —, ponha um `exemplo_contrato.json` ao lado do `manifest.json`. O
+conteúdo vira `engine_options[<id>]` no pedido do contrato, e todos os casos
+rodam com uma entrada válida.
 
 Se a gaveta entrega a resolução lógica exata (desenha direto na grade),
 declare `catalog.exact_resolution: true`: o contrato passa a aceitar que a

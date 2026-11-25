@@ -168,6 +168,50 @@ def test_batching_respects_engine_limits():
     assert len({output.seed for output in result.outputs}) == 6
 
 
+def test_engine_without_seed_is_not_split_into_identical_batches():
+    """Lotes variam pela seed. Sem seed, dividir em lotes só copiaria a imagem.
+
+    A regra vem do manifesto (``supports.seed`` e ``limits.max_variations``),
+    não do id: este motor é o mock com outro rótulo, registrado aqui.
+    """
+    from assetflow.generation.kernel import build_factory
+    from assetflow.generation.kernel.exceptions import InvalidGenerationRequest
+
+    base = next(
+        entry.manifest
+        for entry in discover_manifests([ENGINES_ROOT])
+        if entry.manifest.id == "mock-image-v1"
+    )
+    sem_seed = base.model_copy(
+        update={
+            "id": "sem-seed-v1",
+            "supports": base.supports.model_copy(update={"seed": False}),
+            "limits": base.limits.model_copy(update={"max_variations": 1}),
+        }
+    )
+    registry = EngineRegistry()
+    registry.register(
+        sem_seed,
+        build_factory(sem_seed),
+        EngineRuntimeConfig(engine_id="sem-seed-v1", enabled=True),
+    )
+    kernel = GenerationKernel(registry, EngineResolver(registry, RoutingPolicy()))
+
+    with pytest.raises(InvalidGenerationRequest) as erro:
+        run(
+            kernel.execute(
+                _request(output=OutputSpec(width=128, height=128, variations=3)),
+                job_id="job_sem_seed",
+            )
+        )
+    assert "cópias idênticas" in erro.value.message
+    assert erro.value.detail == {"requested": 3, "max_variations": 1}
+
+    # Dentro do limite, o mesmo motor gera normalmente.
+    result = run(kernel.execute(_request(), job_id="job_sem_seed_ok"))
+    assert len(result.outputs) == 1
+
+
 def test_progress_and_cancellation_are_wired():
     kernel = _kernel("mock-image-v1")
     seen: list[tuple[float, str]] = []

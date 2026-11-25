@@ -41,7 +41,7 @@ Pergunta que guiou cada decisão (plano §73):
                             │  Engine Contract (única interface)
 ┌───────────────────────────▼──────────────────────────────────┐
 │ GAVETAS                              generation/engines/     │
-│ mock-image-v1 · mock-pixel-alt-v1 · (desenhista-v1)          │
+│ desenhista-v1 · mock-image-v1 · mock-pixel-alt-v1            │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -282,7 +282,7 @@ asset tecnicamente válido**. Detalhes em [PIXEL_EXACT.md](PIXEL_EXACT.md).
 | §10 Engine API Version | `schemas/engine.py` (`SUPPORTED_ENGINE_API_VERSIONS`) |
 | §11 Engine Registry | `kernel/registry.py` |
 | §12–14 Resolver, prioridade, seleção manual | `kernel/resolver.py`, `config/capabilities.yaml` |
-| §15–16 Primeiro motor real | removido na Fase 0 do plano desenhista ([PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md)); o próximo é `engines/desenhista/` |
+| §15–16 Primeiro motor real | `engines/desenhista/` (plano desenhista, Fase 1 — ver [DESENHISTA.md](DESENHISTA.md)); os de difusão saíram na Fase 0 |
 | §17 Estrutura de diretórios | `assetflow/generation/` |
 | §18 Proibição arquitetural | `tests/test_architecture_boundaries.py` |
 | §19–21 Request/Result universais | `schemas/request.py`, `schemas/result.py` |
@@ -332,8 +332,9 @@ Nenhum desses itens exigirá mudar o Engine Contract.
 
 ## 8. Próximos passos naturais
 
-1. **Motor real** — a gaveta `desenhista-v1`, que recebe o desenho do Claude
-   por MCP ([PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md), Fases 1 a 3).
+1. **Desenho pela conversa** — o servidor MCP que leva a receita do Claude à
+   gaveta `desenhista-v1` ([PLANO_DESENHISTA_MCP.md](PLANO_DESENHISTA_MCP.md),
+   Fases 2 e 3).
 2. **Broker distribuído** — implementar `JobQueue` sobre Redis/Celery e um
    `JobStore` compartilhado (roteiro em `jobs/celery_adapter.py`).
 3. **Persistência real** — trocar os repositórios em memória por banco,

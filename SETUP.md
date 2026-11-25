@@ -12,6 +12,7 @@ Vale entender isso antes, porque explica os passos seguintes:
 | | Vem no clone? | Como se obtém |
 |---|---|---|
 | Código do backend e do frontend | ✅ | `git clone` |
+| Gaveta `desenhista-v1` (`backend/assetflow/generation/engines/desenhista/`) | ✅ | `git clone` |
 | Gavetas de referência (`mock-image-v1`, `mock-pixel-alt-v1`) | ✅ | `git clone` |
 | Dependências Python (`fastapi`, `pydantic`, `Pillow`, `numpy`, …) | ❌ | `pip install` (passo 3) |
 | Dependências do front (`node_modules/`) | ❌ | `npm ci` (passo 4) |
@@ -19,8 +20,9 @@ Vale entender isso antes, porque explica os passos seguintes:
 Não há modelo de IA para baixar nem GPU para configurar. Os motores de difusão
 e as pontes para projetos externos saíram na Fase 0 do plano desenhista
 ([backend/docs/PLANO_DESENHISTA_MCP.md](backend/docs/PLANO_DESENHISTA_MCP.md)).
-O próximo motor, a gaveta `desenhista-v1`, recebe o desenho do Claude por um
-servidor MCP e também não exige GPU.
+O motor real é a gaveta `desenhista-v1`: o Claude desenha, como uma receita
+curta de camadas, e ela transforma a receita em sprite na grade lógica. Ela
+não exige GPU nem baixa nada.
 
 ---
 
@@ -30,9 +32,10 @@ servidor MCP e também não exige GPU.
 - **Node 18+** (referência: 24.12.0, npm 11.6.2)
 - **Git**
 
-Hoje as únicas gavetas são as de referência: o fluxo inteiro (job, fila, Pixel
-Exact, Pixel Optimizer, histórico, UI) roda igual, mas o que sai é um padrão
-determinístico, não arte. Veja o passo 6.
+A gaveta desenhista só gera a partir de uma receita, que chega pelo servidor
+MCP (Fase 2 do plano) ou, para testar, por arquivo (passo 6). As gavetas de
+referência rodam o fluxo inteiro (job, fila, Pixel Exact, Pixel Optimizer,
+histórico, UI), mas o que sai delas é um padrão determinístico, não arte.
 
 ---
 
@@ -55,12 +58,13 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
-Hoje: **`1112 passed`**. O número muda a cada recurso — o que importa é não
-haver `failed`. Os testes não usam GPU nem rede: as gavetas de referência
-existem para isso.
+Hoje: **`1186 passed, 1 skipped`**. O número muda a cada recurso — o que
+importa é não haver `failed`. Os testes não usam GPU nem rede.
 
-Uma gaveta cujas dependências não estão instaladas, ou que se declara
-indisponível na máquina, tem os testes de contrato **pulados**, não falhados.
+O pulado é deliberado: o caso de seed do contrato de gavetas, que a
+`desenhista-v1` não suporta (a mesma receita dá sempre o mesmo sprite). Uma
+gaveta cujas dependências não estão instaladas, ou que se declara indisponível
+na máquina, também tem os testes de contrato **pulados**, não falhados.
 Gavetas que exijam GPU ficam fora da suíte e entram com
 `ASSETFLOW_TEST_REAL_ENGINES=1`; hoje nenhuma exige.
 
@@ -132,10 +136,14 @@ Depois: **http://localhost:5173**
 
 Dois modos — **Pixel Art** e **2D Normal** —, um campo de descrição, o seletor
 de motor e o botão de gerar. A interface não conhece motor nenhum: a lista do
-seletor vem do backend. Hoje ela só tem **Automático**, com o aviso de que
-nenhum motor habilitado atende o modo: as gavetas de referência ficam fora da
-vitrine, mas continuam gerando em Automático. A gaveta desenhista aparece no
-seletor sozinha quando entrar.
+seletor vem do backend. No modo Pixel Art ela tem **Automático** e
+**Desenhista (Claude via MCP)**.
+
+A desenhista precisa de receita, e o botão de gerar não manda uma. Escolhida
+no seletor, ela falha com uma mensagem dizendo isso. Em Automático, ela recusa
+e o motor de referência gera no lugar, com o aviso de fallback — em
+desenvolvimento; em produção não há motor de referência, e a mensagem aparece.
+O desenho de verdade vem pela conversa com o Claude (Fase 2 do plano).
 
 Entre a descrição e o botão fica o painel **"O que o AssetFlow entendeu"**,
 fechado por padrão. Ele mostra a estrutura que o sistema montou da sua frase —
@@ -165,13 +173,25 @@ Os arquivos saem em `backend/data/preview/`, onde dá para abrir e olhar: o asse
 lógico, a ampliação de visualização, a saída crua do motor e os relatórios de
 processamento e validação em JSON.
 
+Para ver a **gaveta desenhista** transformar uma receita em sprite, passe a
+receita em arquivo. O exemplo é uma poção 16×16:
+
+```bash
+python scripts/preview_engine.py --engine desenhista-v1 \
+    --receita assetflow/generation/engines/desenhista/exemplos/pocao_16x16.json \
+    --profile pixel_prop_64 --prompt "poção vermelha 16x16"
+```
+
+O `16x16` no texto é o que faz o pedido sair em 16×16. O formato da receita
+está em [backend/docs/DESENHISTA.md](backend/docs/DESENHISTA.md).
+
 > O AssetFlow já teve um "Agente Pixel" que desenhava sozinho. Ele não é mais
 > uma alternativa ao motor: virou o **AssetFlow Pixel Optimizer**, que revisa o
 > sprite depois de qualquer motor
 > ([backend/docs/PIXEL_OPTIMIZER.md](backend/docs/PIXEL_OPTIMIZER.md)). A
 > contrapartida: sem um motor real, não há geração Pixel Art de verdade. Com
 > `ASSETFLOW_APP_ENV=production`, as gavetas de referência nem são
-> registradas, e a geração fica sem motor até a gaveta desenhista existir.
+> registradas, e sobra só a desenhista, que exige receita.
 
 Um job que precise de mais tempo pode alargar o teto do worker, que envolve o
 pipeline inteiro (padrão 900s):
@@ -288,6 +308,7 @@ Nada disso é usado mais. Para liberar espaço, apague só a subpasta de cache �
 | [backend/docs/PIXEL_KNOWLEDGE.md](backend/docs/PIXEL_KNOWLEDGE.md) | Práticas de pixel art e animação que viram configuração e validação. |
 | [backend/docs/ARCHITECTURE.md](backend/docs/ARCHITECTURE.md) | A infraestrutura de geração: trocar o motor sem tocar no produto. |
 | [backend/docs/ENGINES.md](backend/docs/ENGINES.md) | Catálogo, modo Automático e como acrescentar uma gaveta. |
+| [backend/docs/DESENHISTA.md](backend/docs/DESENHISTA.md) | O formato da receita de desenho da gaveta `desenhista-v1`. |
 | [backend/docs/PIXEL_EXACT.md](backend/docs/PIXEL_EXACT.md) | A tecnologia de Pixel Art: por que "parecer Pixel Art" não basta. |
 | [CLAUDE.md](CLAUDE.md) | Mapa curto do repositório e as armadilhas conhecidas. |
 | `backend/config/*.yaml` | Gavetas, Generation Profiles, contratos Pixel Exact e capacidades — cada arquivo comentado. |
