@@ -301,6 +301,16 @@ def test_humanoide_32_tem_cabeca_de_10_e_larguras_a_calibrar(base: BaseDeConheci
     assert all(medidas[nome].a_calibrar for nome in larguras)
 
 
+def test_vao_entre_membros_so_vale_com_o_membro_a_mostra(base: BaseDeConhecimento):
+    """Com manto, capa ou vestido, a silhueta é da roupa, e o vão não é exigido."""
+    regra = next(r for r in base.formas["humanoid"].regras if r.texto.startswith("vão entre braço"))
+
+    assert "quando a roupa deixa o membro à mostra" in regra.texto
+    for roupa in ("manto", "capa", "vestido", "roupa larga"):
+        assert roupa in regra.texto
+    assert regra.texto in montar_recorte(_spec(), base)
+
+
 def test_regras_de_sombra_e_de_equipamento(base: BaseDeConhecimento):
     assert any("vizinho imediato da rampa" in regra.texto for regra in base.luz.regras)
     assert any(

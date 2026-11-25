@@ -25,7 +25,9 @@ formas:
          classe: semantic, secao: "§3"}
       - {texto: "uma assimetria intencional: pose, arma, cabelo ou capa",
          classe: style, secao: "§3"}
-      - {texto: "vão entre braço e tronco e entre as pernas",
+      # O vão só vale com o membro à mostra; com roupa que cobre o corpo, a
+      # silhueta da roupa manda.
+      - {texto: "vão entre braço e tronco e entre as pernas quando a roupa deixa o membro à mostra; com manto, capa, vestido ou roupa larga, vale a silhueta da roupa",
          classe: semantic, secao: "§3"}
       - {texto: "partes vizinhas com valores diferentes, antes de matizes diferentes",
          classe: style, secao: "§3"}
