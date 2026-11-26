@@ -144,8 +144,10 @@ class AprendizadoSettings(AssetFlowModel):
     #: O arquivo. ``ASSETFLOW_APRENDIZADO_DB``.
     arquivo: str = "data/aprendizado/aprendizado.sqlite3"
     #: Liga o exemplo convertido de um sprite CC0 no recorte.
-    #: ``ASSETFLOW_EXEMPLO`` (``0`` desliga) — para medir se ajuda.
-    exemplo: bool = True
+    #: ``ASSETFLOW_EXEMPLO=1`` liga. **Desligado por padrão** desde 2026-11-25:
+    #: para personagem vestido, o único exemplo do porte era um corpo-base sem
+    #: roupa, e atrapalhou. Volta quando houver pacotes melhores, medido.
+    exemplo: bool = False
     #: Liga as lições no recorte. ``ASSETFLOW_LICOES`` (``0`` desliga).
     licoes: bool = True
     #: Quanto pesa uma lição da autora contra uma do Claude, na ordem do recorte.

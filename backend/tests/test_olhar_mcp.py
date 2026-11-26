@@ -156,7 +156,9 @@ def test_olhar_json_grava_o_envio_e_o_olho_no_asset(servico, container):
     documento = json.loads(arquivo.read_text(encoding="utf-8"))
     assert documento["pedido_id"] == pedido.id and documento["primeiro_olhar"] is True
     assert documento["olho"]["cabecalho"].startswith("olho do app")
-    assert documento["envio"]["exemplo_ligado"] is True and documento["envio"]["licoes_ligadas"] is True
+    # O exemplo nasce desligado (settings); as lições, ligadas.
+    assert documento["envio"]["exemplo_ligado"] is False and documento["envio"]["licoes_ligadas"] is True
+    assert documento["envio"]["exemplo"] is None
     assert depois.envio == documento["envio"], "o mesmo envio no pedido e no asset"
 
 
@@ -176,7 +178,29 @@ def _referencias_de_dois_pacotes(tmp_path: Path):
     return ReferenciasAtivas.carregar(raiz, _config(tmp_path / "r.yaml", "[pacote-a, pacote-b]"))
 
 
-def test_exemplo_entra_no_recorte_e_roda_entre_pacotes(servico, container, tmp_path):
+def test_exemplo_nasce_desligado(servico, container, tmp_path):
+    """Desligado por padrão: com pacotes ativos, o recorte sai sem exemplo."""
+    assert container.settings.aprendizado.exemplo is False
+    container.referencias = _referencias_de_dois_pacotes(tmp_path)
+    pedido = _pedido(container, "cavaleiro 32x32", "pixel_character_32")
+
+    texto = run(servico.pedidos_pendentes())
+
+    assert "exemplo de construção" not in texto
+    envio = container.pedidos.fila.obter(pedido.id).envio
+    assert envio["exemplo_ligado"] is False and envio["exemplo"] is None
+
+
+@pytest.fixture
+def com_exemplo(container: AppContainer) -> ServicoDesenhista:
+    """O exemplo ligado, como ``ASSETFLOW_EXEMPLO=1``."""
+    container.registry.enable(MOTOR)
+    container.settings.aprendizado.exemplo = True
+    return ServicoDesenhista(container)
+
+
+def test_exemplo_entra_no_recorte_e_roda_entre_pacotes(com_exemplo, container, tmp_path):
+    servico = com_exemplo
     container.referencias = _referencias_de_dois_pacotes(tmp_path)
     primeiro = _pedido(container, "cavaleiro 32x32", "pixel_character_32")
     texto = run(servico.pedidos_pendentes())
@@ -188,7 +212,8 @@ def test_exemplo_entra_no_recorte_e_roda_entre_pacotes(servico, container, tmp_p
     assert container.pedidos.fila.obter(segundo.id).envio["exemplo"]["pacote"] == "pacote-b"
 
 
-def test_pedidos_seguidos_na_mesma_resposta_recebem_pacotes_diferentes(servico, container, tmp_path):
+def test_pedidos_seguidos_na_mesma_resposta_recebem_pacotes_diferentes(com_exemplo, container, tmp_path):
+    servico = com_exemplo
     container.referencias = _referencias_de_dois_pacotes(tmp_path)
     a = _pedido(container, "cavaleiro 32x32", "pixel_character_32")
     b = _pedido(container, "arqueiro 32x32", "pixel_character_32")

@@ -52,6 +52,15 @@ def _licao(caixa: CaixaDeAprendizado, regra: str, **campos):
 # ---------------------------------------------------------------------------
 # Lições
 # ---------------------------------------------------------------------------
+def test_exemplo_desligado_por_padrao_e_liga_pelo_ambiente(monkeypatch, tmp_path):
+    from assetflow.settings import load_settings
+
+    assert load_settings(data_dir=tmp_path).aprendizado.exemplo is False
+    monkeypatch.setenv("ASSETFLOW_EXEMPLO", "1")
+    assert load_settings(data_dir=tmp_path).aprendizado.exemplo is True
+    assert load_settings(data_dir=tmp_path).aprendizado.licoes is True
+
+
 def test_temas_tem_natureza_e_acento_nao_importa():
     assert ler_tema("Proporção") is Tema.PROPORCAO
     assert Tema.LUZ.natureza is Natureza.TECNICA and Tema.POSE.natureza is Natureza.FORMA

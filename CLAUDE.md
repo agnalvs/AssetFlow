@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1642 passed, 1 skipped)
+pytest -q                                # suíte completa (1644 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -253,7 +253,9 @@ Feito:
     PIXEL_KNOWLEDGE.md e a regra de origem; `tests/test_olhar_lista.py`
     confere. O que a base não tem fica de fora, dito no cabeçalho do YAML;
   - **exemplo e lições têm interruptor e ficam gravados**: `ASSETFLOW_EXEMPLO`
-    e `ASSETFLOW_LICOES`; o que foi entregue vai para o pedido (`envio`) e para
+    (**desligado por padrão**: o único exemplo do porte para personagem vestido
+    era um corpo-base sem roupa; volta com pacotes melhores, medido) e
+    `ASSETFLOW_LICOES` (ligado); o que foi entregue vai para o pedido (`envio`) e para
     o asset (`000_olhar.json`). O exemplo: porte (estilo em ousado), rotação
     entre pacotes, quadro parado primeiro, teto 1.500; as lições: ligadas, do
     tipo e corpo, contador × peso (autora 3), 5 e 900 caracteres, só técnica

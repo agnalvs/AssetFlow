@@ -175,7 +175,8 @@ para o pedido — nunca a base inteira. Quem monta é
 | `silhuetas/*.yaml` | os nomes das camadas do molde-base; a receita inteira só com `molde=true` |
 
 Depois do recorte (Fase B2, cada um com o seu teto e o seu interruptor, fora do
-teto do recorte): **um exemplo de construção** — um sprite CC0 da biblioteca,
+teto do recorte): **um exemplo de construção** (desligado por padrão,
+`ASSETFLOW_EXEMPLO=1` liga) — um sprite CC0 da biblioteca,
 ou um asset seu com "gostei", convertido para receita; nunca base nem remendo —
 e **as lições** mais repetidas para aquele tipo e corpo. Em ousado, o exemplo
 sai do estilo e só entram as lições de técnica. [OLHAR.md](OLHAR.md) §3 e §4.

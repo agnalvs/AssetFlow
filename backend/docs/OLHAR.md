@@ -138,7 +138,7 @@ um asset e não entra em remendo.**
 
 `assetflow/referencias/exemplo.py`:
 
-- **um** exemplo por pedido, no fim do recorte, com o cabeçalho de origem
+- **desligado por padrão** (§5); ligado, **um** exemplo por pedido, no fim do recorte, com o cabeçalho de origem
   (pacote, autor, arquivo, licença CC0) e o JSON `{"paleta", "px"}`; chaves de
   cor pela luminância (`a` é a mais escura);
 - do **porte** do pedido (tipo, corpo, altura do corpo); sem porte que baste,
@@ -227,10 +227,16 @@ são mascotes de plataforma):
 
 | Settings | Env | Padrão |
 | --- | --- | --- |
-| `aprendizado.exemplo` | `ASSETFLOW_EXEMPLO` (`0` desliga) | ligado |
+| `aprendizado.exemplo` | `ASSETFLOW_EXEMPLO` (`1` liga) | **desligado** (ver abaixo) |
 | `aprendizado.licoes` | `ASSETFLOW_LICOES` | ligado |
 | `aprendizado.peso_autora` | `ASSETFLOW_LICOES_PESO_AUTORA` | 3 |
 | `pedidos.remendos` | `ASSETFLOW_PEDIDOS_REMENDOS` | 2 |
+
+**O exemplo nasce desligado** desde 2026-11-25. No teste da Fase B2 (a maga do
+gelo 48×48), o único exemplo do porte de 28 px para um personagem vestido foi o
+corpo-base sem roupa do `customizable-character-pack`, e atrapalhou. Ele volta
+quando houver pacotes melhores, com a diferença medida (`ASSETFLOW_EXEMPLO=1`
+para comparar). A guarda "repete o exemplo" só age quando há exemplo entregue.
 
 O que foi entregue com cada pedido — os interruptores, o exemplo (fonte,
 pacote, arquivo, tamanho e pixels) e as lições (id, contador, origem) — fica
