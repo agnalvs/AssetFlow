@@ -1,0 +1,3 @@
+# Scripts do Windows saem com CRLF em qualquer checkout, com ou sem core.autocrlf
+# (o cmd.exe tropeça em .bat com LF, e tests/test_iniciar.py confere).
+*.bat text eol=crlf
