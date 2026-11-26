@@ -50,7 +50,7 @@ from itertools import pairwise
 
 from PIL import Image
 
-from . import cor_e_luz
+from . import construcao, cor_e_luz
 from .receita import APAGAR, MANTER, Camada, Operacao, Receita, ReceitaInvalida
 
 __all__ = ["SIMBOLOS_DE_CAMADA", "Desenho", "Grade", "desenhar", "para_png"]
@@ -169,6 +169,11 @@ def _aplicar_camada(
     escritas: dict[Ponto, Celula] = {}
     alheias: dict[Ponto, Celula] = {}
     for op in camada.ops:
+        if op.forma in ("capsula", "copiar"):
+            for (x, y), valor in _construcao(op, trabalho, donos, avisos).items():
+                trabalho.escrever(x, y, valor)
+                escritas[(x, y)] = valor
+            continue
         if op.forma in cor_e_luz.EFEITOS:
             proprias, de_outras = _efeito(op, camada, escritas, trabalho, donos, luz)
             for (x, y), valor in proprias.items():
@@ -190,6 +195,62 @@ def _aplicar_camada(
     # A sombra projetada escurece outra camada sem tomar os pixels dela.
     for (x, y), valor in alheias.items():
         grade.escrever(x, y, valor)
+
+
+def _construcao(
+    op: Operacao, trabalho: Grade, donos: list[int | None] | None, avisos: list[str]
+) -> dict[Ponto, Celula]:
+    """``capsula`` e ``copiar`` (lote F3), recortados à grade."""
+    p = op.parametros
+    largura = trabalho.largura
+    if op.forma == "capsula":
+        celulas = construcao.celulas_da_capsula(op.numeros, p["espessura"])
+        if p.get("vao") is not None and donos is not None:
+            outra = p["vao"]
+            x0, y0 = op.numeros[0], op.numeros[1]
+            preso = p["espessura"] + 1
+            def encosta(c: Ponto) -> bool:
+                return any(
+                    trabalho.contem(c[0] + dx, c[1] + dy)
+                    and donos[(c[1] + dy) * largura + c[0] + dx] == outra
+                    for dx in (-1, 0, 1)
+                    for dy in (-1, 0, 1)
+                )
+            celulas = {
+                c for c in celulas
+                if max(abs(c[0] - x0), abs(c[1] - y0)) <= preso or not encosta(c)
+            }
+        borda = construcao.borda(celulas) if p.get("contorno") else set()
+        candidatas = {c: (p["contorno"] if c in borda else op.cor) for c in celulas}
+    else:  # copiar
+        origem = [
+            (i % largura, i // largura)
+            for i, dono in enumerate(donos or [])
+            if dono == p["camada"]
+        ]
+        if not origem:
+            raise ReceitaInvalida(f"{op.caminho}: a camada citada não pintou nada para copiar")
+        xs = [x for x, _ in origem]
+        ys = [y for _, y in origem]
+        soma_x, soma_y = min(xs) + max(xs), min(ys) + max(ys)
+        dx, dy = p["desloca"]
+        candidatas = {}
+        for x, y in origem:
+            nx = soma_x - x if p.get("espelho") == "x" else x
+            ny = soma_y - y if p.get("espelho") == "y" else y
+            candidatas[(nx + dx, ny + dy)] = trabalho.ler(x, y)
+    dentro = {c: v for c, v in candidatas.items() if trabalho.contem(*c)}
+    if candidatas and not dentro:
+        raise ReceitaInvalida(
+            f"{op.caminho}: a operação fica inteira fora da grade "
+            f"{trabalho.largura}×{trabalho.altura}"
+        )
+    if len(dentro) < len(candidatas):
+        avisos.append(
+            f"{op.caminho}: {len(candidatas) - len(dentro)} pixel(s) fora da grade "
+            f"{trabalho.largura}×{trabalho.altura} foram recortados"
+        )
+    return dentro
 
 
 def _efeito(

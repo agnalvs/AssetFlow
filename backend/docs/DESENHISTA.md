@@ -162,6 +162,8 @@ desligado, a receita que o usar é recusada.
 - **cor e luz** (`comandos_cor_e_luz`): `rampas` e `luz` na raiz, `material`
   na camada, e as operações `sombrear`, `brilho`, `oclusao` e
   `sombra_projetada`. Ver [LOTE_F2_COR_E_LUZ.md](LOTE_F2_COR_E_LUZ.md).
+- **construção** (`comandos_construcao`): `capsula` e `copiar` nas camadas,
+  `boneco` na raiz. Ver [LOTE_F3_CONSTRUCAO.md](LOTE_F3_CONSTRUCAO.md).
 
 ## 4. Erros e avisos
 

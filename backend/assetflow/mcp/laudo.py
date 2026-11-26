@@ -85,6 +85,8 @@ FORMATO_OPCIONAL = {
 cor e luz (opcionais): raiz "rampas": [{"chaves": "abc", "base": "#rrggbb", "desvio"?: 0–20}] gera os tons do escuro ao claro · raiz "luz": cima-esquerda|cima-direita|cima|esquerda|direita
      camada "material": metal|vidro|tecido|pele|madeira|pelo|pedra · {"sombrear": esfera|cilindro|caixa|plano, "rampa": "abc"} · {"brilho": "c", "sobre": "ab"}
      {"oclusao": "<camada anterior>", "cor": "a"} · {"sombra_projetada": "<camada de trás>", "cor": "a", "distancia"?: 1} — efeitos não valem em camada com espelho""",
+    "construcao": """construção (opcional): {"capsula": [x0, y0, x1, y1, (x2, y2)], "espessura": 1–8, "cor": "b", "contorno"?: "k", "vao"?: "<camada>"} · {"copiar": "<camada>", "desloca": [dx, dy], "espelho"?: "x"|"y"}
+     raiz "boneco": {"altura", "cabecas": 1.5–8, "chao", "centro", "forma": circulo|quadrado|triangulo, "acao": reta|curva|inclinada, "lado", "pose": parado|andando|ataque|conjurando, "cores": {"pele", "roupa", "contorno"}} — gera camadas boneco_* antes das suas""",
 }
 
 

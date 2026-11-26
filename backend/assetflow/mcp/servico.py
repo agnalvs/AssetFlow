@@ -1227,7 +1227,7 @@ def _grupos_ligados(container: AppContainer) -> set[str]:
         opcoes = engine_runtime_configs(container.settings)[MOTOR].options
     except (KeyError, ValueError):
         return set()
-    grupos = {"cor_e_luz"}
+    grupos = {"cor_e_luz", "construcao"}
     return {g for g in grupos if bool(opcoes.get(f"comandos_{g}", True))}
 
 

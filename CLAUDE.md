@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1708 passed, 1 skipped)
+pytest -q                                # suíte completa (1724 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -295,6 +295,11 @@ custo por desenho estão em [CUSTO.md](backend/docs/CUSTO.md).
   `comandos_cor_e_luz` nas opções da gaveta; o MCP só cita os grupos ligados
   (`formato_da_receita`). Efeito em camada com espelho é recusado. Detalhes:
   [backend/docs/LOTE_F2_COR_E_LUZ.md](backend/docs/LOTE_F2_COR_E_LUZ.md).
+- **Lote F3** (construção) — `engines/desenhista/construcao.py`: `capsula`
+  (membro com cotovelo, contorno e vão), `copiar` (com espelho) e o `boneco`
+  na raiz (cabeças, forma dominante, linha de ação, pose), que vira camadas
+  `boneco_*` antes das da receita. Interruptor `comandos_construcao`.
+  Detalhes: [backend/docs/LOTE_F3_CONSTRUCAO.md](backend/docs/LOTE_F3_CONSTRUCAO.md).
 
 ## Arquitetura
 

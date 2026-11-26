@@ -34,7 +34,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from .construcao import expandir_boneco
 from .cor_e_luz import DESVIO_MAXIMO, EFEITOS, LUZES, MATERIAIS, VOLUMES, gerar_rampa
+
+#: Operações de construção (lote F3): ``capsula`` e ``copiar``.
+CONSTRUCAO = ("capsula", "copiar")
 
 __all__ = [
     "ESPELHOS",
@@ -62,7 +66,7 @@ FORMAS = ("ret", "elipse", "linha", "poligono", "balde", "px")
 ESPELHOS = ("x", "y", "xy")
 
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
-_CHAVES_RAIZ = frozenset({"grade", "paleta", "camadas", "rampas", "luz"})
+_CHAVES_RAIZ = frozenset({"grade", "paleta", "camadas", "rampas", "luz", "boneco"})
 _CHAVES_CAMADA = frozenset({"nome", "espelho", "ops", "material"})
 #: Campos de cada efeito do lote F2 (cor e luz), além da própria chave.
 _EXTRAS_EFEITOS = {
@@ -71,8 +75,14 @@ _EXTRAS_EFEITOS = {
     "oclusao": frozenset({"cor", "sobre"}),
     "sombra_projetada": frozenset({"cor", "sobre", "distancia"}),
 }
+#: Campos das operações de construção (lote F3), além da própria chave.
+_EXTRAS_CONSTRUCAO = {
+    "capsula": frozenset({"espessura", "cor", "contorno", "vao"}),
+    "copiar": frozenset({"desloca", "espelho"}),
+}
 #: Nome de cada grupo de comandos opcionais, como o interruptor da gaveta o chama.
 COR_E_LUZ = "cor_e_luz"
+CONSTRUCAO_GRUPO = "construcao"
 #: Campos que cada forma aceita além da própria chave.
 _EXTRAS = {
     "ret": frozenset({"cor", "contorno"}),
@@ -162,6 +172,20 @@ def ler_receita(bruta: Any) -> Receita:
         usa.add(COR_E_LUZ)
 
     camadas_brutas = bruta.get("camadas")
+    if "boneco" in bruta:
+        # O boneco vira camadas no formato da receita, antes das da receita:
+        # elas pintam por cima dele (lote F3).
+        if not isinstance(bruta["boneco"], dict):
+            raise ReceitaInvalida("boneco: um objeto com altura, cabecas, chao, centro e cores")
+        try:
+            geradas = expandir_boneco(bruta["boneco"])
+        except ValueError as exc:
+            raise ReceitaInvalida(str(exc)) from exc
+        for chave in bruta["boneco"]["cores"].values():
+            if chave not in paleta:
+                raise ReceitaInvalida(f"boneco: a cor '{chave}' não está na paleta")
+        camadas_brutas = [*geradas, *(camadas_brutas or [])]
+        usa.add(CONSTRUCAO_GRUPO)
     if not isinstance(camadas_brutas, list) or not camadas_brutas:
         raise ReceitaInvalida(
             "a receita precisa de 'camadas': uma lista com pelo menos uma camada"
@@ -180,6 +204,8 @@ def ler_receita(bruta: Any) -> Receita:
         camadas.append(camada)
         if camada.material or any(op.forma in EFEITOS for op in camada.ops):
             usa.add(COR_E_LUZ)
+        if any(op.forma in CONSTRUCAO for op in camada.ops):
+            usa.add(CONSTRUCAO_GRUPO)
 
     return Receita(
         paleta=paleta, camadas=tuple(camadas), grade=grade, luz=luz, usa=frozenset(usa)
@@ -318,7 +344,7 @@ def _ler_operacao(
     if not isinstance(bruta, dict):
         raise ReceitaInvalida(f"{onde}: cada operação precisa ser um objeto, e chegou {_tipo(bruta)}")
 
-    todas = (*FORMAS, *EFEITOS)
+    todas = (*FORMAS, *EFEITOS, *CONSTRUCAO)
     formas = [chave for chave in bruta if chave in todas]
     if len(formas) != 1:
         achadas = ", ".join(formas) if formas else "nenhuma"
@@ -329,6 +355,8 @@ def _ler_operacao(
     forma = formas[0]
     if forma in EFEITOS:
         return _ler_efeito(bruta, forma, onde, paleta, anteriores or {})
+    if forma in CONSTRUCAO:
+        return _ler_construcao(bruta, forma, onde, paleta, anteriores or {})
     _sem_chaves_estranhas(bruta, _EXTRAS[forma] | {forma}, f"{onde} ({forma})")
     onde = f"{onde} ({forma})"
 
@@ -410,6 +438,51 @@ def _ler_efeito(
                 raise ReceitaInvalida(f"{onde}: 'distancia' vai de 1 a 4 pixels")
             parametros["distancia"] = distancia
     return Operacao(forma=efeito, cor=cor, caminho=onde, parametros=parametros)
+
+
+def _ler_construcao(
+    bruta: dict[str, Any], forma: str, onde: str, paleta: dict[str, RGB], anteriores: dict[str, int]
+) -> Operacao:
+    """``capsula`` e ``copiar`` (lote F3), conferidos no formato."""
+    _sem_chaves_estranhas(bruta, _EXTRAS_CONSTRUCAO[forma] | {forma}, f"{onde} ({forma})")
+    onde = f"{onde} ({forma})"
+    parametros: dict[str, Any] = {}
+    if forma == "capsula":
+        valor = bruta["capsula"]
+        if (
+            not isinstance(valor, list)
+            or len(valor) not in (4, 6)
+            or not all(_e_inteiro(v) for v in valor)
+        ):
+            raise ReceitaInvalida(
+                f"{onde}: esperava 2 ou 3 pontos, [x0, y0, x1, y1] ou [x0, y0, x1, y1, x2, y2]"
+            )
+        espessura = bruta.get("espessura", 2)
+        if not _e_inteiro(espessura) or not 1 <= espessura <= 8:
+            raise ReceitaInvalida(f"{onde}: 'espessura' vai de 1 a 8")
+        cor = bruta.get("cor")
+        if cor not in paleta:
+            raise ReceitaInvalida(f"{onde}: falta 'cor', a chave da paleta")
+        if "contorno" in bruta and bruta["contorno"] not in paleta:
+            raise ReceitaInvalida(f"{onde}: 'contorno' é a chave da cor da borda, na paleta")
+        parametros.update(espessura=espessura, contorno=bruta.get("contorno"))
+        if "vao" in bruta:
+            if bruta["vao"] not in anteriores:
+                raise ReceitaInvalida(f"{onde}: 'vao' cita uma camada desenhada antes desta")
+            parametros["vao"] = anteriores[bruta["vao"]]
+        return Operacao(forma=forma, numeros=tuple(valor), cor=cor, caminho=onde, parametros=parametros)
+    origem = bruta["copiar"]
+    if origem not in anteriores:
+        raise ReceitaInvalida(
+            f"{onde}: '{origem}' precisa ser uma camada desenhada antes desta "
+            f"(antes: {', '.join(anteriores) or 'nenhuma'})"
+        )
+    desloca = _inteiros(bruta.get("desloca", [0, 0]), 2, f"{onde}.desloca", formato="[dx, dy]")
+    espelho = bruta.get("espelho")
+    if espelho not in (None, "x", "y"):
+        raise ReceitaInvalida(f"{onde}: 'espelho' é 'x' ou 'y'")
+    parametros.update(camada=anteriores[origem], desloca=desloca, espelho=espelho)
+    return Operacao(forma=forma, caminho=onde, parametros=parametros)
 
 
 def _ler_px(bruta: dict[str, Any], onde: str, paleta: dict[str, RGB]) -> Operacao:

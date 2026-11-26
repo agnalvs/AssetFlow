@@ -42,7 +42,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `9c652c1` | Fase B2 do plano do app — ver, corrigir e aprender | `desenhar` e `ver_asset` devolvem a imagem do olhar (ampliada, silhueta, tamanho real; 294 tokens); olho do app (`referencias/olho.py`) com os desvios contra as referências do mesmo porte e o contraste entre camadas (mapa gravado pela gaveta); lista de verificação de `config/pixel_knowledge/olhar.yaml` no primeiro olhar. Aprovado no validador vai para `em_revisao` e conclui com `concluir_pedido`, até 2 remendos do olhar. Exemplo de construção CC0 convertido para receita (`referencias/exemplo.py`; regra dos sprites de terceiros mudada com autorização), guarda "repete o exemplo". `assetflow/aprendizado/` (lições, opiniões, exemplos mostrados; SQLite em `data/aprendizado/`), `registrar_licao`, `/api/aprendizado`, "gostei"/"não gostei" e lista de lições na tela. Interruptores `ASSETFLOW_EXEMPLO`/`ASSETFLOW_LICOES` e o envio gravado no pedido e no asset. `sqlite_curto.py` dividido pela fila e pelas lições. | 1642 / 1 |
 | `c48c920` | Ajuste da Fase B2 | `ASSETFLOW_EXEMPLO` passa a nascer desligado: no teste da maga do gelo, o único exemplo do porte para personagem vestido foi um corpo-base sem roupa, e atrapalhou. Volta com pacotes melhores, com a diferença medida. | 1644 / 1 |
 | `7baa4b5` | Lote 1 — banca e conceito | Banca de teste (`assetflow/banca/`, `config/banca.yaml`, `/api/banca`, página "Banca e Comparar"): rodadas ligadas a uma versão da base, comparação cega com nota de 1 a 5, resumo com veredito; custo por pedido registrado pelo MCP. Etapa de conceito: três modos por pedido, `propor_conceitos`, situação `escolhendo`, conceito na medida da grade, pergunta do conceito no olhar. Ajustes de custo em settings (`ASSETFLOW_CONCEITO`, `ASSETFLOW_PEDIDOS_REMENDOS`, `ASSETFLOW_OLHAR_LISTA_CURTA`), documentados em `CUSTO.md`. Entram `PLANO_BASE_CONHECIMENTO.md` e `FUNDAMENTOS_E_FERRAMENTAS.md`, da autora. | 1693 / 1 |
-| (este) | Lote F2 — cor e luz | Comandos opcionais da receita: `rampas` (com desvio de matiz), `luz`, `material`, `sombrear` (esfera, cilindro, caixa, plano), `brilho`, `oclusao`, `sombra_projetada`. Interruptor `comandos_cor_e_luz` em `engines.yaml`; o MCP mostra no formato só os grupos ligados. | 1708 / 1 |
+| `ebb0d2d` | Lote F2 — cor e luz | Comandos opcionais da receita: `rampas` (com desvio de matiz), `luz`, `material`, `sombrear` (esfera, cilindro, caixa, plano), `brilho`, `oclusao`, `sombra_projetada`. Interruptor `comandos_cor_e_luz` em `engines.yaml`; o MCP mostra no formato só os grupos ligados. | 1708 / 1 |
+| (este) | Lote F3 — construção | `capsula` (2 ou 3 pontos, espessura, contorno, vão até outra camada), `copiar` (deslocada, espelhada) e `boneco` na raiz (altura, cabeças, forma dominante, linha de ação, pose, cores), que vira camadas `boneco_*`. Interruptor `comandos_construcao`. | 1724 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -967,3 +968,11 @@ recusados em camada espelhada; ligado por padrão.
 
 Dúvidas: os números de intensidade e de contraste por material são `a
 calibrar`; o desvio de matiz vai para 240° e 60° fixos.
+
+### Lote F3 — construção ([LOTE_F3_CONSTRUCAO.md](LOTE_F3_CONSTRUCAO.md))
+
+Decisões: o boneco vira camadas antes do parse (os comandos de sempre o
+desenham); proporções do boneco são convenção minha, `a calibrar`; só
+humanoide; `vao` poupa a raiz do membro.
+
+Dúvidas: medir na banca se o boneco iguala os personagens; quatro poses fixas.
