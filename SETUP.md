@@ -103,6 +103,12 @@ npm run build
 
 ## 5. Rodar
 
+**Um clique:** o `iniciar.bat` da raiz sobe a API e a tela (ou usa as que já
+estão rodando), espera as duas responderem e abre o navegador no endereço
+certo, mesmo com a 5173 ocupada por outro programa
+([backend/docs/LOTE_10_INICIAR.md](backend/docs/LOTE_10_INICIAR.md)). O resto
+desta seção é o caminho à mão, que continua valendo.
+
 O frontend **não abre por `file://` nem por Live Server**: `src/main.tsx` é
 TypeScript + JSX, que browser nenhum executa, e os imports são bare specifiers
 (`"react"`) que só o Vite resolve. Quem traduz isso em tempo real é o dev server.

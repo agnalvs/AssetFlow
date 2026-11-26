@@ -49,7 +49,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `0ede490` | Lote F1 — linha e contorno | `reta` (degraus iguais), `curva` (Catmull-Rom pelos pontos, sem canto em L), `limpar_linha` (dobras, depois cantos, relata posições) e `contorno` na raiz (inteiro, seletivo, colorido). Interruptor `comandos_linha`. Olho do app: cantos em L, dobras e degraus no contorno escuro, contra limites por tipo calibrados nos pacotes ativos (p90, `scripts/calibrar_linha.py`). Ficha: `limpeza` cruza com as medidas novas; as perguntas `limpeza` reescritas no positivo (corrige o F5). | 1796 / 1 |
 | `fc14d13` | Lote F4 — detalhes e acabamento | `rosto`, `extremidade`, `suavizar`, `pontilhar`, `textura`, `luz_de_borda`; interruptor `comandos_acabamento`; recusas em sprite pequeno como aviso. Olho: pontilhado por manchas de xadrez, calibrado nos pacotes. Formato dos opcionais uma vez por conversa (`ASSETFLOW_FORMATO_UMA_VEZ`, `consultar_pedido(formato=true)`). | 1820 / 1 |
 | `0aa3827` | Lote 8 — base por temas | §4, 7, 8 e 17 do PIXEL_KNOWLEDGE em `config/pixel_knowledge/temas/` (5 temas, 32 regras com seção, fonte, verificação e etiquetas). Linha dos temas na consulta e uma vez no topo da lista; ferramenta `consultar_base`; regras de tema na ficha, com três medidas novas do validador (fragmentado, redundância, borda). Interruptor `ASSETFLOW_CONSULTAR_BASE`. | 1830 / 1 |
-| (este) | Lote 9 — cópia de segurança | `python -m assetflow.backup criar/listar/restaurar`, botão no rodapé e `/api/backup`: zip datado de `backend/data/` fora do repositório, bancos pela cópia do SQLite (com o `-wal`), restauração com hashes, recusa de banco em uso e guarda do que havia. Interruptor `ASSETFLOW_BACKUP`. | 1852 / 1 |
+| `6c920bc` | Lote 9 — cópia de segurança | `python -m assetflow.backup criar/listar/restaurar`, botão no rodapé e `/api/backup`: zip datado de `backend/data/` fora do repositório, bancos pela cópia do SQLite (com o `-wal`), restauração com hashes, recusa de banco em uso e guarda do que havia. Interruptor `ASSETFLOW_BACKUP`. | 1852 / 1 |
+| (este) | Lote 10 — um clique para abrir | `iniciar.bat` + `backend/scripts/iniciar.py`: reaproveita API e tela já de pé (IPv4 e IPv6), sobe as que faltam em portas livres, confere título e saúde pelo proxy, abre o navegador, encerra o que subiu. Conferido ao vivo com a 5173 ocupada. | 1858 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -1070,3 +1071,13 @@ referências entram por padrão.
 
 Dúvidas: cópia automática agendada não entrou; cópias antigas não são
 apagadas (~21 MB cada).
+
+### Lote 10 — um clique para abrir ([LOTE_10_INICIAR.md](LOTE_10_INICIAR.md))
+
+Decisões: o `.bat` é fino e chama um Python testável; reaproveita o que já
+está rodando; a porta da tela é escolhida pelo lançador, com `--strictPort`.
+Achado: a tela da autora escutava só em `[::1]:5173` — o `localhost` do Windows
+é IPv6 —, então o lançador procura nos dois endereços.
+
+Dúvidas: o servidor MCP não sobe pelo lançador (é do Claude Code); atalho com
+ícone não entrou.

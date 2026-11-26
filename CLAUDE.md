@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1852 passed, 1 skipped)
+pytest -q                                # suíte completa (1858 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -375,6 +375,13 @@ propostas sem ativar).
   `data/antes-da-restauracao-*`. Botão no rodapé, `/api/backup`, interruptor
   `ASSETFLOW_BACKUP`. Detalhes:
   [backend/docs/LOTE_9_BACKUP.md](backend/docs/LOTE_9_BACKUP.md).
+- **Lote 10** (um clique) — `iniciar.bat` na raiz chama
+  `backend/scripts/iniciar.py`: reaproveita API e tela do AssetFlow já de pé
+  (procura em `127.0.0.1` e em `[::1]`, porque no Windows `localhost` costuma
+  ser IPv6), sobe as que faltam em portas livres (a tela com `--strictPort` e
+  `ASSETFLOW_API_URL`), confere título e `/api/health` pelo proxy e só então
+  abre o navegador. Logs em `backend/data/iniciar/`. Detalhes:
+  [backend/docs/LOTE_10_INICIAR.md](backend/docs/LOTE_10_INICIAR.md).
 
 ## Arquitetura
 
