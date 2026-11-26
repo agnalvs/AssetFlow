@@ -1035,7 +1035,12 @@ class ServicoDesenhista:
     ) -> ExemploConvertido | None:
         referencias = self._container.referencias
         fontes = fontes_do_exemplo(
-            referencias, alvo.tipo, alvo.corpo, alvo.altura, por_estilo=ousado
+            referencias,
+            alvo.tipo,
+            alvo.corpo,
+            alvo.altura,
+            por_estilo=ousado,
+            so_bons=self._config.exemplo_so_bons,
         )
         gostei = self._gostei(alvo, grade)
         nomes = list(fontes) + ([FONTE_GOSTEI] if gostei else [])

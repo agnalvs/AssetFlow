@@ -1,0 +1,56 @@
+# PROPOSTA — regras que saíram do estudo dos 30 melhores sprites CC0 (lote 13).
+#
+# NÃO ESTÃO ATIVAS. A base só carrega `temas/`; esta pasta, `propostas/`,
+# nunca é lida no boot. Para aprovar, a autora move as regras que quiser para
+# um tema (ou move o arquivo inteiro para `temas/`). O formato é o de um tema:
+# cada regra com seção, fonte, verificação (lote F5) e etiquetas (lote 8).
+# tests/test_estudo.py confere que o arquivo é um tema válido, que os alvos de
+# verificação existem e que ele não entra na base.
+#
+# Técnicas e o porquê de cada regra: backend/docs/ESTUDO_SPRITES.md.
+tema: estudo_sprites
+titulo: "lições do estudo de sprites"
+secao: "§9"
+regras:
+  - {texto: "em 16 px, olhos de 1×1 ou 1×2 escuros; a boca é opcional",
+     classe: style, secao: "§9", verificacao: "construcao:rosto", a_calibrar: true,
+     fonte: "backend/docs/ESTUDO_SPRITES.md",
+     etiquetas: {tipos: [character], tamanho: [0, 20]}}
+  - {texto: "em 16 px, a cabeça ocupa cerca de 2/3 da altura e o corpo tem 4 a 5 px",
+     classe: style, secao: "§9", verificacao: "construcao:boneco", a_calibrar: true,
+     fonte: "backend/docs/ESTUDO_SPRITES.md",
+     etiquetas: {tipos: [character], corpos: [humanoid], tamanho: [0, 20]}}
+  - {texto: "o ponto de maior contraste do personagem fica no rosto ou no centro do peito",
+     classe: style, secao: "§9", verificacao: "autora",
+     etiquetas: {tipos: [character]}}
+  - {texto: "uma moldura escura (cabelo, capuz, juba) em volta do rosto claro",
+     classe: style, secao: "§9", verificacao: "olhar:*/valores",
+     etiquetas: {tipos: [character], liberdade: [fiel, equilibrado]}}
+  - {texto: "armadura ou máscara: um bloco escuro no lugar dos olhos faz o rosto",
+     classe: style, secao: "§9", verificacao: "olhar:*/silhueta",
+     etiquetas: {tipos: [character]}}
+  - {texto: "um elemento sai da silhueta e identifica: chifre, pluma, presa, orelha, ponta de faixa",
+     classe: semantic, secao: "§3", verificacao: "olhar:*/silhueta",
+     etiquetas: {tipos: [character]}}
+  - {texto: "uma marca de cor saturada ou complementar, pequena, que só este personagem tem",
+     classe: style, secao: "§9", verificacao: "autora",
+     etiquetas: {tipos: [character], liberdade: [fiel, equilibrado]}}
+  - {texto: "personagem escuro (ninja, sombra) com o contorno mais claro que ele",
+     classe: style, secao: "§4", verificacao: "olhar:*/silhueta",
+     etiquetas: {tipos: [character]}}
+  - {texto: "metal: faixa clara estreita ao lado da escura; dourado em 3 a 4 amarelos com um reflexo quase branco",
+     classe: style, secao: "§6", verificacao: "construcao:material", a_calibrar: true,
+     fonte: "backend/docs/ESTUDO_SPRITES.md"}
+  - {texto: "fruta: esfera com o brilho do lado da luz e uma folha de cor complementar",
+     classe: style, secao: "§10", verificacao: "olhar:prop/faces",
+     etiquetas: {tipos: [prop]}}
+  - {texto: "ícone até 12 px: um símbolo só diz o que o item é",
+     classe: semantic, secao: "§10", verificacao: "olhar:prop/uma ideia", a_calibrar: true,
+     fonte: "backend/docs/ESTUDO_SPRITES.md",
+     etiquetas: {tipos: [prop], tamanho: [0, 12]}}
+  - {texto: "relevo e entalhe: linha clara em cima, escura embaixo",
+     classe: style, secao: "§6", verificacao: "olhar:*/luz"}
+  - {texto: "de 40 px para cima, pose com linha de ação e um elemento que balança (cabelo, capa, cauda)",
+     classe: style, secao: "§9", verificacao: "olhar:humanoid/assimetria", a_calibrar: true,
+     fonte: "backend/docs/ESTUDO_SPRITES.md",
+     etiquetas: {tipos: [character], corpos: [humanoid], tamanho: [40, 4096]}}

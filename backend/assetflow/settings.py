@@ -159,6 +159,9 @@ class AprendizadoSettings(AssetFlowModel):
     #: para personagem vestido, o único exemplo do porte era um corpo-base sem
     #: roupa, e atrapalhou. Volta quando houver pacotes melhores, medido.
     exemplo: bool = False
+    #: Com o exemplo ligado, usa só os "bons exemplos" do estudo (lote 13:
+    #: ``data/referencias/bons_exemplos.json``). ``ASSETFLOW_EXEMPLO_SO_BONS``.
+    exemplo_so_bons: bool = True
     #: Liga as lições no recorte. ``ASSETFLOW_LICOES`` (``0`` desliga).
     licoes: bool = True
     #: Quanto pesa uma lição da autora contra uma do Claude, na ordem do recorte.
@@ -455,6 +458,7 @@ def load_settings(
     aprendizado = AprendizadoSettings(
         arquivo=_env("APRENDIZADO_DB") or str(data / "aprendizado" / "aprendizado.sqlite3"),
         exemplo=_env_bool("EXEMPLO", padrao_aprendizado.exemplo),
+        exemplo_so_bons=_env_bool("EXEMPLO_SO_BONS", padrao_aprendizado.exemplo_so_bons),
         licoes=_env_bool("LICOES", padrao_aprendizado.licoes),
         peso_autora=int(_env("LICOES_PESO_AUTORA") or padrao_aprendizado.peso_autora),
         lista_curta=_env_bool("OLHAR_LISTA_CURTA", padrao_aprendizado.lista_curta),

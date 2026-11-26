@@ -160,8 +160,13 @@ def fontes_do_exemplo(
     altura: int | None,
     *,
     por_estilo: bool = False,
+    so_bons: bool = False,
 ) -> dict[str, list[QuadroMedido]]:
-    """As fontes CC0 de exemplo deste pedido, cada uma com os quadros na ordem de preferência."""
+    """As fontes CC0 de exemplo deste pedido, cada uma com os quadros na ordem de preferência.
+
+    Com ``so_bons`` e uma lista de bons exemplos na coleção (lote 13), só os
+    quadros dela entram; sem lista, todos.
+    """
     parte = referencias.parte_do_exemplo(tipo, corpo, altura, por_estilo=por_estilo)
     if not parte.suficiente:
         return {}
@@ -171,6 +176,10 @@ def fontes_do_exemplo(
         if (m := referencias.manifesto(q.pacote)) is not None
         and m.license_id == LICENCA_PRINCIPAL
     ]
+    if so_bons and referencias.bons:
+        candidatos = [
+            q for q in candidatos if (q.pacote, q.arquivo, tuple(q.caixa)) in referencias.bons
+        ]
     if not candidatos:
         return {}
     alvo = (

@@ -121,6 +121,10 @@ class ReferenciasAtivas:
     pacotes: tuple[Manifesto, ...] = ()
     quadros: tuple[QuadroMedido, ...] = ()
     avisos: tuple[str, ...] = ()
+    #: Os "bons exemplos" (lote 13): ``(pacote, arquivo, caixa)`` dos quadros
+    #: que o estudo escolheu, lidos de ``<raiz>/bons_exemplos.json``. Vazio sem
+    #: o arquivo — o exemplo volta a escolher entre todos.
+    bons: frozenset[tuple[str, str, tuple[int, int, int, int]]] = frozenset()
 
     @classmethod
     def vazia(cls) -> ReferenciasAtivas:
@@ -157,6 +161,7 @@ class ReferenciasAtivas:
                 continue
             pacotes.append(manifesto)
             quadros.extend(_quadro(manifesto.id, bruto) for bruto in medidas.get("quadros") or [])
+        bons = _bons_exemplos(raiz / "bons_exemplos.json", avisos)
         for aviso in avisos:
             _LOG.warning("referências: %s", aviso)
         return cls(
@@ -165,6 +170,7 @@ class ReferenciasAtivas:
             pacotes=tuple(pacotes),
             quadros=tuple(quadros),
             avisos=tuple(avisos),
+            bons=bons,
         )
 
     # ------------------------------------------------------------------
@@ -332,6 +338,23 @@ class ReferenciasAtivas:
             return np.ascontiguousarray(pedaco[:0, :0])
         ys, xs = np.nonzero(opaco)
         return np.ascontiguousarray(pedaco[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1])
+
+
+def _bons_exemplos(
+    arquivo: Path, avisos: list[str]
+) -> frozenset[tuple[str, str, tuple[int, int, int, int]]]:
+    """A lista de bons exemplos do estudo (lote 13); vazia sem o arquivo."""
+    if not arquivo.is_file():
+        return frozenset()
+    try:
+        dados = json.loads(arquivo.read_text(encoding="utf-8"))
+        return frozenset(
+            (q["pacote"], q["arquivo"], tuple(int(v) for v in q["caixa"]))
+            for q in dados.get("quadros") or []
+        )
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        avisos.append(f"bons_exemplos.json ilegível, ignorado: {exc}")
+        return frozenset()
 
 
 def _quadro(pacote: str, bruto: dict[str, Any]) -> QuadroMedido:

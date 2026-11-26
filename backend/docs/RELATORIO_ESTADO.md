@@ -52,7 +52,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `6c920bc` | Lote 9 — cópia de segurança | `python -m assetflow.backup criar/listar/restaurar`, botão no rodapé e `/api/backup`: zip datado de `backend/data/` fora do repositório, bancos pela cópia do SQLite (com o `-wal`), restauração com hashes, recusa de banco em uso e guarda do que havia. Interruptor `ASSETFLOW_BACKUP`. | 1852 / 1 |
 | `a7680bf` | Lote 10 — um clique para abrir | `iniciar.bat` + `backend/scripts/iniciar.py`: reaproveita API e tela já de pé (IPv4 e IPv6), sobe as que faltam em portas livres, confere título e saúde pelo proxy, abre o navegador, encerra o que subiu. Conferido ao vivo com a 5173 ocupada. | 1858 / 1 |
 | `a1f3d33` | Lote 11 — aviso de servidor desatualizado | API e MCP gravam pid, commit e hora em `data/servidores/`; `/api/servidores` e a faixa da tela avisam quando um processo vivo está noutro commit ou subiu antes da última mudança de código ou `config/`. Leitor de commit em `assetflow/versao.py`. Interruptor `ASSETFLOW_AVISO_SERVIDOR`. | 1872 / 1 |
-| (este) | Lote 12 — painel de custo | Eventos de custo datados na fila (com as consultas sem pedido); `/api/custo` e o painel (hoje contra o limite, 7 dias, pedidos); limite diário que avisa na tela e no MCP sem bloquear. Interruptores `ASSETFLOW_PAINEL_CUSTO` e `ASSETFLOW_LIMITE_DIARIO_TOKENS`. | 1884 / 1 |
+| `e3a8158` | Lote 12 — painel de custo | Eventos de custo datados na fila (com as consultas sem pedido); `/api/custo` e o painel (hoje contra o limite, 7 dias, pedidos); limite diário que avisa na tela e no MCP sem bloquear. Interruptores `ASSETFLOW_PAINEL_CUSTO` e `ASSETFLOW_LIMITE_DIARIO_TOKENS`. | 1884 / 1 |
+| (este) | Lote 13 — estudo dos melhores sprites | 30 quadros CC0 olhados como imagem e analisados (rosto, contraste, volume, silhueta, técnica), análises em `data/referencias/estudo/`, técnicas gerais em `ESTUDO_SPRITES.md`; os 30 como bons exemplos (`ASSETFLOW_EXEMPLO_SO_BONS`); 13 regras propostas, não ativas, em `config/pixel_knowledge/propostas/`. | 1888 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -1102,3 +1103,14 @@ o aviso não bloqueia; no MCP, só nas respostas que começam trabalho.
 
 Dúvidas: o custo de antes do lote não tem data, e o painel só se enche
 depois de reconectar o MCP; tokens, não dinheiro.
+
+### Lote 13 — estudo dos melhores sprites ([ESTUDO_SPRITES.md](ESTUDO_SPRITES.md))
+
+Decisões: candidatos pelo primeiro quadro parado de cada folha, com teto por
+pacote; corpos-base sem roupa fora; um baú classificado como personagem pelo
+pacote fora (apareceria em pedido de personagem); os 30 marcados numa lista
+em `data/` (é sobre arquivos de terceiros), lida pela coleção; as regras
+propostas num arquivo de tema que a base não carrega, para aprovar é mover.
+
+Dúvidas: a escolha é gosto meu; um pacote dá um terço dos personagens; há
+poucos personagens de 32 a 48 px nos pacotes ativos.

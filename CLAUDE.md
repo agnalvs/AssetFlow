@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1884 passed, 1 skipped)
+pytest -q                                # suíte completa (1888 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -399,6 +399,14 @@ propostas sem ativar).
   linha no começo de `pedidos_pendentes` e `consultar_pedido`. Interruptor
   `ASSETFLOW_PAINEL_CUSTO`. Detalhes:
   [backend/docs/LOTE_12_CUSTO.md](backend/docs/LOTE_12_CUSTO.md).
+- **Lote 13** (estudo dos sprites) — 30 quadros CC0 escolhidos olhando
+  (9 pacotes, 19 personagens e 11 objetos, de 9×11 a 36×64), com análise de
+  cada um em `backend/data/referencias/estudo/` (fora do git) e as técnicas
+  gerais em [backend/docs/ESTUDO_SPRITES.md](backend/docs/ESTUDO_SPRITES.md).
+  Os 30 são os **bons exemplos** (`data/referencias/bons_exemplos.json`): com o
+  exemplo religado, ele escolhe só entre eles (`ASSETFLOW_EXEMPLO_SO_BONS`).
+  13 regras **propostas, não ativas**, em
+  `config/pixel_knowledge/propostas/` — a base só lê `temas/`; aprovar é mover.
 
 ## Arquitetura
 

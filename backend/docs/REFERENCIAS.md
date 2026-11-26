@@ -32,6 +32,8 @@ backend/data/referencias/            # o git ignora: é arte de terceiros
     original/…                       # os PNGs das partes escolhidas e os textos de licença
     medidas.json                     # o que o medidor extraiu
   calibracao.md                      # o último relatório
+  bons_exemplos.json                 # os 30 do estudo (lote 13): o exemplo usa só eles
+  estudo/estudo_sprites.{json,md}    # as análises de cada um (ESTUDO_SPRITES.md)
 backend/config/pixel_knowledge/referencias.yaml   # quais pacotes estão ativos (versionado)
 ```
 
