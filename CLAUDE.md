@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1830 passed, 1 skipped)
+pytest -q                                # suíte completa (1852 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -72,6 +72,14 @@ python -m assetflow.referencias importar <zip|pasta> --pacote <id> --fonte <url>
     --autor "<nome>" --licenca CC0-1.0 --licenca-url <url> --parte "PADRAO:TIPO[:CORPO][:QUADRO]"
 python -m assetflow.referencias listar      # o que está ativo e os avisos
 python -m assetflow.referencias calibrar    # propõe ajustes; não altera YAML
+```
+
+Cópia de segurança de `backend/data/` (lote 9; o zip fica fora do repositório,
+em `~/AssetFlow-copias` ou `ASSETFLOW_BACKUP_DIR`):
+
+```bash
+python -m assetflow.backup criar             # ou o botão no rodapé da tela
+python -m assetflow.backup restaurar <zip>   # ensaio; --sim restaura (feche API e MCP)
 ```
 
 Pacotes em `backend/data/referencias/` (fora do git); quais valem, em
@@ -359,6 +367,14 @@ propostas sem ativar).
   regras de tema que valem entram na ficha. Interruptor
   `ASSETFLOW_CONSULTAR_BASE`. Detalhes:
   [backend/docs/LOTE_8_BASE.md](backend/docs/LOTE_8_BASE.md).
+- **Lote 9** (cópia de segurança) — `assetflow/backup/`: zip datado de
+  `backend/data/` (assets, histórico, fila, lições, banca, referências) fora
+  do repositório, com `copia.json` (sha256 de cada arquivo). Cada banco sai
+  pela cópia do próprio SQLite, que já traz o `-wal`; restaurar confere os
+  hashes, recusa banco em uso e guarda o que havia em
+  `data/antes-da-restauracao-*`. Botão no rodapé, `/api/backup`, interruptor
+  `ASSETFLOW_BACKUP`. Detalhes:
+  [backend/docs/LOTE_9_BACKUP.md](backend/docs/LOTE_9_BACKUP.md).
 
 ## Arquitetura
 

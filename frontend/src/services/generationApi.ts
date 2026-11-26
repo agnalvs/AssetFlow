@@ -20,6 +20,8 @@ import {
   type BancaResumo,
   type Comparacao,
   type Conceito,
+  type CopiaDeSeguranca,
+  type CopiasDeSeguranca,
   type EdicaoResultado,
   type EditorDados,
   type Ficha,
@@ -281,6 +283,16 @@ export function opinar(assetId: string, gostei: boolean, motivo?: string): Promi
     method: "PUT",
     body: JSON.stringify({ gostei, motivo: motivo?.trim() || null }),
   });
+}
+
+/** As cópias de segurança de `backend/data/` (lote 9). */
+export function listarCopias(): Promise<CopiasDeSeguranca> {
+  return request<CopiasDeSeguranca>("/api/backup");
+}
+
+/** Grava uma cópia de segurança fora do repositório. */
+export function criarCopia(): Promise<CopiaDeSeguranca> {
+  return request<CopiaDeSeguranca>("/api/backup", { method: "POST" });
 }
 
 /** A grade e a paleta do asset pronto, para o editor de pixels (lote 5). */

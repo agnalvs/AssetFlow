@@ -12,6 +12,7 @@ import { GeneratorHero } from "./components/GeneratorHero";
 import { Header } from "./components/Header";
 import { LiberdadeControls } from "./components/LiberdadeControls";
 import { BancaPage } from "./components/BancaPage";
+import { CopiaDeSeguranca } from "./components/CopiaDeSeguranca";
 import { LicoesPanel } from "./components/LicoesPanel";
 import { PedidosList } from "./components/PedidosList";
 import { PromptInput } from "./components/PromptInput";
@@ -286,6 +287,7 @@ export function App() {
       )}
 
       <footer className="page__footer">
+        <CopiaDeSeguranca />
         <p>
           O AssetFlow tem um gerador só: o <strong>desenhista</strong>, em que o Claude
           desenha o sprite na grade lógica a partir de uma receita. Todo desenho passa

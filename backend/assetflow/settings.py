@@ -190,6 +190,20 @@ class AprendizadoSettings(AssetFlowModel):
     espera_s: float = Field(default=5.0, ge=0)
 
 
+class BackupSettings(AssetFlowModel):
+    """A cópia de segurança de ``backend/data/`` (lote 9)."""
+
+    #: Liga o botão da tela e a rota ``/api/backup``. ``ASSETFLOW_BACKUP``
+    #: (``0`` desliga). O comando ``python -m assetflow.backup`` vale sempre.
+    ligado: bool = True
+    #: Onde as cópias ficam: **fora do repositório** (a cópia recusa uma pasta
+    #: dentro dele). ``ASSETFLOW_BACKUP_DIR``.
+    pasta: str = "~/AssetFlow-copias"
+    #: Leva também os pacotes de referência importados à mão (~13 MB).
+    #: ``ASSETFLOW_BACKUP_REFERENCIAS``.
+    referencias: bool = True
+
+
 class BancaSettings(AssetFlowModel):
     """A banca de teste (etapa K1 do plano da base de conhecimento)."""
 
@@ -215,6 +229,7 @@ class Settings(AssetFlowModel):
     pedidos: PedidosSettings = Field(default_factory=PedidosSettings)
     aprendizado: AprendizadoSettings = Field(default_factory=AprendizadoSettings)
     banca: BancaSettings = Field(default_factory=BancaSettings)
+    backup: BackupSettings = Field(default_factory=BackupSettings)
 
     #: Conteúdo bruto dos YAMLs (interpretado pelos respectivos registries).
     engines_config: dict[str, Any] = Field(default_factory=dict)
@@ -441,6 +456,11 @@ def load_settings(
         aprendizado=aprendizado,
         banca=BancaSettings(
             arquivo=_env("BANCA_DB") or str(data / "banca" / "banca.sqlite3"),
+        ),
+        backup=BackupSettings(
+            ligado=_env_bool("BACKUP", True),
+            pasta=_env("BACKUP_DIR") or BackupSettings().pasta,
+            referencias=_env_bool("BACKUP_REFERENCIAS", True),
         ),
         engines_config=engines_config,
         capabilities_config=capabilities_config,

@@ -565,6 +565,22 @@ class ConceitoEscolha(AssetFlowModel):
     simplificar: str | None = None
 
 
+class CopiaView(AssetFlowModel):
+    """Uma cópia de segurança de ``backend/data/`` (lote 9)."""
+
+    arquivo: str
+    nome: str
+    criada_em: str
+    tamanho: int
+    arquivos: int
+    commit: str | None = None
+
+
+class CopiasResponse(AssetFlowModel):
+    pasta: str
+    items: list[CopiaView] = Field(default_factory=list)
+
+
 class EditorView(AssetFlowModel):
     """A grade lógica de um asset pronto, para o editor de pixels (lote 5)."""
 

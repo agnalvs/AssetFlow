@@ -527,6 +527,21 @@ export interface Ficha {
   divergencias: FichaDivergencia[];
 }
 
+/** Uma cópia de segurança de `backend/data/` (lote 9). */
+export interface CopiaDeSeguranca {
+  arquivo: string;
+  nome: string;
+  criada_em: string;
+  tamanho: number;
+  arquivos: number;
+  commit: string | null;
+}
+
+export interface CopiasDeSeguranca {
+  pasta: string;
+  items: CopiaDeSeguranca[];
+}
+
 /** A grade lógica de um asset pronto, para o editor de pixels (lote 5). */
 export interface EditorDados {
   pedido_id: string;

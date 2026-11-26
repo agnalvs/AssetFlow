@@ -722,3 +722,23 @@ def test_engines_ignore_the_editor(path: Path):
         if _imports_any(module, ("assetflow.editor",))
     ]
     assert not violations, "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# Cópia de segurança (lote 9)
+# ---------------------------------------------------------------------------
+BACKUP_FILES = _python_files(PACKAGE_ROOT / "backup")
+
+
+def test_there_are_backup_files_to_inspect():
+    assert len(BACKUP_FILES) >= 3
+
+
+@pytest.mark.parametrize("path", BACKUP_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT)))
+def test_backup_does_not_import_api_mcp_engines_or_jobs(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, LAYERS_FORBIDDEN_TO_EDITOR)
+    ]
+    assert not violations, "assetflow/backup/ é estante:\n" + "\n".join(violations)

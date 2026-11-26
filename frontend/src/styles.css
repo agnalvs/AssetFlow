@@ -94,6 +94,20 @@ input {
   font-size: 0.82rem;
 }
 
+.copia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.page__footer .copia__estado {
+  margin: 0;
+  font-size: 0.8rem;
+  max-width: 640px;
+}
+
 .page__footer p {
   max-width: 520px;
   margin: 0 auto;
