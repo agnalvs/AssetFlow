@@ -149,9 +149,9 @@ def situacao(settings: Settings) -> dict[str, Any]:
             motivo = f"{onde} mudou às {_hora(limite)}, depois que ele subiu ({_hora(registro.subiu_ts)})"
         processos.append({**asdict(registro), "desatualizado": motivo is not None, "motivo": motivo})
         if motivo and registro.processo == "mcp":
-            avisos.append(f"O servidor MCP {motivo}: reconecte pelo /mcp no Claude Code.")
+            avisos.append(f"O servidor MCP está desatualizado — {motivo}: reconecte pelo /mcp no Claude Code.")
         elif motivo:
-            avisos.append(f"A API {motivo}: reinicie a API.")
+            avisos.append(f"A API está desatualizada — {motivo}: reinicie a API.")
     return {
         "codigo": {
             "commit": commit,
