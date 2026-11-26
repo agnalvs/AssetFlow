@@ -87,6 +87,16 @@ input {
   gap: 36px;
 }
 
+.aviso-servidor {
+  margin: 0;
+  padding: 10px 24px;
+  background: #3a2a12;
+  border-bottom: 1px solid #f2b870;
+  color: #f7d9a8;
+  font-size: 0.86rem;
+  text-align: center;
+}
+
 .page__footer {
   padding: 28px 24px 40px;
   text-align: center;

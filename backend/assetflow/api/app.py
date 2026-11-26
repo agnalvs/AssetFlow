@@ -21,6 +21,7 @@ from ..banca import BancaInvalida, ErroDaBanca, RodadaNaoEncontrada
 from ..bootstrap import AppContainer, build_container
 from ..generation.kernel.exceptions import ErrorCode, GenerationError
 from ..pedidos import ErroDaFila, PedidoNaoEncontrado, TransicaoRecusada
+from ..servidores import registrar, remover_registro, situacao
 from ..settings import Settings
 from ..version import __version__
 from .routers import (
@@ -81,10 +82,17 @@ def create_app(
         app_container = container or build_container(settings)
         app.state.container = app_container
         await app_container.startup()
+        # Lote 11: em que commit esta API subiu, para a tela avisar quando ela
+        # (ou o servidor MCP) estiver rodando código antigo.
+        try:
+            registrar(app_container.settings, "api")
+        except OSError as exc:  # sem data/ gravável, só não há aviso
+            _LOG.warning("não deu para registrar a API em data/servidores: %s", exc)
         _LOG.info("AssetFlow API iniciada (v%s)", __version__)
         try:
             yield
         finally:
+            remover_registro(app_container.settings, "api")
             await app_container.shutdown()
             _LOG.info("AssetFlow API encerrada")
 
@@ -217,6 +225,14 @@ def create_app(
                 detail={"errors": errors},
             ).model_dump(mode="json"),
         )
+
+    @app.get("/api/servidores", tags=["health"], summary="Em que código a API e o MCP estão (lote 11)")
+    async def servidores(request: Request) -> dict:
+        app_container = request.app.state.container
+        estado = situacao(app_container.settings)
+        if not app_container.settings.servidores.aviso:
+            estado["aviso"] = None
+        return estado
 
     @app.get("/api/health", response_model=HealthResponse, tags=["health"])
     async def health(request: Request) -> HealthResponse:

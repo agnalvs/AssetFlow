@@ -271,4 +271,15 @@ def main() -> None:
     settings.worker.embedded = False
     container = build_container(settings)
     servidor = criar_servidor(ServicoDesenhista(container), ao_encerrar=container.shutdown)
-    servidor.run()
+    # Lote 11: em que commit este servidor subiu; a tela avisa quando o código
+    # mudar e for preciso reconectar pelo /mcp.
+    from ..servidores import registrar, remover_registro
+
+    try:
+        registrar(settings, "mcp")
+    except OSError:
+        pass  # sem data/ gravável, só não há aviso
+    try:
+        servidor.run()
+    finally:
+        remover_registro(settings, "mcp")

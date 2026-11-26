@@ -22,6 +22,7 @@ import {
   type Conceito,
   type CopiaDeSeguranca,
   type CopiasDeSeguranca,
+  type EstadoDosServidores,
   type EdicaoResultado,
   type EditorDados,
   type Ficha,
@@ -283,6 +284,11 @@ export function opinar(assetId: string, gostei: boolean, motivo?: string): Promi
     method: "PUT",
     body: JSON.stringify({ gostei, motivo: motivo?.trim() || null }),
   });
+}
+
+/** Em que código a API e o servidor MCP estão, e o aviso (lote 11). */
+export function lerServidores(): Promise<EstadoDosServidores> {
+  return request<EstadoDosServidores>("/api/servidores");
 }
 
 /** As cópias de segurança de `backend/data/` (lote 9). */

@@ -190,6 +190,14 @@ class AprendizadoSettings(AssetFlowModel):
     espera_s: float = Field(default=5.0, ge=0)
 
 
+class ServidoresSettings(AssetFlowModel):
+    """O aviso de servidor desatualizado (lote 11)."""
+
+    #: A tela avisa quando o servidor MCP (ou a API) roda código antigo.
+    #: ``ASSETFLOW_AVISO_SERVIDOR`` (``0`` desliga o aviso; o registro continua).
+    aviso: bool = True
+
+
 class BackupSettings(AssetFlowModel):
     """A cópia de segurança de ``backend/data/`` (lote 9)."""
 
@@ -230,6 +238,7 @@ class Settings(AssetFlowModel):
     aprendizado: AprendizadoSettings = Field(default_factory=AprendizadoSettings)
     banca: BancaSettings = Field(default_factory=BancaSettings)
     backup: BackupSettings = Field(default_factory=BackupSettings)
+    servidores: ServidoresSettings = Field(default_factory=ServidoresSettings)
 
     #: Conteúdo bruto dos YAMLs (interpretado pelos respectivos registries).
     engines_config: dict[str, Any] = Field(default_factory=dict)
@@ -457,6 +466,7 @@ def load_settings(
         banca=BancaSettings(
             arquivo=_env("BANCA_DB") or str(data / "banca" / "banca.sqlite3"),
         ),
+        servidores=ServidoresSettings(aviso=_env_bool("AVISO_SERVIDOR", True)),
         backup=BackupSettings(
             ligado=_env_bool("BACKUP", True),
             pasta=_env("BACKUP_DIR") or BackupSettings().pasta,

@@ -527,6 +527,22 @@ export interface Ficha {
   divergencias: FichaDivergencia[];
 }
 
+/** Em que código a API e o servidor MCP estão (lote 11). */
+export interface ProcessoDoServidor {
+  processo: "api" | "mcp";
+  pid: number;
+  commit: string | null;
+  subiu_em: string;
+  desatualizado: boolean;
+  motivo: string | null;
+}
+
+export interface EstadoDosServidores {
+  codigo: { commit: string | null; alterado_em: string | null };
+  processos: ProcessoDoServidor[];
+  aviso: string | null;
+}
+
 /** Uma cópia de segurança de `backend/data/` (lote 9). */
 export interface CopiaDeSeguranca {
   arquivo: string;

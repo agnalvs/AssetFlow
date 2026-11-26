@@ -10,6 +10,8 @@ from typing import Any
 
 import yaml
 
+from ..versao import commit_do_git
+
 __all__ = [
     "Banca",
     "BancaInvalida",
@@ -87,26 +89,3 @@ def impressao_da_base(diretorio: Path, extras: Mapping[str, Any] | None = None) 
     return soma.hexdigest()[:12]
 
 
-def commit_do_git(raiz: Path) -> str | None:
-    """O commit em que o repositório está, lido do ``.git`` sem chamar o git."""
-    for pasta in (raiz, *raiz.parents):
-        git = pasta / ".git"
-        if not git.is_dir():
-            continue
-        try:
-            cabeca = (git / "HEAD").read_text(encoding="utf-8").strip()
-            if not cabeca.startswith("ref:"):
-                return cabeca[:7]
-            ref = cabeca.split(":", 1)[1].strip()
-            arquivo = git / ref
-            if arquivo.is_file():
-                return arquivo.read_text(encoding="utf-8").strip()[:7]
-            empacotadas = git / "packed-refs"
-            if empacotadas.is_file():
-                for linha in empacotadas.read_text(encoding="utf-8").splitlines():
-                    if linha.endswith(" " + ref):
-                        return linha.split(" ", 1)[0][:7]
-        except OSError:
-            return None
-        return None
-    return None

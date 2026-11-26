@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1858 passed, 1 skipped)
+pytest -q                                # suíte completa (1872 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -28,7 +28,8 @@ ruff check .                             # lint (sem config própria: defaults d
 O servidor MCP precisa do extra `mcp` (`pip install -e ".[mcp]"`); sem ele,
 `tests/test_mcp_servidor.py` é pulado e o resto da suíte roda igual. Ele carrega
 código e `config/*.yaml` uma vez, quando sobe: depois de mudar qualquer um,
-reinicie a sessão do Claude Code (ou reconecte pelo `/mcp`).
+reinicie a sessão do Claude Code (ou reconecte pelo `/mcp`). Desde o lote 11, a
+tela avisa quando isso é preciso (`/api/servidores`).
 
 `ruff check .` tem **144 achados pré-existentes** (nenhuma config própria, então
 valem os defaults, bem mais rígidos que o estilo do projeto). Compare com esse
@@ -382,6 +383,14 @@ propostas sem ativar).
   `ASSETFLOW_API_URL`), confere título e `/api/health` pelo proxy e só então
   abre o navegador. Logs em `backend/data/iniciar/`. Detalhes:
   [backend/docs/LOTE_10_INICIAR.md](backend/docs/LOTE_10_INICIAR.md).
+- **Lote 11** (servidor desatualizado) — a API e o servidor MCP gravam ao
+  subir `data/servidores/<processo>-<pid>.json` (pid, commit, hora;
+  `assetflow/servidores.py`); `GET /api/servidores` diz se algum processo vivo
+  está noutro commit ou subiu antes da última mudança em `assetflow/` ou
+  `config/` (para a API, só `config/`), e a tela mostra a faixa "reconecte
+  pelo /mcp" ou "reinicie a API". No Windows, "vivo" não usa `os.kill`
+  (ele encerraria o processo). Interruptor `ASSETFLOW_AVISO_SERVIDOR`.
+  Detalhes: [backend/docs/LOTE_11_SERVIDOR.md](backend/docs/LOTE_11_SERVIDOR.md).
 
 ## Arquitetura
 

@@ -12,6 +12,7 @@ import { GeneratorHero } from "./components/GeneratorHero";
 import { Header } from "./components/Header";
 import { LiberdadeControls } from "./components/LiberdadeControls";
 import { BancaPage } from "./components/BancaPage";
+import { AvisoDeServidor } from "./components/AvisoDeServidor";
 import { CopiaDeSeguranca } from "./components/CopiaDeSeguranca";
 import { LicoesPanel } from "./components/LicoesPanel";
 import { PedidosList } from "./components/PedidosList";
@@ -176,6 +177,7 @@ export function App() {
 
   return (
     <div className="page">
+      <AvisoDeServidor />
       <Header />
 
       <nav className="paginas" aria-label="Páginas">

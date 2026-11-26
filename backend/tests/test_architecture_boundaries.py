@@ -742,3 +742,17 @@ def test_backup_does_not_import_api_mcp_engines_or_jobs(path: Path):
         if _imports_any(module, LAYERS_FORBIDDEN_TO_EDITOR)
     ]
     assert not violations, "assetflow/backup/ é estante:\n" + "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# Versão e aviso de servidor desatualizado (lote 11)
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("nome", ["versao.py", "servidores.py"])
+def test_versao_e_servidores_nao_importam_api_mcp_gaveta_nem_jobs(nome: str):
+    path = PACKAGE_ROOT / nome
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, LAYERS_FORBIDDEN_TO_EDITOR)
+    ]
+    assert not violations, "\n".join(violations)

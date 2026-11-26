@@ -50,7 +50,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `fc14d13` | Lote F4 — detalhes e acabamento | `rosto`, `extremidade`, `suavizar`, `pontilhar`, `textura`, `luz_de_borda`; interruptor `comandos_acabamento`; recusas em sprite pequeno como aviso. Olho: pontilhado por manchas de xadrez, calibrado nos pacotes. Formato dos opcionais uma vez por conversa (`ASSETFLOW_FORMATO_UMA_VEZ`, `consultar_pedido(formato=true)`). | 1820 / 1 |
 | `0aa3827` | Lote 8 — base por temas | §4, 7, 8 e 17 do PIXEL_KNOWLEDGE em `config/pixel_knowledge/temas/` (5 temas, 32 regras com seção, fonte, verificação e etiquetas). Linha dos temas na consulta e uma vez no topo da lista; ferramenta `consultar_base`; regras de tema na ficha, com três medidas novas do validador (fragmentado, redundância, borda). Interruptor `ASSETFLOW_CONSULTAR_BASE`. | 1830 / 1 |
 | `6c920bc` | Lote 9 — cópia de segurança | `python -m assetflow.backup criar/listar/restaurar`, botão no rodapé e `/api/backup`: zip datado de `backend/data/` fora do repositório, bancos pela cópia do SQLite (com o `-wal`), restauração com hashes, recusa de banco em uso e guarda do que havia. Interruptor `ASSETFLOW_BACKUP`. | 1852 / 1 |
-| (este) | Lote 10 — um clique para abrir | `iniciar.bat` + `backend/scripts/iniciar.py`: reaproveita API e tela já de pé (IPv4 e IPv6), sobe as que faltam em portas livres, confere título e saúde pelo proxy, abre o navegador, encerra o que subiu. Conferido ao vivo com a 5173 ocupada. | 1858 / 1 |
+| `a7680bf` | Lote 10 — um clique para abrir | `iniciar.bat` + `backend/scripts/iniciar.py`: reaproveita API e tela já de pé (IPv4 e IPv6), sobe as que faltam em portas livres, confere título e saúde pelo proxy, abre o navegador, encerra o que subiu. Conferido ao vivo com a 5173 ocupada. | 1858 / 1 |
+| (este) | Lote 11 — aviso de servidor desatualizado | API e MCP gravam pid, commit e hora em `data/servidores/`; `/api/servidores` e a faixa da tela avisam quando um processo vivo está noutro commit ou subiu antes da última mudança de código ou `config/`. Leitor de commit em `assetflow/versao.py`. Interruptor `ASSETFLOW_AVISO_SERVIDOR`. | 1872 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -1081,3 +1082,13 @@ Achado: a tela da autora escutava só em `[::1]:5173` — o `localhost` do Windo
 
 Dúvidas: o servidor MCP não sobe pelo lançador (é do Claude Code); atalho com
 ícone não entrou.
+
+### Lote 11 — aviso de servidor desatualizado ([LOTE_11_SERVIDOR.md](LOTE_11_SERVIDOR.md))
+
+Decisões: um arquivo por processo (pode haver mais de um MCP); "vivo" por
+`OpenProcess` no Windows, porque `os.kill(pid, 0)` encerraria o processo;
+commit diferente conta como mais antigo; além do commit, a mudança de
+arquivo depois da subida também avisa (o caso mais comum, sem commit).
+
+Dúvidas: processos que subiram antes do lote não se registram até
+reconectar; trocar de branch também avisa.
