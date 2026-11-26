@@ -22,6 +22,7 @@ thread, porque o SQLite pode esperar o outro processo (``busy_timeout``).
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, Query, status
@@ -95,6 +96,34 @@ async def detalhe(pedido_id: str, container: ContainerDep) -> PedidoDetalhe:
 async def cancelar(pedido_id: str, container: ContainerDep) -> PedidoView:
     pedido = await asyncio.to_thread(container.pedidos.fila.cancelar, pedido_id)
     return await _vista(pedido, container, agora_utc())
+
+
+@router.get("/{pedido_id}/ficha", summary="A ficha de verificação do asset do pedido (lote F5)")
+async def ficha(pedido_id: str, container: ContainerDep) -> dict:
+    """A ficha gravada pelo ``concluir_pedido``, com a opinião da autora de agora.
+
+    A ficha nasce na conclusão, e o "gostei" vem depois, na tela: as linhas do
+    tipo ``autora`` são relidas da opinião a cada leitura. Asset sem ficha (de
+    antes do lote F5, ou com ``ASSETFLOW_FICHA`` desligado) devolve a ficha vazia.
+    """
+    vazia = {"linhas": [], "divergencias": [], "sem_resposta": [], "respostas": {}}
+    pedido = await asyncio.to_thread(container.pedidos.fila.obter, pedido_id)
+    if not pedido.asset_projeto or not pedido.job_id:
+        return vazia
+    chave = f"projects/{pedido.asset_projeto}/jobs/{pedido.job_id}/000_ficha.json"
+    if not await container.storage.backend.exists(chave):
+        return vazia
+    lida = json.loads(await container.storage.backend.get(chave))
+    if any(linha.get("tipo") == "autora" for linha in lida.get("linhas", [])):
+        opiniao = await asyncio.to_thread(container.aprendizado.opiniao, pedido.asset_id or "")
+        for linha in lida["linhas"]:
+            if linha.get("tipo") == "autora":
+                linha["resultado"] = (
+                    "sem_resposta" if opiniao is None
+                    else "passou" if opiniao.gostei else "nao_passou"
+                )
+                linha["detalhe"] = (opiniao.motivo or "") if opiniao else ""
+    return lida
 
 
 @router.post(

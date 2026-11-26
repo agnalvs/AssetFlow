@@ -1406,6 +1406,41 @@ input {
   color: #f2707f;
 }
 
+.ficha {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.ficha summary {
+  cursor: pointer;
+}
+
+.ficha__lista {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ficha__linha {
+  display: grid;
+  grid-template-columns: 1.4em 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.ficha__quem {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.ficha__divergencia {
+  margin: 6px 0 0;
+  color: #f2b870;
+}
+
 .licoes {
   display: flex;
   flex-direction: column;

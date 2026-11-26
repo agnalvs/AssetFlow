@@ -322,5 +322,6 @@ function outcomeOf(pedido: Pedido): GenerationOutcome | null {
     warnings,
     assetId: pronto ? (pedido.asset?.id ?? null) : null,
     olhar: pronto ? pedido.olhar : null,
+    pedidoId: pronto ? pedido.id : null,
   };
 }

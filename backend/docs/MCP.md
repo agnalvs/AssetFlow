@@ -36,7 +36,7 @@ nelas.
 | `pedidos_pendentes` | `limite?` (padrão 5, máximo 10) | os pedidos da tela que esperam desenho, cada um com a consulta dele, já reservados ([PEDIDOS.md](PEDIDOS.md)) |
 | `desenhar` | `pedido?`, `receita?`, `base?`, `perfil?`, `pedido_id?` | o laudo em texto e a imagem do olhar (588×384, 294 tokens); com `pedido_id`, a primeira linha diz o que aconteceu com o pedido |
 | `propor_conceitos` | `pedido_id`, `conceitos` (3 × traço, silhueta, objeto, pose, simplificar), `escolhido?`, `motivo?` | grava os conceitos; no modo "o Claude escolhe", traz o recorte para desenhar ([BANCA_E_CONCEITO.md](BANCA_E_CONCEITO.md) §3) |
-| `concluir_pedido` | `pedido_id`, `olhar`, `asset_id?` | conclui o pedido depois do olhar, com o último desenho aprovado ou um anterior do mesmo pedido ([OLHAR.md](OLHAR.md) §1) |
+| `concluir_pedido` | `pedido_id`, `olhar`, `asset_id?`, `respostas?` | conclui o pedido depois do olhar, com o último desenho aprovado ou um anterior do mesmo pedido ([OLHAR.md](OLHAR.md) §1); `respostas` (uma por pergunta, "sim" ou "não: onde") vão para a ficha de verificação ([LOTE_F5_FICHA.md](LOTE_F5_FICHA.md)) |
 | `registrar_licao` | `asset_id`, `tema`, `errou`, `porque`, `regra`, `geral?`, `mesma_que?`, `da_autora?` | registra a lição de um olhar; repetida, soma no contador ([OLHAR.md](OLHAR.md) §4) |
 | `ver_asset` | `id` | uma legenda e a imagem do olhar (a mesma do `desenhar`) |
 | `ver_referencia` | `pedido`, `perfil?`, `liberdade?` | um quadro de referência do tipo do pedido, ampliado, com origem e licença ([REFERENCIAS.md](REFERENCIAS.md)) |

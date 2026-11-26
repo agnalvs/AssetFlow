@@ -444,7 +444,8 @@ def instrucao_do_pedido(
             "Diga em uma linha o que está feio ou estranho. Se houver algo, corrija com UM "
             f"remendo — desenhar(pedido_id={pedido_id}, base={candidato}, receita=<só o que "
             "muda>) — e registre a lição com registrar_licao. Se estiver bom, diga que está e "
-            f"conclua: concluir_pedido(pedido_id={pedido_id}, olhar=\"<a linha>\")."
+            f"conclua: concluir_pedido(pedido_id={pedido_id}, olhar=\"<a linha>\", "
+            "respostas={\"<pergunta>\": \"sim\" ou \"não: <onde>\", …})."
         )
     escolha = (
         f", com asset_id entre {', '.join(candidatos)} se um anterior estava melhor"
@@ -453,7 +454,8 @@ def instrucao_do_pedido(
     )
     return (
         f"Os {max_remendos} remendos do pedido acabaram: diga em uma linha como ficou e "
-        f"conclua com concluir_pedido(pedido_id={pedido_id}, olhar=\"<a linha>\"){escolha}."
+        f"conclua com concluir_pedido(pedido_id={pedido_id}, olhar=\"<a linha>\", "
+        f"respostas={{…}}){escolha}."
     )
 
 

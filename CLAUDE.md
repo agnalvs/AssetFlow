@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1724 passed, 1 skipped)
+pytest -q                                # suíte completa (1735 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -300,6 +300,14 @@ custo por desenho estão em [CUSTO.md](backend/docs/CUSTO.md).
   na raiz (cabeças, forma dominante, linha de ação, pose), que vira camadas
   `boneco_*` antes das da receita. Interruptor `comandos_construcao`.
   Detalhes: [backend/docs/LOTE_F3_CONSTRUCAO.md](backend/docs/LOTE_F3_CONSTRUCAO.md).
+- **Lote F5** (ficha de verificação) — toda regra de `config/pixel_knowledge/`
+  declara `verificacao: "tipo:alvo"` (`construcao`, `medida`, `olhar`,
+  `autora`); a carga recusa regra sem ela, e `tests/test_ficha.py` confere que
+  o alvo existe. `concluir_pedido` aceita `respostas` (uma por pergunta do
+  olhar), e o servidor grava `000_ficha.json` (`mcp/ficha.py`) com uma linha
+  por regra e as **divergências** — "sim" do Claude contra a medida do app.
+  Interruptor `ASSETFLOW_FICHA`; a obrigação do campo não tem. Detalhes:
+  [backend/docs/LOTE_F5_FICHA.md](backend/docs/LOTE_F5_FICHA.md).
 
 ## Arquitetura
 

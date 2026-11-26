@@ -166,10 +166,14 @@ def criar_servidor(
             str | None,
             Field(description="Um desenho aprovado anterior do mesmo pedido, se estava melhor."),
         ] = None,
+        respostas: Annotated[
+            dict[str, str] | None,
+            Field(description='Uma por pergunta do olhar: {"silhueta": "sim", "valores": "não: onde"}.'),
+        ] = None,
     ) -> str:
         """Conclui um pedido depois do seu olhar: passe a linha do que viu. Sem asset_id, vale o último desenho aprovado do pedido; com ele, um anterior do mesmo pedido."""
         try:
-            return await servico.concluir(pedido_id, olhar, asset_id)
+            return await servico.concluir(pedido_id, olhar, asset_id, respostas)
         except ErroDoPedido as exc:
             raise ToolError(str(exc)) from exc
 

@@ -20,6 +20,7 @@ import {
   type BancaResumo,
   type Comparacao,
   type Conceito,
+  type Ficha,
   type Licao,
   type LicaoLista,
   MODES,
@@ -278,6 +279,11 @@ export function opinar(assetId: string, gostei: boolean, motivo?: string): Promi
     method: "PUT",
     body: JSON.stringify({ gostei, motivo: motivo?.trim() || null }),
   });
+}
+
+/** A ficha de verificação do asset que concluiu o pedido (lote F5). */
+export function lerFicha(pedidoId: string): Promise<Ficha> {
+  return request<Ficha>(`${PEDIDOS_URL}/${encodeURIComponent(pedidoId)}/ficha`);
 }
 
 export async function lerOpiniao(assetId: string): Promise<Opiniao | null> {

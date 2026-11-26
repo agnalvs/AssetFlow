@@ -91,7 +91,7 @@ def test_ferramentas_com_descricao_curta(servidor):
     assert pendentes["properties"]["limite"]["default"] == 5
 
     concluir = ferramentas["concluir_pedido"].input_schema
-    assert set(concluir["properties"]) == {"pedido_id", "olhar", "asset_id"}
+    assert set(concluir["properties"]) == {"pedido_id", "olhar", "asset_id", "respostas"}
     assert sorted(concluir.get("required", [])) == ["olhar", "pedido_id"]
 
     licao = ferramentas["registrar_licao"].input_schema

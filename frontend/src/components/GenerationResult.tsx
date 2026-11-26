@@ -1,6 +1,7 @@
 import { optimizationLabel } from "../labels";
 import { type GenerationOutcome, MODES, type PixelOptimization } from "../types";
 import { AssetPreview } from "./AssetPreview";
+import { FichaDoPedido } from "./FichaDoPedido";
 import { GenerationNotices } from "./GenerationNotices";
 import { OpiniaoControls } from "./OpiniaoControls";
 import { ResultActions } from "./ResultActions";
@@ -38,6 +39,7 @@ export function GenerationResult({
           <span className="result__optimization-key">Olhar do Claude</span> {outcome.olhar}
         </p>
       ) : null}
+      {outcome.pedidoId ? <FichaDoPedido pedidoId={outcome.pedidoId} /> : null}
       {outcome.assetId ? <OpiniaoControls assetId={outcome.assetId} /> : null}
       <ResultActions
         variant={outcome.variant}

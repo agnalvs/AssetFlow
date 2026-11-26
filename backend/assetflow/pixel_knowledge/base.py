@@ -79,6 +79,24 @@ class Regra:
     fonte: str | None = None
     #: Número sem fonte externa — inclusive "convenção comum" no documento.
     a_calibrar: bool = False
+    #: Como a regra é conferida (lote F5): ``tipo:alvo``. Tipos: ``construcao``
+    #: (o comando da receita a cumpre: ``construcao:sombrear``), ``medida`` (o
+    #: app mede: ``medida:VALOR``), ``olhar`` (uma pergunta do olhar:
+    #: ``olhar:humanoid/silhueta``) e ``autora`` (só a nota dela).
+    verificacao: str = ""
+
+    @property
+    def tipo_de_verificacao(self) -> str:
+        return self.verificacao.split(":", 1)[0]
+
+    @property
+    def alvo_da_verificacao(self) -> str:
+        return self.verificacao.split(":", 1)[1] if ":" in self.verificacao else ""
+
+
+#: Os tipos de verificação de uma regra (FUNDAMENTOS_E_FERRAMENTAS §7).
+TIPOS_DE_VERIFICACAO = ("construcao", "medida", "olhar", "autora")
+_VERIFICACAO = re.compile(r"^(construcao|medida|olhar):[\w/ çãéíóú-]+$|^autora$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -539,12 +557,19 @@ def _regras(bruta: Any, onde: str) -> tuple[Regra, ...]:
 
 def _ler_regra(bruta: Any, onde: str) -> Regra:
     bruta = _mapa(bruta, onde)
-    _so_chaves(bruta, {"texto", "classe", "secao", "fonte", "a_calibrar"}, onde)
+    _so_chaves(bruta, {"texto", "classe", "secao", "fonte", "a_calibrar", "verificacao"}, onde)
     texto = _texto(bruta.get("texto"), f"{onde}.texto")
     fonte, a_calibrar = _origem(bruta, onde)
     if _DIGITO.search(texto) and not fonte and not a_calibrar:
         raise ConhecimentoInvalido(
             f"{onde}: regra com número sem fonte ({texto!r}); marque a_calibrar: true"
+        )
+    verificacao = bruta.get("verificacao")
+    if not isinstance(verificacao, str) or not _VERIFICACAO.match(verificacao):
+        raise ConhecimentoInvalido(
+            f"{onde}: toda regra declara como é conferida — 'verificacao' como "
+            "\"medida:VALOR\", \"olhar:humanoid/silhueta\", \"construcao:sombrear\" ou "
+            f"\"autora\" ({verificacao!r})"
         )
     return Regra(
         texto=texto,
@@ -552,6 +577,7 @@ def _ler_regra(bruta: Any, onde: str) -> Regra:
         secao=_texto(bruta.get("secao"), f"{onde}.secao"),
         fonte=fonte,
         a_calibrar=a_calibrar,
+        verificacao=verificacao,
     )
 
 

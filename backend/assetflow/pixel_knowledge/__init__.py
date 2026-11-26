@@ -19,7 +19,14 @@ from .base import (
     Regra,
     luminancia,
 )
-from .olhar import ListasDoOlhar, Pergunta, lembrete_da_lista, lista_de_verificacao
+from .olhar import (
+    ListasDoOlhar,
+    Pergunta,
+    forma_do_olhar,
+    lembrete_da_lista,
+    lista_de_verificacao,
+    perguntas_da_lista,
+)
 from .recorte import (
     CONVITE_OUSADO,
     SEM_CORPO,
@@ -53,10 +60,12 @@ __all__ = [
     "Pergunta",
     "Porte",
     "Regra",
+    "forma_do_olhar",
     "lembrete_da_lista",
     "lista_de_verificacao",
     "luminancia",
     "montar_recorte",
+    "perguntas_da_lista",
     "porte",
     "rampas_da_base",
 ]

@@ -13,24 +13,28 @@
 # Coordenadas como na receita: origem no canto superior esquerdo, y para baixo.
 # `chao_y` é a linha do pixel opaco mais baixo; o topo é chao_y - altura_px + 1.
 
+# Toda regra declara `verificacao` (lote F5, FUNDAMENTOS §7): como ela é
+# conferida — medida:<código do olho>, olhar:<forma>/<pergunta do olhar.yaml>,
+# construcao:<comando da receita> ou autora. O carregamento recusa regra sem
+# ela, e tests/test_ficha.py confere que o alvo existe.
 formas:
   humanoid:
     nome: humanóide
     regras:
       # §3 só diz que a arma faz parte do contorno (Pixnote); o vão de 1 px é nosso.
       - {texto: "arma e escudo fora do corpo, com vão de 1 px, mudando o contorno",
-         classe: semantic, secao: "§3", a_calibrar: true}
+         classe: semantic, verificacao: "olhar:humanoid/silhueta", secao: "§3", a_calibrar: true}
       # §3: "exagere o que identifica" — altera a silhueta, não só a cor interna.
       - {texto: "o equipamento muda o contorno do corpo (ombreiras, elmo com crista, capa), não só a cor por dentro",
-         classe: semantic, secao: "§3"}
+         classe: semantic, verificacao: "olhar:humanoid/silhueta", secao: "§3"}
       - {texto: "uma assimetria intencional: pose, arma, cabelo ou capa",
-         classe: style, secao: "§3"}
+         classe: style, verificacao: "olhar:humanoid/assimetria", secao: "§3"}
       # O vão só vale com o membro à mostra; com roupa que cobre o corpo, a
       # silhueta da roupa manda.
       - {texto: "vão entre braço e tronco e entre as pernas quando a roupa deixa o membro à mostra; com manto, capa, vestido ou roupa larga, vale a silhueta da roupa",
-         classe: semantic, secao: "§3"}
+         classe: semantic, verificacao: "olhar:humanoid/silhueta", secao: "§3"}
       - {texto: "partes vizinhas com valores diferentes, antes de matizes diferentes",
-         classe: style, secao: "§3"}
+         classe: style, verificacao: "medida:VALOR", secao: "§3"}
     tamanhos:
       "16x16":
         altura_px:         {valor: 14,     classe: semantic, secao: "§9", a_calibrar: true}
@@ -81,11 +85,11 @@ formas:
     nome: objeto
     regras:
       - {texto: "um objeto, uma ideia; nada de cena dentro do ícone",
-         classe: style, secao: "§10"}
+         classe: style, verificacao: "olhar:prop/uma ideia", secao: "§10"}
       - {texto: "arma longa na diagonal de 45°",
-         classe: style, secao: "§4 e §10", fonte: "Pixel Joint (45° não serrilha)"}
+         classe: style, verificacao: "olhar:prop/limpeza", secao: "§4 e §10", fonte: "Pixel Joint (45° não serrilha)"}
       - {texto: "um valor por face: topo mais claro, frente média, sombra embaixo",
-         classe: style, secao: "§6"}
+         classe: style, verificacao: "olhar:prop/faces", secao: "§6"}
     tamanhos:
       "16x16":
         margem_px:         {valor: 1,   classe: semantic, secao: "§10", a_calibrar: true}

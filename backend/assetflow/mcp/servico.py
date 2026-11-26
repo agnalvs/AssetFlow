@@ -68,9 +68,11 @@ from ..pedidos import (
 )
 from ..pedidos.servico import direcao_com_conceito
 from ..pixel_knowledge import (
+    forma_do_olhar,
     lembrete_da_lista,
     lista_de_verificacao,
     montar_recorte,
+    perguntas_da_lista,
     porte,
     rampas_da_base,
 )
@@ -83,6 +85,7 @@ from ..referencias.exemplo import (
 )
 from ..referencias.olho import RelatorioDoOlho, olhar_desenho, repete_o_exemplo
 from ..storage.records import GenerationRecord
+from .ficha import montar_ficha
 from .imagem import imagem_do_olhar
 from .laudo import (
     MAX_CAMPO_CONCEITO,
@@ -411,8 +414,18 @@ class ServicoDesenhista:
         return Laudo.com_imagem(laudo, olhado.png, olhado.ampliacao)
 
     # ------------------------------------------------------------------
-    async def concluir(self, pedido_id: str, olhar: str, asset_id: str | None = None) -> str:
-        """O olhar terminou: o pedido conclui com um dos desenhos aprovados dele."""
+    async def concluir(
+        self,
+        pedido_id: str,
+        olhar: str,
+        asset_id: str | None = None,
+        respostas: dict[str, str] | None = None,
+    ) -> str:
+        """O olhar terminou: o pedido conclui com um dos desenhos aprovados dele.
+
+        ``respostas`` (lote F5): uma por pergunta da lista do olhar, "sim" ou
+        "não: <onde>". Vão para a ficha de verificação do asset.
+        """
         olhar = (olhar or "").strip()
         if not olhar:
             raise ErroDoPedido("falta 'olhar': a linha do que você viu no desenho")
@@ -437,9 +450,66 @@ class ServicoDesenhista:
                 + ", ".join(sem_licao)
                 + " — se o olhar achou algo, registre com registrar_licao(asset_id=...)."
             )
+        if self._config.ficha:
+            ficha = await self._gravar_ficha(concluido, respostas)
+            if ficha is not None:
+                faltam = ficha["sem_resposta"]
+                if faltam:
+                    linhas.append(
+                        "ficha: sem resposta para " + ", ".join(faltam)
+                        + " — da próxima vez, responda cada pergunta em respostas={...}."
+                    )
+                for divergencia in ficha["divergencias"]:
+                    linhas.append(
+                        f"ficha: divergência — você respondeu \"{divergencia['resposta']}\" para "
+                        f"{divergencia['pergunta']}, e o app mediu: {divergencia['detalhe']}"
+                    )
         resposta = "\n".join(linhas)
-        self._custo(pedido_id, entrada=len(resposta), saida_texto=len(olhar))
+        self._custo(
+            pedido_id,
+            entrada=len(resposta),
+            saida_texto=len(olhar) + len(json.dumps(respostas or {}, ensure_ascii=False)),
+        )
         return resposta
+
+    async def _gravar_ficha(self, pedido: Pedido, respostas: dict[str, str] | None) -> dict[str, Any] | None:
+        """Monta e grava ``000_ficha.json`` do asset que concluiu o pedido (lote F5)."""
+        servico = self._container.pedidos
+        asset = await servico.asset(pedido.asset_projeto, pedido.job_id)
+        if asset is None or not asset.variants:
+            return None
+        base = self._container.conhecimento
+        spec = pedido.spec
+        forma = base.formas.get(forma_do_olhar(spec))
+        regras = [*(forma.regras if forma else ()), *(base.luz.regras if base.luz else ())]
+        traco = (pedido.conceito or {}).get("traco")
+        variante = asset.variants[0]
+        try:
+            receita = (await self._registro(pedido.asset_id or "")).engine_options.get(MOTOR, {}).get("receita")
+        except ErroDoPedido:
+            receita = None
+        try:
+            gostei = self._caixa.opiniao(pedido.asset_id or "")
+        except ErroDoAprendizado:
+            gostei = None
+        ficha = montar_ficha(
+            regras=regras,
+            perguntas=perguntas_da_lista(spec, base.olhar, traco=traco),
+            respostas=respostas,
+            olhar=await servico.olhar_do_asset(pedido.asset_projeto, pedido.job_id),
+            validacao=await self._json(variante.artifacts.get("validation.json")),
+            receita=receita,
+            gostei=gostei.gostei if gostei is not None else None,
+        )
+        ficha["pedido_id"] = pedido.id
+        ficha["asset_id"] = pedido.asset_id
+        await self._container.storage.persist_artifacts(
+            project_id=pedido.asset_projeto,
+            job_id=pedido.job_id,
+            index=0,
+            artifacts={"ficha.json": json.dumps(ficha, ensure_ascii=False, indent=2).encode("utf-8")},
+        )
+        return ficha
 
     # ------------------------------------------------------------------
     async def registrar_licao(

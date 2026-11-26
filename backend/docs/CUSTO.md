@@ -31,7 +31,9 @@ primeira), de ~4.900 para ~3.800, cerca de 22%.
 
 Outros que já existiam: `ASSETFLOW_LICOES=0` tira as lições do recorte (~0 a
 300 tokens, conforme quantas houver) e `ASSETFLOW_EXEMPLO` já nasce desligado
-(o exemplo custaria ~400 a 600).
+(o exemplo custaria ~400 a 600). A ficha de verificação (`ASSETFLOW_FICHA`,
+lote F5) soma ~10 a 30 tokens de respostas por pedido; desligá-la quase não
+economiza e tira o cruzamento com as medidas.
 
 **O que não reduzir.** A imagem do olhar (294 tokens) é o que permite julgar o
 desenho; o laudo do validador é pequeno. Em vez de tirar a imagem, tire os

@@ -21,9 +21,11 @@ from ..generation.schemas import AssetType
 __all__ = [
     "ListasDoOlhar",
     "Pergunta",
+    "forma_do_olhar",
     "lembrete_da_lista",
     "ler_olhar",
     "lista_de_verificacao",
+    "perguntas_da_lista",
 ]
 
 _SECAO = re.compile(r"^§\d+$")
@@ -158,6 +160,23 @@ def lembrete_da_lista(
         return "olhar — confira a imagem de novo."
     nomes = ", ".join(p.nome for p in perguntas)
     return f"olhar — confira de novo a lista do primeiro olhar ({nomes})."
+
+
+def perguntas_da_lista(
+    resolved: Any, olhar: ListasDoOlhar | None, *, traco: str | None = None
+) -> list[str]:
+    """Os nomes das perguntas do olhar deste pedido (para a ficha, lote F5)."""
+    if olhar is None:
+        return []
+    _, perguntas = _forma_e_lista(resolved, olhar)
+    return [p.nome for p in _com_conceito(perguntas, olhar, traco)]
+
+
+def forma_do_olhar(resolved: Any) -> str:
+    """A forma do pedido como a base a chama: o corpo num personagem, o tipo nos demais."""
+    if resolved.asset.type == AssetType.CHARACTER:
+        return _valor(resolved.character.body_type)
+    return _valor(resolved.asset.type)
 
 
 def _com_conceito(

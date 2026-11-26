@@ -166,6 +166,10 @@ class AprendizadoSettings(AssetFlowModel):
     #: ``ASSETFLOW_OLHAR_LISTA_CURTA``. **Ajuste de custo**: ~170 tokens por
     #: pedido (docs/CUSTO.md).
     lista_curta: bool = False
+    #: A ficha de verificação de cada asset concluído (lote F5): uma linha por
+    #: regra aplicável, com as respostas do olhar e o cruzamento com as
+    #: medidas. ``ASSETFLOW_FICHA`` (``0`` desliga).
+    ficha: bool = True
     #: Como ``pedidos.espera_s``: ``busy_timeout`` do SQLite.
     espera_s: float = Field(default=5.0, ge=0)
 
@@ -402,6 +406,7 @@ def load_settings(
         licoes=_env_bool("LICOES", padrao_aprendizado.licoes),
         peso_autora=int(_env("LICOES_PESO_AUTORA") or padrao_aprendizado.peso_autora),
         lista_curta=_env_bool("OLHAR_LISTA_CURTA", padrao_aprendizado.lista_curta),
+        ficha=_env_bool("FICHA", padrao_aprendizado.ficha),
         espera_s=float(_env("PEDIDOS_ESPERA_S") or padrao_aprendizado.espera_s),
     )
 

@@ -43,7 +43,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `c48c920` | Ajuste da Fase B2 | `ASSETFLOW_EXEMPLO` passa a nascer desligado: no teste da maga do gelo, o único exemplo do porte para personagem vestido foi um corpo-base sem roupa, e atrapalhou. Volta com pacotes melhores, com a diferença medida. | 1644 / 1 |
 | `7baa4b5` | Lote 1 — banca e conceito | Banca de teste (`assetflow/banca/`, `config/banca.yaml`, `/api/banca`, página "Banca e Comparar"): rodadas ligadas a uma versão da base, comparação cega com nota de 1 a 5, resumo com veredito; custo por pedido registrado pelo MCP. Etapa de conceito: três modos por pedido, `propor_conceitos`, situação `escolhendo`, conceito na medida da grade, pergunta do conceito no olhar. Ajustes de custo em settings (`ASSETFLOW_CONCEITO`, `ASSETFLOW_PEDIDOS_REMENDOS`, `ASSETFLOW_OLHAR_LISTA_CURTA`), documentados em `CUSTO.md`. Entram `PLANO_BASE_CONHECIMENTO.md` e `FUNDAMENTOS_E_FERRAMENTAS.md`, da autora. | 1693 / 1 |
 | `ebb0d2d` | Lote F2 — cor e luz | Comandos opcionais da receita: `rampas` (com desvio de matiz), `luz`, `material`, `sombrear` (esfera, cilindro, caixa, plano), `brilho`, `oclusao`, `sombra_projetada`. Interruptor `comandos_cor_e_luz` em `engines.yaml`; o MCP mostra no formato só os grupos ligados. | 1708 / 1 |
-| (este) | Lote F3 — construção | `capsula` (2 ou 3 pontos, espessura, contorno, vão até outra camada), `copiar` (deslocada, espelhada) e `boneco` na raiz (altura, cabeças, forma dominante, linha de ação, pose, cores), que vira camadas `boneco_*`. Interruptor `comandos_construcao`. | 1724 / 1 |
+| `59fabc1` | Lote F3 — construção | `capsula` (2 ou 3 pontos, espessura, contorno, vão até outra camada), `copiar` (deslocada, espelhada) e `boneco` na raiz (altura, cabeças, forma dominante, linha de ação, pose, cores), que vira camadas `boneco_*`. Interruptor `comandos_construcao`. | 1724 / 1 |
+| (este) | Lote F5 — ficha de verificação | Toda regra da base declara `verificacao` (`construcao`, `medida`, `olhar`, `autora`), e a carga recusa a que não declara; teste confere que o alvo existe. `concluir_pedido` com `respostas` por pergunta; `000_ficha.json` por asset (`mcp/ficha.py`) com uma linha por regra e as divergências entre resposta e medida; `GET /api/pedidos/{id}/ficha` e a ficha dobrada no resultado. Interruptor `ASSETFLOW_FICHA`. | 1735 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -976,3 +977,16 @@ desenham); proporções do boneco são convenção minha, `a calibrar`; só
 humanoide; `vao` poupa a raiz do membro.
 
 Dúvidas: medir na banca se o boneco iguala os personagens; quatro poses fixas.
+
+### Lote F5 — ficha de verificação ([LOTE_F5_FICHA.md](LOTE_F5_FICHA.md))
+
+Decisões: `verificacao` numa string `tipo:alvo`; resposta livre lida pelo
+começo ("sim"/"não"); a ficha mora no `mcp/` e a rota só lê o arquivo; só as
+regras da forma do pedido e as de luz; a ficha aparece no resultado (a tela não
+tem página de detalhe do asset); a linha `autora` é relida a cada leitura; a
+obrigação do campo não tem interruptor (só a ficha tem).
+
+Dúvidas: nove das dez regras de hoje são `olhar` — as medidas e construções
+chegam com as regras dos lotes F1, F4 e 8; a revisão independente na banca não
+entrou (a conversa nova não é distinguível); o cruzamento cobre só `valores` e
+`limpeza`.

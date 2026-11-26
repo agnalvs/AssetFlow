@@ -501,6 +501,32 @@ export interface Opiniao {
   em: string;
 }
 
+/** Uma linha da ficha de verificação (lote F5): uma regra da base e quem a conferiu. */
+export interface FichaLinha {
+  regra: string;
+  verificacao: string;
+  tipo: "construcao" | "medida" | "olhar" | "autora";
+  resultado: "passou" | "nao_passou" | "sem_resposta" | "nao_se_aplica";
+  detalhe: string;
+  quem: string;
+}
+
+/** O Claude respondeu "sim" e a medida do app acusou o problema. */
+export interface FichaDivergencia {
+  pergunta: string;
+  resposta: string | null;
+  medida: string;
+  detalhe: string;
+}
+
+/** A ficha de verificação de um asset (espelha `000_ficha.json`). */
+export interface Ficha {
+  linhas: FichaLinha[];
+  respostas: Record<string, string | null>;
+  sem_resposta: string[];
+  divergencias: FichaDivergencia[];
+}
+
 /** O pedido inteiro (espelha `PedidoDetalhe`). */
 export interface PedidoDetalhe extends Pedido {
   corpo: PedidoCorpo;
@@ -600,6 +626,8 @@ export interface GenerationOutcome {
   assetId?: string | null;
   /** A linha do olhar do Claude que concluiu o pedido. */
   olhar?: string | null;
+  /** O pedido do desenho, para a ficha de verificação (só em pedido pronto). */
+  pedidoId?: string | null;
 }
 
 /** Um desenho pronto na faixa "Prontos" (plano da tela §25). */

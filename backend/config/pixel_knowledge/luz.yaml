@@ -11,9 +11,13 @@
 # §6: convenção comum — "de cima e da esquerda, ou de cima e da direita".
 padrao: de cima e da esquerda
 
+# Toda regra declara `verificacao` (lote F5, FUNDAMENTOS §7): como ela é
+# conferida — medida:<código do olho>, olhar:<forma>/<pergunta do olhar.yaml>,
+# construcao:<comando da receita> ou autora. O carregamento recusa regra sem
+# ela, e tests/test_ficha.py confere que o alvo existe.
 regras:
   - {texto: "luz do lado de onde ela vem e sombra no oposto, nunca só acompanhando o contorno",
-     classe: style, secao: "§6"}
+     classe: style, verificacao: "olhar:humanoid/luz", secao: "§6"}
   # §5: sombra = base + preto fica suja; o vizinho da rampa já desloca o matiz.
   - {texto: "sombra principal com o vizinho imediato da rampa; o tom mais escuro só em pontos pequenos, nunca em faixa",
-     classe: style, secao: "§5 e §6"}
+     classe: style, verificacao: "olhar:humanoid/luz", secao: "§5 e §6"}
