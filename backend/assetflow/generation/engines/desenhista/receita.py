@@ -34,6 +34,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import acabamento as _ac
 from .construcao import expandir_boneco
 from .cor_e_luz import DESVIO_MAXIMO, EFEITOS, LUZES, MATERIAIS, VOLUMES, gerar_rampa
 from .linha import TIPOS_DE_CONTORNO
@@ -88,6 +89,17 @@ _EXTRAS_LINHA = {
     "curva": frozenset({"cor"}),
     "limpar_linha": frozenset(),
 }
+#: Operações de detalhes e acabamento (lote F4), com os campos além da chave.
+ACABAMENTO = ("rosto", "extremidade", "suavizar", "pontilhar", "textura", "luz_de_borda")
+_EXTRAS_ACABAMENTO = {
+    "rosto": frozenset({"cabeca", "cor", "expressao", "olhar", "vista", "boca", "reflexo"}),
+    "extremidade": frozenset({"tipo", "forma", "lado", "tamanho", "cor", "contorno"}),
+    "suavizar": frozenset({"traco"}),
+    "pontilhar": frozenset({"cores", "padrao"}),
+    "textura": frozenset({"cor", "sobre", "densidade"}),
+    "luz_de_borda": frozenset({"sobre"}),
+}
+ACABAMENTO_GRUPO = "acabamento"
 #: A camada que o ``contorno`` da raiz acrescenta no fim (lote F1).
 CAMADA_DO_CONTORNO = "contorno_auto"
 #: Nome de cada grupo de comandos opcionais, como o interruptor da gaveta o chama.
@@ -224,6 +236,8 @@ def ler_receita(bruta: Any) -> Receita:
             usa.add(CONSTRUCAO_GRUPO)
         if any(op.forma in LINHA for op in camada.ops):
             usa.add(LINHA_GRUPO)
+        if any(op.forma in ACABAMENTO for op in camada.ops):
+            usa.add(ACABAMENTO_GRUPO)
 
     if "contorno" in bruta:
         if CAMADA_DO_CONTORNO in nomes:
@@ -381,6 +395,12 @@ def _ler_camada(
     )
     if espelho is not None:
         for op in ops:
+            if op.forma in ("rosto", "luz_de_borda"):
+                raise ReceitaInvalida(
+                    f"{op.caminho}: '{op.forma}' não pode ficar em camada com 'espelho' — "
+                    "a cópia duplicaria o rosto ou levaria a luz para o lado errado; "
+                    "ponha numa camada sem espelho, depois desta"
+                )
             if op.forma in EFEITOS:
                 raise ReceitaInvalida(
                     f"{op.caminho}: '{op.forma}' não pode ficar em camada com 'espelho' — "
@@ -406,7 +426,7 @@ def _ler_operacao(
     if not isinstance(bruta, dict):
         raise ReceitaInvalida(f"{onde}: cada operação precisa ser um objeto, e chegou {_tipo(bruta)}")
 
-    todas = (*FORMAS, *EFEITOS, *CONSTRUCAO, *LINHA)
+    todas = (*FORMAS, *EFEITOS, *CONSTRUCAO, *LINHA, *ACABAMENTO)
     formas = [chave for chave in bruta if chave in todas]
     if len(formas) != 1:
         achadas = ", ".join(formas) if formas else "nenhuma"
@@ -421,6 +441,8 @@ def _ler_operacao(
         return _ler_construcao(bruta, forma, onde, paleta, anteriores or {})
     if forma in LINHA:
         return _ler_linha(bruta, forma, onde, paleta)
+    if forma in ACABAMENTO:
+        return _ler_acabamento(bruta, forma, onde, paleta)
     _sem_chaves_estranhas(bruta, _EXTRAS[forma] | {forma}, f"{onde} ({forma})")
     onde = f"{onde} ({forma})"
 
@@ -524,6 +546,81 @@ def _ler_linha(bruta: dict[str, Any], forma: str, onde: str, paleta: dict[str, R
         if len(numeros) > 16:
             raise ReceitaInvalida(f"{onde}: a curva aceita até 8 pontos")
     return Operacao(forma=forma, numeros=numeros, cor=cor, caminho=onde)
+
+
+def _uma_de(valor: Any, opcoes: tuple[str, ...], onde: str, campo: str) -> str:
+    if valor not in opcoes:
+        raise ReceitaInvalida(f"{onde}: '{campo}' é {', '.join(opcoes)}, e chegou {valor!r}")
+    return valor
+
+
+def _chave(valor: Any, onde: str, campo: str, paleta: dict[str, RGB]) -> str:
+    if not isinstance(valor, str) or len(valor) != 1 or valor not in paleta:
+        raise ReceitaInvalida(f"{onde}: '{campo}' é a chave de uma cor da paleta")
+    return valor
+
+
+def _ler_acabamento(
+    bruta: dict[str, Any], forma: str, onde: str, paleta: dict[str, RGB]
+) -> Operacao:
+    """Os comandos de detalhes e acabamento (lote F4), conferidos no formato."""
+    _sem_chaves_estranhas(bruta, _EXTRAS_ACABAMENTO[forma] | {forma}, f"{onde} ({forma})")
+    onde = f"{onde} ({forma})"
+    valor = bruta[forma]
+    p: dict[str, Any] = {}
+    numeros: tuple[int, ...] = ()
+    cor = None
+    if forma == "rosto":
+        numeros = _inteiros(valor, 2, onde, formato="[x, y] (o meio da linha dos olhos)")
+        cabeca = bruta.get("cabeca")
+        if not _e_inteiro(cabeca) or not 3 <= cabeca <= 32:
+            raise ReceitaInvalida(f"{onde}: 'cabeca' é a altura da cabeça em pixels, de 3 a 32")
+        cor = _chave(bruta.get("cor"), onde, "cor", paleta)
+        p.update(
+            cabeca=cabeca,
+            expressao=_uma_de(bruta.get("expressao", "neutro"), _ac.EXPRESSOES, onde, "expressao"),
+            olhar=_uma_de(bruta.get("olhar", "frente"), _ac.OLHARES, onde, "olhar"),
+            vista=_uma_de(bruta.get("vista", "frente"), _ac.VISTAS, onde, "vista"),
+            boca=_chave(bruta["boca"], onde, "boca", paleta) if "boca" in bruta else None,
+            reflexo=_chave(bruta["reflexo"], onde, "reflexo", paleta) if "reflexo" in bruta else None,
+        )
+    elif forma == "extremidade":
+        numeros = _inteiros(valor, 2, onde, formato="[x, y] (a ponta do membro)")
+        tamanho = bruta.get("tamanho", 2)
+        if not _e_inteiro(tamanho) or not 1 <= tamanho <= 4:
+            raise ReceitaInvalida(f"{onde}: 'tamanho' é a largura do membro, de 1 a 4")
+        cor = _chave(bruta.get("cor"), onde, "cor", paleta)
+        p.update(
+            tipo=_uma_de(bruta.get("tipo"), ("mao", "pe"), onde, "tipo"),
+            forma=_uma_de(bruta.get("forma", "fechada"), ("fechada", "aberta"), onde, "forma"),
+            lado=_uma_de(bruta.get("lado", "direita"), _ac.LADOS, onde, "lado"),
+            tamanho=tamanho,
+            contorno=_chave(bruta["contorno"], onde, "contorno", paleta) if "contorno" in bruta else None,
+        )
+    elif forma == "suavizar":
+        cor = _chave(valor, onde, "suavizar", paleta)
+        p["traco"] = _chaves_da_paleta(bruta.get("traco"), onde, "traco", paleta)
+    elif forma == "pontilhar":
+        numeros = _inteiros(valor, 4, onde, formato="[x, y, largura, altura]")
+        if numeros[2] < 1 or numeros[3] < 1:
+            raise ReceitaInvalida(f"{onde}: largura e altura precisam ser pelo menos 1")
+        cores = _chaves_da_paleta(bruta.get("cores"), onde, "cores", paleta, 2)
+        if len(cores) != 2:
+            raise ReceitaInvalida(f"{onde}: 'cores' são duas chaves, como \"ab\"")
+        p.update(cores=cores, padrao=_uma_de(bruta.get("padrao", "xadrez"), _ac.PADROES, onde, "padrao"))
+    elif forma == "textura":
+        p["padrao"] = _uma_de(valor, _ac.TEXTURAS, onde, "textura")
+        cor = _chave(bruta.get("cor"), onde, "cor", paleta)
+        if "sobre" in bruta:
+            p["sobre"] = _chaves_da_paleta(bruta["sobre"], onde, "sobre", paleta)
+        densidade = bruta.get("densidade", 2)
+        if not _e_inteiro(densidade) or not 1 <= densidade <= 3:
+            raise ReceitaInvalida(f"{onde}: 'densidade' vai de 1 a 3")
+        p["densidade"] = densidade
+    else:  # luz_de_borda
+        cor = _chave(valor, onde, "luz_de_borda", paleta)
+        p["sobre"] = _chaves_da_paleta(bruta.get("sobre"), onde, "sobre", paleta)
+    return Operacao(forma=forma, numeros=numeros, cor=cor, caminho=onde, parametros=p)
 
 
 def _ler_construcao(

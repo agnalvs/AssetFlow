@@ -33,7 +33,7 @@ __all__ = [
 #: delas (tests/test_ficha.py).
 MEDIDAS_CONHECIDAS = {
     "VALOR", "PREENCHIMENTO", "PROPORCAO", "ALTURA", "CORES", "TONS", "RAMPAS", "CONTORNO",
-    "ORFAOS", "CANTOS", "DOBRAS", "DEGRAUS",
+    "ORFAOS", "CANTOS", "DOBRAS", "DEGRAUS", "PONTILHADO",
 }
 #: Pergunta do olhar -> as medidas que conferem a mesma coisa (para o cruzamento).
 #: Cantos, dobras e degraus vêm do lote F1 (``referencias/linha.py``).

@@ -35,6 +35,13 @@ Outros que já existiam: `ASSETFLOW_LICOES=0` tira as lições do recorte (~0 a
 lote F5) soma ~10 a 30 tokens de respostas por pedido; desligá-la quase não
 economiza e tira o cruzamento com as medidas.
 
+Os **comandos opcionais da receita** (lotes F1 a F4) custam no formato: cor e
+luz ~170 tokens, construção ~150, linha ~100, acabamento ~200. Desde o lote
+F4 eles vão **uma vez por conversa** (`ASSETFLOW_FORMATO_UMA_VEZ`, ligado);
+nas consultas seguintes, uma linha com os nomes — ~600 tokens a menos por
+consulta. Desligar um grupo (`comandos_<grupo>: false`) tira o custo dele
+também da primeira.
+
 O **editor de pixels** (`ASSETFLOW_EDITOR`, lote 5, ligado) não custa token
 nenhum: a correção pequena feita ali poupa um remendo do olhar (~1.000 tokens)
 ou um pedido de ajuste inteiro (~3.000 a 5.000).

@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1796 passed, 1 skipped)
+pytest -q                                # suíte completa (1820 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -339,6 +339,16 @@ propostas sem ativar).
   perguntas do `olhar.yaml` são feitas de modo que "sim" é o desenho certo:
   a ficha lê "sim" como passou. Detalhes:
   [backend/docs/LOTE_F1_LINHA.md](backend/docs/LOTE_F1_LINHA.md).
+- **Lote F4** (detalhes e acabamento) — `engines/desenhista/acabamento.py`:
+  `rosto` (tamanho pela cabeça, expressões do §9, olhar, perfil), `extremidade`
+  (mão aberta ou fechada, pé, por tamanho e lado), `suavizar` (AA interno nos
+  degraus longos), `pontilhar`, `textura` e `luz_de_borda`. Interruptor
+  `comandos_acabamento`. Recusa de `suavizar`/`pontilhar` em sprite pequeno é
+  aviso, não erro. O olho mede pontilhado por **manchas** de xadrez (a janela
+  solta é olho; contada, acusaria 2/3 dos pacotes). O formato dos comandos
+  opcionais vai **uma vez por conversa** (`ASSETFLOW_FORMATO_UMA_VEZ`;
+  `consultar_pedido(..., formato=true)` repete). Detalhes:
+  [backend/docs/LOTE_F4_ACABAMENTO.md](backend/docs/LOTE_F4_ACABAMENTO.md).
 
 ## Arquitetura
 

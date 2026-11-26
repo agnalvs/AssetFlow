@@ -171,6 +171,12 @@ class AprendizadoSettings(AssetFlowModel):
     #: ``ASSETFLOW_OLHAR_LISTA_CURTA``. **Ajuste de custo**: ~170 tokens por
     #: pedido (docs/CUSTO.md).
     lista_curta: bool = False
+    #: O formato dos comandos opcionais da receita (lotes F1 a F4) só na
+    #: primeira resposta de cada conversa; nas seguintes, uma linha com os
+    #: nomes, e ``consultar_pedido(..., formato=true)`` o repete.
+    #: ``ASSETFLOW_FORMATO_UMA_VEZ`` (``0`` manda sempre). **Ajuste de custo**:
+    #: ~600 tokens por consulta depois da primeira (docs/CUSTO.md).
+    formato_uma_vez: bool = True
     #: A ficha de verificação de cada asset concluído (lote F5): uma linha por
     #: regra aplicável, com as respostas do olhar e o cruzamento com as
     #: medidas. ``ASSETFLOW_FICHA`` (``0`` desliga).
@@ -412,6 +418,7 @@ def load_settings(
         licoes=_env_bool("LICOES", padrao_aprendizado.licoes),
         peso_autora=int(_env("LICOES_PESO_AUTORA") or padrao_aprendizado.peso_autora),
         lista_curta=_env_bool("OLHAR_LISTA_CURTA", padrao_aprendizado.lista_curta),
+        formato_uma_vez=_env_bool("FORMATO_UMA_VEZ", padrao_aprendizado.formato_uma_vez),
         ficha=_env_bool("FICHA", padrao_aprendizado.ficha),
         espera_s=float(_env("PEDIDOS_ESPERA_S") or padrao_aprendizado.espera_s),
     )

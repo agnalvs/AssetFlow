@@ -306,6 +306,12 @@ class ConfiguracaoDoOlho:
     #: progressão por 100 px do contorno escuro (lote F1). Tipo ausente, sem
     #: comparação.
     linha: dict[str, dict[str, float]] = field(default_factory=dict)
+    #: Lado do sprite até o qual personagem e prop não pontilham (lote F4, §7).
+    pontilhado_ate: float | None = None
+    #: Fração da área em pontilhado acima da qual é melhor uma cor a mais (§7).
+    pontilhado_teto: float | None = None
+    #: Janelas xadrez vizinhas a partir das quais uma mancha é pontilhado.
+    pontilhado_mancha: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -383,6 +389,9 @@ def _olho(bruto: Any, problemas: list[str]) -> ConfiguracaoDoOlho:
         ("p_alto", 0.5, 1.0),
         ("contraste_minimo", 0.0, 100.0),
         ("iou_copia", 0.0, 1.0),
+        ("pontilhado_ate", 0.0, 512.0),
+        ("pontilhado_teto", 0.0, 1.0),
+        ("pontilhado_mancha", 1.0, 64.0),
     ):
         valor = _numero_a_calibrar(bruto.get(chave), f"olho.{chave}", problemas)
         if valor is not None and not minimo <= valor <= maximo:

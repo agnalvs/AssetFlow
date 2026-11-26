@@ -89,6 +89,9 @@ cor e luz (opcionais): raiz "rampas": [{"chaves": "abc", "base": "#rrggbb", "des
      raiz "boneco": {"altura", "cabecas": 1.5–8, "chao", "centro", "forma": circulo|quadrado|triangulo, "acao": reta|curva|inclinada, "lado", "pose": parado|andando|ataque|conjurando, "cores": {"pele", "roupa", "contorno"}} — gera camadas boneco_* antes das suas""",
     "linha": """linha (opcional): {"reta": [x0, y0, x1, y1], "cor": "k"} degraus iguais · {"curva": [x0, y0, x1, y1, x2, y2…], "cor": "k"} pelos pontos · {"limpar_linha": "k"|true} tira dobras e cantos em L da camada
      raiz "contorno": {"tipo": inteiro|seletivo|colorido, "cor": "k", "cor_luz"?: "c"} contorna tudo por último""",
+    "acabamento": """acabamento (opcional): {"rosto": [x, y], "cabeca": px, "cor": "k", "expressao"?: neutro|feliz|triste|bravo|surpreso, "olhar"?: frente|esquerda|direita|cima|baixo, "vista"?: frente|perfil, "boca"?: "m", "reflexo"?: "w"}
+     {"extremidade": [x, y], "tipo": mao|pe, "forma"?: fechada|aberta, "lado"?: direita|esquerda, "tamanho"?: 1–4, "cor": "p", "contorno"?: "k"} · {"luz_de_borda": "c", "sobre": "ab"} · {"textura": veio|rachadura|tufos|escamas, "cor": "a", "sobre"?: "bc"}
+     {"suavizar": "m", "traco": "k"} e {"pontilhar": [x, y, w, h], "cores": "ab", "padrao"?: xadrez|25}: recusados em sprite pequeno (32 e 48 px)""",
 }
 
 
@@ -96,6 +99,26 @@ def formato_da_receita(ligados) -> str:
     """O formato da receita com as linhas dos grupos opcionais ligados."""
     extras = [FORMATO_OPCIONAL[g] for g in FORMATO_OPCIONAL if g in ligados]
     return "\n".join([FORMATO_RECEITA, *extras])
+
+
+#: O nome de cada grupo opcional na linha curta.
+_NOMES_DOS_GRUPOS = {
+    "cor_e_luz": "cor e luz",
+    "construcao": "construção",
+    "linha": "linha",
+    "acabamento": "acabamento",
+}
+
+
+def formato_curto(ligados) -> str:
+    """O formato da receita com os grupos opcionais numa linha só (os nomes)."""
+    nomes = [_NOMES_DOS_GRUPOS[g] for g in FORMATO_OPCIONAL if g in ligados]
+    if not nomes:
+        return FORMATO_RECEITA
+    return (
+        f"{FORMATO_RECEITA}\ncomandos opcionais ligados: {', '.join(nomes)} — o formato deles veio "
+        "na primeira resposta desta conversa; consultar_pedido(..., formato=true) o repete"
+    )
 
 
 #: Teto de coordenadas de pixels isolados listadas no laudo.

@@ -98,6 +98,7 @@ from .laudo import (
     formatar_consulta,
     formatar_laudo,
     formatar_pendentes,
+    formato_curto,
     formato_da_receita,
     instrucao_avulsa,
     instrucao_do_pedido,
@@ -166,10 +167,26 @@ class ServicoDesenhista:
         self._timeout_s = timeout_s or (container.settings.worker.job_timeout_s + 30.0)
         # Os grupos de comandos opcionais ligados na gaveta: o formato da
         # receita só cita os que ela aceita.
-        self._formato = formato_da_receita(_grupos_ligados(container))
+        ligados = _grupos_ligados(container)
+        self._formato_completo = formato_da_receita(ligados)
+        self._formato_curto = formato_curto(ligados)
+        self._formato_entregue = False
         # O que o último consultar_pedido avulso entregou, por (texto, perfil):
         # o desenho avulso não tem pedido na fila para guardar o envio.
         self._envios: dict[tuple[str, str], dict[str, Any]] = {}
+
+    # ------------------------------------------------------------------
+    def _formato(self, *, completo: bool = False) -> str:
+        """O formato da receita: inteiro na primeira vez desta conversa, curto depois.
+
+        O servidor MCP é um processo por sessão do Claude Code: "a primeira vez
+        neste processo" é a primeira resposta da conversa. ``completo`` (o
+        ``formato=true`` do ``consultar_pedido``) o repete.
+        """
+        if completo or not self._config.formato_uma_vez or not self._formato_entregue:
+            self._formato_entregue = True
+            return self._formato_completo
+        return self._formato_curto
 
     # ------------------------------------------------------------------
     def perfis(self) -> list[str]:
@@ -187,6 +204,7 @@ class ServicoDesenhista:
         perfil: str | None = None,
         molde: bool = False,
         liberdade: str | None = None,
+        formato: bool = False,
     ) -> str:
         perfil = self._perfil(perfil)
         texto = self._texto(pedido)
@@ -213,7 +231,7 @@ class ServicoDesenhista:
             conhecimento=recorte,
             liberdade=livre.value,
             extras=extras,
-            formato=self._formato,
+            formato=self._formato(completo=formato),
         )
 
     # ------------------------------------------------------------------
@@ -271,7 +289,11 @@ class ServicoDesenhista:
             rampas=rampas,
             opinioes=opinioes,
             com_formato=any(desenho for *_, desenho in entregues),
-            formato=self._formato,
+            formato=(
+                self._formato()
+                if any(desenho for *_, desenho in entregues)
+                else self._formato_curto
+            ),
         )
         if entregues:
             # O que é comum à resposta se divide entre os pedidos dela.
@@ -336,7 +358,7 @@ class ServicoDesenhista:
                         f"agora com desenhar(pedido_id={pedido_id}, receita=...)."
                     ),
                     "",
-                    self._formato,
+                    self._formato(),
                     *(["", rampas] if rampas else []),
                     "",
                     bloco,
@@ -1297,7 +1319,7 @@ def _grupos_ligados(container: AppContainer) -> set[str]:
         opcoes = engine_runtime_configs(container.settings)[MOTOR].options
     except (KeyError, ValueError):
         return set()
-    grupos = {"cor_e_luz", "construcao", "linha"}
+    grupos = {"cor_e_luz", "construcao", "linha", "acabamento"}
     return {g for g in grupos if bool(opcoes.get(f"comandos_{g}", True))}
 
 

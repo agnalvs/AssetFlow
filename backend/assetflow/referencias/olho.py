@@ -41,7 +41,7 @@ from typing import Any
 import numpy as np
 
 from .colecao import ParteDaLinha, ReferenciasAtivas, distribuicao, quantis
-from .linha import medir_linha
+from .linha import medir_linha, medir_pontilhado
 from .medidor import _grupos_de_matiz, _luminancia, medir_quadro
 from .pacote import ConfiguracaoDoOlho
 
@@ -178,6 +178,8 @@ def olhar_desenho(
     linha = medir_linha(rgba, cor_do_contorno)
     if linha is not None:
         _linha(desvios, linha, config.linha.get(tipo) or {})
+    pontilhado = medir_pontilhado(rgba, int(config.pontilhado_mancha or 4))
+    _pontilhado(desvios, pontilhado, config, tipo, rgba.shape[1], rgba.shape[0])
 
     if porte.suficiente:
         cabecalho = (
@@ -206,6 +208,7 @@ def olhar_desenho(
             if linha is not None
             else None
         ),
+        "pontilhado": {"pixels": pontilhado["pixels"], "fracao": pontilhado["fracao"]},
         "contraste_por_camada": [
             {"a": p["a"], "b": p["b"], "dL": round(p["dL"], 1), "contato": len(p["contato"])}
             for p in pares
@@ -251,6 +254,38 @@ def _linha(desvios, linha: dict[str, Any], limites: dict[str, float]) -> None:
                 codigo,
                 f"{len(posicoes)} {nome} no contorno ({_num(taxa, 1)} por 100 px; referências "
                 f"até {_num(limite, 1)}) em {lista}" + (f" +{resto}" if resto > 0 else ""),
+            )
+        )
+
+
+#: Pixels em padrão abaixo dos quais não há pontilhado a acusar (a mancha
+#: mínima de 4 janelas cobre 9 pixels).
+_MINIMO_PONTILHADO = 9
+
+
+def _pontilhado(desvios, medida, config, tipo: str, largura: int, altura: int) -> None:
+    """Pontilhado em sprite pequeno, ou acima do teto de área (§7)."""
+    if medida["pixels"] < _MINIMO_PONTILHADO:
+        return
+    posicoes = medida["posicoes"]
+    lista = " ".join(f"({x},{y})" for x, y in posicoes[:MAX_POSICOES])
+    resto = len(posicoes) - min(len(posicoes), MAX_POSICOES)
+    onde = lista + (f" +{resto}" if resto > 0 else "")
+    ate = config.pontilhado_ate
+    if ate is not None and tipo in ("character", "prop") and max(largura, altura) <= ate:
+        desvios.append(
+            Desvio(
+                "PONTILHADO",
+                f"{medida['pixels']} px em padrão xadrez num sprite de {largura}×{altura}; até "
+                f"{round(ate)} px, personagem e objeto não pontilham (§7) — em {onde}",
+            )
+        )
+    elif config.pontilhado_teto is not None and medida["fracao"] > config.pontilhado_teto:
+        desvios.append(
+            Desvio(
+                "PONTILHADO",
+                f"o pontilhado cobre {round(medida['fracao'] * 100)}% do sprite; acima de "
+                f"{round(config.pontilhado_teto * 100)}% é melhor uma cor a mais (§7) — em {onde}",
             )
         )
 

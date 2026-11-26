@@ -26,7 +26,7 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["medir_linha"]
+__all__ = ["medir_linha", "medir_pontilhado"]
 
 Ponto = tuple[int, int]
 _QUATRO = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -118,6 +118,56 @@ def _calombos(mascara: set[Ponto]) -> list[Ponto]:
                         fixo, de, _ = cadeia[i]
                         achados.append((de, fixo) if eixo == 1 else (fixo, de))
     return achados
+
+
+def _manchas(janela: np.ndarray, minimo: int) -> np.ndarray:
+    """As janelas que pertencem a uma mancha (vizinhas pelos 4 lados) de ``minimo`` ou mais."""
+    ys, xs = np.nonzero(janela)
+    restam = set(zip(ys.tolist(), xs.tolist()))
+    ficam = np.zeros_like(janela)
+    while restam:
+        pilha = [restam.pop()]
+        mancha = []
+        while pilha:
+            y, x = pilha.pop()
+            mancha.append((y, x))
+            for v in ((y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)):
+                if v in restam:
+                    restam.remove(v)
+                    pilha.append(v)
+        if len(mancha) >= minimo:
+            for y, x in mancha:
+                ficam[y, x] = True
+    return ficam
+
+
+def medir_pontilhado(rgba: np.ndarray, mancha_minima: int = 4) -> dict[str, Any]:
+    """Os pixels pontilhados (lote F4): manchas de janelas 2×2 ``a b / b a``, a ≠ b.
+
+    É o pontilhado de 50%, o mais comum (§7). Uma janela solta é olho ou
+    detalhe, não pontilhado: só conta a mancha de ``mancha_minima`` janelas
+    vizinhas ou mais (4 = uma área 3×3 em xadrez). ``fracao`` é sobre os opacos.
+    """
+    opaco = rgba[..., 3] > 0
+    codigos = (
+        (rgba[..., 0].astype(np.int64) << 16) | (rgba[..., 1].astype(np.int64) << 8) | rgba[..., 2]
+    )
+    a, b = codigos[:-1, :-1], codigos[:-1, 1:]
+    c, d = codigos[1:, :-1], codigos[1:, 1:]
+    todos = opaco[:-1, :-1] & opaco[:-1, 1:] & opaco[1:, :-1] & opaco[1:, 1:]
+    janela = _manchas(todos & (a == d) & (b == c) & (a != b), mancha_minima)
+    marcado = np.zeros_like(opaco)
+    marcado[:-1, :-1] |= janela
+    marcado[:-1, 1:] |= janela
+    marcado[1:, :-1] |= janela
+    marcado[1:, 1:] |= janela
+    ys, xs = np.nonzero(marcado)
+    total = int(opaco.sum())
+    return {
+        "pixels": int(marcado.sum()),
+        "fracao": round(float(marcado.sum()) / total, 4) if total else 0.0,
+        "posicoes": sorted(zip(xs.tolist(), ys.tolist()), key=lambda p: (p[1], p[0])),
+    }
 
 
 def medir_linha(rgba: np.ndarray, cor_do_contorno: str | None) -> dict[str, Any] | None:

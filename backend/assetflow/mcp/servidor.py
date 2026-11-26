@@ -72,10 +72,14 @@ def criar_servidor(
             bool, Field(description="true inclui a receita do molde-base; sem ele, só as medidas.")
         ] = False,
         liberdade: Annotated[str | None, Field(description=liberdade_consulta)] = None,
+        formato: Annotated[
+            bool,
+            Field(description="true repete o formato inteiro dos comandos opcionais da receita."),
+        ] = False,
     ) -> str:
         """Resolve um pedido de pixel art em texto livre (ex.: "cavaleiro 32x32, 8 cores, sem fundo") e devolve o que o AssetFlow entendeu, o formato da receita e as medidas, a paleta e a luz da base. Chame antes de desenhar."""
         try:
-            return servico.consultar(pedido, perfil, molde, liberdade)
+            return servico.consultar(pedido, perfil, molde, liberdade, formato)
         except ErroDoPedido as exc:
             raise ToolError(str(exc)) from exc
 

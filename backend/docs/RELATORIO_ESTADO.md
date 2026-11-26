@@ -46,7 +46,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `59fabc1` | Lote F3 — construção | `capsula` (2 ou 3 pontos, espessura, contorno, vão até outra camada), `copiar` (deslocada, espelhada) e `boneco` na raiz (altura, cabeças, forma dominante, linha de ação, pose, cores), que vira camadas `boneco_*`. Interruptor `comandos_construcao`. | 1724 / 1 |
 | `9ffea04` | Lote F5 — ficha de verificação | Toda regra da base declara `verificacao` (`construcao`, `medida`, `olhar`, `autora`), e a carga recusa a que não declara; teste confere que o alvo existe. `concluir_pedido` com `respostas` por pergunta; `000_ficha.json` por asset (`mcp/ficha.py`) com uma linha por regra e as divergências entre resposta e medida; `GET /api/pedidos/{id}/ficha` e a ficha dobrada no resultado. Interruptor `ASSETFLOW_FICHA`. | 1735 / 1 |
 | `51f14f6` | Lote 5 — editor de pixels | `assetflow/editor/` e o editor na tela (lápis, apagar, conta-gotas, paleta do asset, desfazer, prévia 2×): a troca vira a camada `retoque_N` no fim da receita, desenhada pelo caminho de sempre; aprovado, vira um pedido de ajuste já concluído (`registrar_edicao`). "O que estava errado" vira opinião pendente no original. `GET`/`POST /api/pedidos/{id}/editor`; a gaveta grava a paleta efetiva. Interruptor `ASSETFLOW_EDITOR`. | 1768 / 1 |
-| (este) | Lote F1 — linha e contorno | `reta` (degraus iguais), `curva` (Catmull-Rom pelos pontos, sem canto em L), `limpar_linha` (dobras, depois cantos, relata posições) e `contorno` na raiz (inteiro, seletivo, colorido). Interruptor `comandos_linha`. Olho do app: cantos em L, dobras e degraus no contorno escuro, contra limites por tipo calibrados nos pacotes ativos (p90, `scripts/calibrar_linha.py`). Ficha: `limpeza` cruza com as medidas novas; as perguntas `limpeza` reescritas no positivo (corrige o F5). | 1796 / 1 |
+| `0ede490` | Lote F1 — linha e contorno | `reta` (degraus iguais), `curva` (Catmull-Rom pelos pontos, sem canto em L), `limpar_linha` (dobras, depois cantos, relata posições) e `contorno` na raiz (inteiro, seletivo, colorido). Interruptor `comandos_linha`. Olho do app: cantos em L, dobras e degraus no contorno escuro, contra limites por tipo calibrados nos pacotes ativos (p90, `scripts/calibrar_linha.py`). Ficha: `limpeza` cruza com as medidas novas; as perguntas `limpeza` reescritas no positivo (corrige o F5). | 1796 / 1 |
+| (este) | Lote F4 — detalhes e acabamento | `rosto`, `extremidade`, `suavizar`, `pontilhar`, `textura`, `luz_de_borda`; interruptor `comandos_acabamento`; recusas em sprite pequeno como aviso. Olho: pontilhado por manchas de xadrez, calibrado nos pacotes. Formato dos opcionais uma vez por conversa (`ASSETFLOW_FORMATO_UMA_VEZ`, `consultar_pedido(formato=true)`). | 1820 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -1028,3 +1029,21 @@ personagens), então a regra do §4 não é absoluta e o olho só acusa acima do
 p90 — a poção de exemplo da gaveta passa a receber o desvio; contorno seletivo
 e colorido sem medida contra as referências; o degrau 2, 1, 2, 1 conta como
 irregular.
+
+Nota do commit: o `0ede490` levou também `backend/docs/SUGESTOES_DE_MELHORIA.md`,
+que a autora pôs na pasta durante a sessão (lista de ideias, sem nada
+sensível), porque a pasta foi adicionada inteira. Dali em diante os arquivos
+entram pelo nome.
+
+### Lote F4 — detalhes e acabamento ([LOTE_F4_ACABAMENTO.md](LOTE_F4_ACABAMENTO.md))
+
+Decisões: tamanhos do rosto por altura de cabeça (convenção minha a partir do
+§9); `reflexo` e `traco` no lugar de `brilho` e `linha`, que já são comandos;
+recusa de acabamento vira aviso; suavizar a partir de 32 px e pontilhar a
+partir de 48; mão e pé como carimbos fixos; o formato dos opcionais uma vez por
+conversa (ia inteiro em toda consulta, ~800 tokens com os quatro grupos).
+
+Dúvidas: os carimbos de mão aberta; rosto de perfil sem nariz nem queixo; o
+pontilhado não confere o contraste entre as duas cores. Achado: contar a
+janela xadrez solta como pontilhado acusaria 2.392 de 3.469 personagens
+profissionais de até 32 px; a medida conta só manchas de 4 janelas (67 acusam).

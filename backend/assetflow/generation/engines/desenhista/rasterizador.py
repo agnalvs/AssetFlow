@@ -51,8 +51,9 @@ from typing import Any
 
 from PIL import Image
 
-from . import construcao, cor_e_luz, linha
+from . import acabamento, construcao, cor_e_luz, linha
 from .receita import (
+    ACABAMENTO,
     APAGAR,
     CAMADA_DO_CONTORNO,
     MANTER,
@@ -192,6 +193,11 @@ def _aplicar_camada(
                 else:
                     trabalho.escrever(x, y, valor)
                     escritas[(x, y)] = valor
+            continue
+        if op.forma in ACABAMENTO:
+            for (x, y), valor in _acabamento(op, escritas, trabalho, avisos, luz).items():
+                trabalho.escrever(x, y, valor)
+                escritas[(x, y)] = valor
             continue
         if op.forma in cor_e_luz.EFEITOS:
             proprias, de_outras = _efeito(op, camada, escritas, trabalho, donos, luz)
@@ -341,6 +347,85 @@ def _linha(
         raise ReceitaInvalida(
             f"{op.caminho}: a operação fica inteira fora da grade "
             f"{trabalho.largura}×{trabalho.altura}"
+        )
+    if len(dentro) < len(candidatas):
+        avisos.append(
+            f"{op.caminho}: {len(candidatas) - len(dentro)} pixel(s) fora da grade "
+            f"{trabalho.largura}×{trabalho.altura} foram recortados"
+        )
+    return dentro
+
+
+def _acabamento(
+    op: Operacao,
+    escritas: dict[Ponto, Celula],
+    trabalho: Grade,
+    avisos: list[str],
+    luz: str,
+) -> dict[Ponto, Celula]:
+    """Detalhes e acabamento (lote F4): o que a operação pinta nesta camada."""
+    p = op.parametros
+    lado_maior = max(trabalho.largura, trabalho.altura)
+    pintado = {
+        (i % trabalho.largura, i // trabalho.largura): valor
+        for i, valor in enumerate(trabalho.celulas)
+        if valor is not None
+    }
+    if op.forma == "rosto":
+        candidatas = acabamento.rosto(
+            (op.numeros[0], op.numeros[1]), p["cabeca"], expressao=p["expressao"],
+            olhar=p["olhar"], vista=p["vista"], cor=op.cor or "", boca=p["boca"], reflexo=p["reflexo"],
+        )
+    elif op.forma == "extremidade":
+        candidatas = acabamento.extremidade(
+            (op.numeros[0], op.numeros[1]), tipo=p["tipo"], forma=p["forma"], lado=p["lado"],
+            tamanho=p["tamanho"], cor=op.cor or "", contorno=p["contorno"],
+        )
+    elif op.forma == "suavizar":
+        if lado_maior < acabamento.MINIMO_PARA_SUAVIZAR:
+            avisos.append(
+                f"{op.caminho}: recusado — em {trabalho.largura}×{trabalho.altura} a suavização vira "
+                f"ruído (§7); só a partir de {acabamento.MINIMO_PARA_SUAVIZAR} px de lado"
+            )
+            return {}
+        linha = {c for c, valor in pintado.items() if valor in p["traco"]}
+        candidatas = acabamento.suavizar(linha, pintado, op.cor or "")
+        if not candidatas:
+            avisos.append(f"{op.caminho}: nada a suavizar — sem degrau longo em curva (reta não se suaviza)")
+            return {}
+    elif op.forma == "pontilhar":
+        if lado_maior < acabamento.MINIMO_PARA_PONTILHAR:
+            avisos.append(
+                f"{op.caminho}: recusado — em {trabalho.largura}×{trabalho.altura} o pontilhado vira "
+                f"ruído (§7); só a partir de {acabamento.MINIMO_PARA_PONTILHAR} px de lado"
+            )
+            return {}
+        candidatas = acabamento.pontilhar(op.numeros, pintado, p["cores"], p["padrao"])
+        if len(candidatas) < acabamento.MINIMA_REGIAO:
+            avisos.append(
+                f"{op.caminho}: recusado — a região tem {len(candidatas)} pixel(s) pintados; o padrão "
+                f"pede pelo menos {acabamento.MINIMA_REGIAO}"
+            )
+            return {}
+        if pintado and len(candidatas) > acabamento.TETO_PONTILHADO * len(pintado):
+            avisos.append(
+                f"{op.caminho}: o pontilhado cobre {round(100 * len(candidatas) / len(pintado))}% do "
+                f"sprite; acima de {round(100 * acabamento.TETO_PONTILHADO)}% é melhor uma cor a mais (§7)"
+            )
+    elif op.forma == "textura":
+        sobre = p.get("sobre")
+        celulas = [c for c, valor in escritas.items() if valor is not None and (sobre is None or valor in sobre)]
+        candidatas = acabamento.textura(celulas, p["padrao"], op.cor or "", p["densidade"])
+        if not candidatas:
+            avisos.append(f"{op.caminho}: a camada não tem miolo onde caiba a textura")
+            return {}
+    else:  # luz_de_borda
+        alvo = {c for c, valor in escritas.items() if valor is not None and valor in p["sobre"]}
+        candidatas = acabamento.luz_de_borda(alvo, cor_e_luz.LUZES.get(luz, (-1.0, -1.0)), op.cor or "")
+    dentro = {c: v for c, v in candidatas.items() if trabalho.contem(*c)}
+    if candidatas and not dentro:
+        raise ReceitaInvalida(
+            f"{op.caminho}: a operação fica inteira fora da grade {trabalho.largura}×{trabalho.altura}"
         )
     if len(dentro) < len(candidatas):
         avisos.append(

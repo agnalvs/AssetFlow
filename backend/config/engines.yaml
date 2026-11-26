@@ -65,6 +65,7 @@ engines:
       comandos_cor_e_luz: true
       comandos_construcao: true
       comandos_linha: true
+      comandos_acabamento: true
 
   # -------------------------------------------------------------------------
   # Gaveta de referência sem IA — exercita a arquitetura nos testes.

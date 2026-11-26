@@ -79,3 +79,13 @@ olho:
     character: {cantos: 6.3, dobras: 3.5, degraus: 5.6, classe: style, secao: "§4", a_calibrar: true}
     prop:      {cantos: 5.9, dobras: 0.4, degraus: 5.3, classe: style, secao: "§4", a_calibrar: true}
     tile:      {cantos: 2.4, dobras: 1.4, degraus: 4.8, classe: style, secao: "§4", a_calibrar: true}
+  # Pontilhado (lote F4, §7): personagem e prop com o lado até isto não
+  # pontilham ("padrão do spec: dithering nenhum até 32×32"); acima, o padrão
+  # xadrez não passa do teto da área ("teto de área, por exemplo 15%, a calibrar").
+  pontilhado_ate:   {valor: 32,   classe: style, secao: "§7", a_calibrar: true}
+  pontilhado_teto:  {valor: 0.15, classe: style, secao: "§7", a_calibrar: true}
+  # Só conta como pontilhado a mancha de janelas 2×2 em xadrez vizinhas: uma
+  # janela solta é olho ou detalhe. Com 4 janelas (uma área 3×3), 67 de 3.469
+  # personagens e 6 de 257 props de até 32 px dos pacotes ativos acusam (~2%);
+  # com 1, 2.392 de 3.469 acusariam (medido em 2026-11-26).
+  pontilhado_mancha: {valor: 4,   classe: style, secao: "§7", a_calibrar: true}

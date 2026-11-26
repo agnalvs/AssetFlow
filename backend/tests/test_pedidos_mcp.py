@@ -105,9 +105,13 @@ def test_tamanho_com_um_e_com_cinco_pedidos(servico, container):
         _pedido(container, texto)
     cinco = run(servico.pedidos_pendentes())
 
-    assert 2_000 < len(um) < 4_000
+    # A primeira resposta da conversa traz o formato dos comandos opcionais
+    # (lotes F1 a F4, ~1.900 caracteres); as seguintes, uma linha com os nomes.
+    assert 2_000 < len(um) < 6_000
     assert cinco.startswith("5 pedidos da tela")
     assert len(cinco) < modulo_servico.TETO_PENDENTES
+    assert "comandos opcionais ligados:" in cinco and '"limpar_linha"' not in cinco
+    assert '"limpar_linha"' in um
 
 
 def test_limite_vai_de_1_a_10(servico, container):
@@ -315,14 +319,15 @@ PEDIDO = "arqueira de capuz verde 48x48, 12 cores, sem fundo"
 
 
 def test_consultar_sem_liberdade_e_como_antes(servico):
-    assert servico.consultar(PEDIDO, "pixel_character_48") == servico.consultar(
-        PEDIDO, "pixel_character_48", liberdade="fiel"
+    # formato=true: a segunda consulta da conversa viria com o formato curto.
+    assert servico.consultar(PEDIDO, "pixel_character_48", formato=True) == servico.consultar(
+        PEDIDO, "pixel_character_48", liberdade="fiel", formato=True
     )
 
 
 def test_consultar_equilibrado(servico):
-    fiel = servico.consultar(PEDIDO, "pixel_character_48")
-    texto = servico.consultar(PEDIDO, "pixel_character_48", liberdade="equilibrado")
+    fiel = servico.consultar(PEDIDO, "pixel_character_48", formato=True)
+    texto = servico.consultar(PEDIDO, "pixel_character_48", liberdade="equilibrado", formato=True)
     recorte = texto.split("\nconhecimento:\n", 1)[1].splitlines()
 
     assert recorte[0] == LIBERDADE_EQUILIBRADO
@@ -360,7 +365,9 @@ def test_consultar_ousado(servico):
 
 def test_liberdade_nao_muda_os_limites_duros(servico):
     cabecalhos = {
-        liberdade: servico.consultar(PEDIDO, "pixel_character_48", liberdade=liberdade).split(
+        liberdade: servico.consultar(
+            PEDIDO, "pixel_character_48", liberdade=liberdade, formato=True
+        ).split(
             "\nconhecimento:\n"
         )[0]
         for liberdade in ("fiel", "equilibrado", "ousado")
