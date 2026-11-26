@@ -30,6 +30,7 @@ from .routers import (
     backup,
     banca,
     capabilities,
+    custo,
     dev_pixel,
     engines,
     jobs,
@@ -260,6 +261,7 @@ def create_app(
     app.include_router(aprendizado.router)
     app.include_router(banca.router)
     app.include_router(backup.router)
+    app.include_router(custo.router)
 
     # Diagnóstico do Pixel Exact (plano Pixel §78). Quem decide se ele
     # responde é o próprio endpoint, lendo `api.dev_endpoints` do container em

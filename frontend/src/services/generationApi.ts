@@ -23,6 +23,7 @@ import {
   type CopiaDeSeguranca,
   type CopiasDeSeguranca,
   type EstadoDosServidores,
+  type PainelDeCusto,
   type EdicaoResultado,
   type EditorDados,
   type Ficha,
@@ -284,6 +285,11 @@ export function opinar(assetId: string, gostei: boolean, motivo?: string): Promi
     method: "PUT",
     body: JSON.stringify({ gostei, motivo: motivo?.trim() || null }),
   });
+}
+
+/** Tokens estimados por dia e por pedido, e o limite diário (lote 12). */
+export function lerCusto(dias = 7): Promise<PainelDeCusto> {
+  return request<PainelDeCusto>(`/api/custo?dias=${dias}`);
 }
 
 /** Em que código a API e o servidor MCP estão, e o aviso (lote 11). */

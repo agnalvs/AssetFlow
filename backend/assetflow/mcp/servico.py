@@ -66,6 +66,7 @@ from ..pedidos import (
     agora_utc,
     nova_leva,
 )
+from ..pedidos.custo import tokens_hoje
 from ..pedidos.servico import direcao_com_conceito
 from ..pixel_knowledge import (
     forma_do_olhar,
@@ -233,7 +234,7 @@ class ServicoDesenhista:
         if fonte:
             self._exemplo_mostrado(fonte)
         self._envios[(texto, perfil)] = envio
-        return formatar_consulta(
+        resposta = formatar_consulta(
             texto,
             perfil,
             spec,
@@ -242,6 +243,8 @@ class ServicoDesenhista:
             extras=extras,
             formato=self._formato(completo=formato),
         )
+        self._custo(None, entrada=len(resposta))
+        return self._com_aviso_de_limite(resposta)
 
     # ------------------------------------------------------------------
     async def pedidos_pendentes(self, limite: int = 5) -> str:
@@ -313,7 +316,7 @@ class ServicoDesenhista:
             comum = (len(texto) - sum(len(bloco) for _, bloco, *_ in entregues)) // len(entregues)
             for pid, bloco, *_ in entregues:
                 self._custo(pid, entrada=len(bloco) + comum)
-        return texto
+        return self._com_aviso_de_limite(texto)
 
     # ------------------------------------------------------------------
     async def propor_conceitos(
@@ -446,6 +449,12 @@ class ServicoDesenhista:
             instrucao=instrucao_avulsa(job.asset.id) if aprovado else None,
         )
         await self._gravar_olhar(job, olhado, envio, primeiro_olhar=not base)
+        self._custo(
+            None,
+            entrada=len(laudo),
+            saida_receita=len(json.dumps(receita, ensure_ascii=False)) if receita else 0,
+            imagens=1,
+        )
         return Laudo.com_imagem(laudo, olhado.png, olhado.ampliacao)
 
     # ------------------------------------------------------------------
@@ -628,6 +637,7 @@ class ServicoDesenhista:
             f" · ampliado {ampliacao}×, silhueta em preto e tamanho real (2× e 1×) · "
             f"{saida.status or 'sem veredito'}"
         )
+        self._custo(None, entrada=len(legenda), imagens=1)
         return imagem, legenda
 
     # ------------------------------------------------------------------
@@ -651,7 +661,9 @@ class ServicoDesenhista:
             )
         spec = self._resolver(self._texto(pedido), self._perfil(perfil)) if pedido else None
         livre = self._liberdade(liberdade)
-        return texto_do_tema(temas[chave], spec, livre.value)
+        resposta = texto_do_tema(temas[chave], spec, livre.value)
+        self._custo(None, entrada=len(resposta))
+        return resposta
 
     def ver_referencia(
         self, pedido: str, perfil: str | None = None, liberdade: str | None = None
@@ -678,6 +690,7 @@ class ServicoDesenhista:
                 f"não há referência ativa de {onde}: importe e ative um pacote "
                 "(python -m assetflow.referencias listar)"
             )
+        self._custo(None, entrada=len(exemplo[1]), imagens=1)
         return exemplo
 
     # ------------------------------------------------------------------
@@ -1153,12 +1166,33 @@ class ServicoDesenhista:
             curta=bool(self._config.lista_curta),
         )
 
-    def _custo(self, pedido_id: str, **partes: int) -> None:
-        """Soma ao pedido o que passou pela conversa (lote 1: custo da banca)."""
+    def _custo(self, pedido_id: str | None, **partes: int) -> None:
+        """Soma o que passou pela conversa (lote 1; lote 12: datado, e também o avulso)."""
         try:
             self._container.pedidos.fila.somar_custo(pedido_id, **partes)
         except ErroDaFila:
             pass  # a conta é registro; o desenho não depende dela
+
+    def _com_aviso_de_limite(self, resposta: str) -> str:
+        """Uma linha no topo quando o limite diário de tokens foi atingido (lote 12)."""
+        limite = self._container.settings.custo.limite_diario
+        if not limite:
+            return resposta
+        try:
+            hoje = tokens_hoje(self._container.pedidos.fila)
+        except ErroDaFila:
+            return resposta
+        if hoje < limite:
+            return resposta
+        def milhar(n: int) -> str:
+            return f"{n:,}".replace(",", ".")
+
+        return (
+            f"aviso: hoje já passaram ~{milhar(hoje)} tokens estimados pela conversa, e o "
+            f"limite diário da autora é {milhar(limite)} (ASSETFLOW_LIMITE_DIARIO_TOKENS) — "
+            "prefira remendos curtos e pergunte antes de começar pedidos novos.\n\n"
+            + resposta
+        )
 
     async def _gravar_olhar(
         self,

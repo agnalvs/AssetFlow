@@ -190,6 +190,16 @@ class AprendizadoSettings(AssetFlowModel):
     espera_s: float = Field(default=5.0, ge=0)
 
 
+class CustoSettings(AssetFlowModel):
+    """O painel de custo e o limite diário (lote 12)."""
+
+    #: Liga o painel da tela e a rota ``/api/custo``. ``ASSETFLOW_PAINEL_CUSTO``.
+    painel: bool = True
+    #: Tokens estimados por dia a partir dos quais a tela e o MCP avisam (não
+    #: bloqueia). ``ASSETFLOW_LIMITE_DIARIO_TOKENS``; ``0`` desliga o aviso.
+    limite_diario: int = Field(default=100_000, ge=0)
+
+
 class ServidoresSettings(AssetFlowModel):
     """O aviso de servidor desatualizado (lote 11)."""
 
@@ -239,6 +249,7 @@ class Settings(AssetFlowModel):
     banca: BancaSettings = Field(default_factory=BancaSettings)
     backup: BackupSettings = Field(default_factory=BackupSettings)
     servidores: ServidoresSettings = Field(default_factory=ServidoresSettings)
+    custo: CustoSettings = Field(default_factory=CustoSettings)
 
     #: Conteúdo bruto dos YAMLs (interpretado pelos respectivos registries).
     engines_config: dict[str, Any] = Field(default_factory=dict)
@@ -467,6 +478,10 @@ def load_settings(
             arquivo=_env("BANCA_DB") or str(data / "banca" / "banca.sqlite3"),
         ),
         servidores=ServidoresSettings(aviso=_env_bool("AVISO_SERVIDOR", True)),
+        custo=CustoSettings(
+            painel=_env_bool("PAINEL_CUSTO", True),
+            limite_diario=int(_env("LIMITE_DIARIO_TOKENS") or CustoSettings().limite_diario),
+        ),
         backup=BackupSettings(
             ligado=_env_bool("BACKUP", True),
             pasta=_env("BACKUP_DIR") or BackupSettings().pasta,

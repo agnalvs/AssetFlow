@@ -46,6 +46,10 @@ A **base por temas** (`ASSETFLOW_CONSULTAR_BASE`, lote 8, ligada) custa ~30
 tokens por consulta (a linha dos temas) e ~25 por lista de pendentes; o texto
 de um tema, ~150 a 300 tokens, só quando o Claude chama `consultar_base`.
 
+O **painel de custo** (lote 12) mostra na tela os tokens estimados por dia e
+por pedido, e o **limite diário** (`ASSETFLOW_LIMITE_DIARIO_TOKENS`, 100.000)
+avisa na tela e nas respostas do MCP quando é atingido — sem bloquear.
+
 O **editor de pixels** (`ASSETFLOW_EDITOR`, lote 5, ligado) não custa token
 nenhum: a correção pequena feita ali poupa um remendo do olhar (~1.000 tokens)
 ou um pedido de ajuste inteiro (~3.000 a 5.000).

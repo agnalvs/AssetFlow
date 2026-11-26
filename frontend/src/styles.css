@@ -1536,6 +1536,114 @@ input {
   color: #f2b870;
 }
 
+.custo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.custo__titulo {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.custo__numero {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.custo__de {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.custo__medidor {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.custo__preenchido {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.custo__alerta {
+  margin: 0;
+  color: #f7d9a8;
+  font-size: 0.86rem;
+}
+
+.custo__dias {
+  display: flex;
+  gap: 2px;
+  align-items: stretch;
+  height: 110px;
+}
+
+.custo__dia {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.custo__valor,
+.custo__rotulo {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.custo__trilho {
+  flex: 1;
+  width: 70%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.custo__barra {
+  width: 100%;
+  min-height: 1px;
+  border-radius: 4px 4px 0 0;
+  background: var(--accent);
+}
+
+.custo__botao {
+  align-self: flex-start;
+}
+
+.custo__tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.custo__tabela caption {
+  text-align: left;
+  color: var(--text-muted);
+  padding-bottom: 4px;
+}
+
+.custo__tabela th,
+.custo__tabela td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.custo__nota {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
 .licoes {
   display: flex;
   flex-direction: column;

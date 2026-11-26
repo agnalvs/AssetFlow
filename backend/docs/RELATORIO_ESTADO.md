@@ -51,7 +51,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `0aa3827` | Lote 8 — base por temas | §4, 7, 8 e 17 do PIXEL_KNOWLEDGE em `config/pixel_knowledge/temas/` (5 temas, 32 regras com seção, fonte, verificação e etiquetas). Linha dos temas na consulta e uma vez no topo da lista; ferramenta `consultar_base`; regras de tema na ficha, com três medidas novas do validador (fragmentado, redundância, borda). Interruptor `ASSETFLOW_CONSULTAR_BASE`. | 1830 / 1 |
 | `6c920bc` | Lote 9 — cópia de segurança | `python -m assetflow.backup criar/listar/restaurar`, botão no rodapé e `/api/backup`: zip datado de `backend/data/` fora do repositório, bancos pela cópia do SQLite (com o `-wal`), restauração com hashes, recusa de banco em uso e guarda do que havia. Interruptor `ASSETFLOW_BACKUP`. | 1852 / 1 |
 | `a7680bf` | Lote 10 — um clique para abrir | `iniciar.bat` + `backend/scripts/iniciar.py`: reaproveita API e tela já de pé (IPv4 e IPv6), sobe as que faltam em portas livres, confere título e saúde pelo proxy, abre o navegador, encerra o que subiu. Conferido ao vivo com a 5173 ocupada. | 1858 / 1 |
-| (este) | Lote 11 — aviso de servidor desatualizado | API e MCP gravam pid, commit e hora em `data/servidores/`; `/api/servidores` e a faixa da tela avisam quando um processo vivo está noutro commit ou subiu antes da última mudança de código ou `config/`. Leitor de commit em `assetflow/versao.py`. Interruptor `ASSETFLOW_AVISO_SERVIDOR`. | 1872 / 1 |
+| `a1f3d33` | Lote 11 — aviso de servidor desatualizado | API e MCP gravam pid, commit e hora em `data/servidores/`; `/api/servidores` e a faixa da tela avisam quando um processo vivo está noutro commit ou subiu antes da última mudança de código ou `config/`. Leitor de commit em `assetflow/versao.py`. Interruptor `ASSETFLOW_AVISO_SERVIDOR`. | 1872 / 1 |
+| (este) | Lote 12 — painel de custo | Eventos de custo datados na fila (com as consultas sem pedido); `/api/custo` e o painel (hoje contra o limite, 7 dias, pedidos); limite diário que avisa na tela e no MCP sem bloquear. Interruptores `ASSETFLOW_PAINEL_CUSTO` e `ASSETFLOW_LIMITE_DIARIO_TOKENS`. | 1884 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -1092,3 +1093,12 @@ arquivo depois da subida também avisa (o caso mais comum, sem commit).
 
 Dúvidas: processos que subiram antes do lote não se registram até
 reconectar; trocar de branch também avisa.
+
+### Lote 12 — painel de custo ([LOTE_12_CUSTO.md](LOTE_12_CUSTO.md))
+
+Decisões: eventos datados numa tabela da fila (um pedido desenhado em dois
+dias conta nos dois); limite padrão de 100.000 tokens por dia, número meu;
+o aviso não bloqueia; no MCP, só nas respostas que começam trabalho.
+
+Dúvidas: o custo de antes do lote não tem data, e o painel só se enche
+depois de reconectar o MCP; tokens, não dinheiro.

@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1872 passed, 1 skipped)
+pytest -q                                # suíte completa (1884 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -391,6 +391,14 @@ propostas sem ativar).
   pelo /mcp" ou "reinicie a API". No Windows, "vivo" não usa `os.kill`
   (ele encerraria o processo). Interruptor `ASSETFLOW_AVISO_SERVIDOR`.
   Detalhes: [backend/docs/LOTE_11_SERVIDOR.md](backend/docs/LOTE_11_SERVIDOR.md).
+- **Lote 12** (painel de custo) — cada soma de custo do MCP (inclusive as
+  consultas sem pedido) vira um evento datado na tabela `custos` da fila; a
+  estimativa de tokens mora em `pedidos/custo.py`. `GET /api/custo` e o painel
+  (hoje contra o limite, 7 dias, pedidos que mais gastaram). O limite diário
+  (`ASSETFLOW_LIMITE_DIARIO_TOKENS`, 100.000) só avisa: faixa na tela e uma
+  linha no começo de `pedidos_pendentes` e `consultar_pedido`. Interruptor
+  `ASSETFLOW_PAINEL_CUSTO`. Detalhes:
+  [backend/docs/LOTE_12_CUSTO.md](backend/docs/LOTE_12_CUSTO.md).
 
 ## Arquitetura
 

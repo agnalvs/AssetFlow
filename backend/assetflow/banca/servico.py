@@ -21,6 +21,7 @@ from typing import Any
 
 from ..aprendizado import CaixaDeAprendizado, ErroDoAprendizado
 from ..pedidos import CorpoDoPedido, ErroDaFila, ModoConceito, Pedido, ServicoDePedidos
+from ..pedidos.custo import tokens_estimados
 from .caixa import CaixaDaBanca, Rodada, Voto
 from .config import Banca, BancaInvalida, commit_do_git, impressao_da_base, ler_banca
 
@@ -29,15 +30,6 @@ __all__ = ["ESCOLHAS", "ServicoDaBanca", "tokens_estimados"]
 ESCOLHAS = ("esquerda", "direita", "empate")
 #: Etapas em que um item da rodada não muda mais.
 _FIM = {"pronto", "nao_aprovado", "cancelado"}
-
-
-def tokens_estimados(custo: Mapping[str, Any]) -> int:
-    """Tokens a partir dos caracteres: ~3 por token em texto, ~2,3 em pixels, 294 por imagem."""
-    return round(
-        (custo.get("entrada", 0) + custo.get("saida_texto", 0)) / 3
-        + custo.get("saida_receita", 0) / 2.3
-        + 294 * custo.get("imagens", 0)
-    )
 
 
 def _esquerda_e_a(a: str, b: str, item: str) -> bool:

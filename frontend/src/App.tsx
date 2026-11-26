@@ -15,6 +15,7 @@ import { BancaPage } from "./components/BancaPage";
 import { AvisoDeServidor } from "./components/AvisoDeServidor";
 import { CopiaDeSeguranca } from "./components/CopiaDeSeguranca";
 import { LicoesPanel } from "./components/LicoesPanel";
+import { AvisoDeLimite, PainelDeCusto } from "./components/PainelDeCusto";
 import { PedidosList } from "./components/PedidosList";
 import { PromptInput } from "./components/PromptInput";
 import { PromptInspector } from "./components/PromptInspector";
@@ -178,6 +179,7 @@ export function App() {
   return (
     <div className="page">
       <AvisoDeServidor />
+      <AvisoDeLimite />
       <Header />
 
       <nav className="paginas" aria-label="Páginas">
@@ -285,6 +287,7 @@ export function App() {
         />
 
         <LicoesPanel />
+        <PainelDeCusto />
       </main>
       )}
 

@@ -527,6 +527,28 @@ export interface Ficha {
   divergencias: FichaDivergencia[];
 }
 
+/** O painel de custo (lote 12): tokens estimados por dia e por pedido. */
+export interface CustoDoDia {
+  data: string;
+  tokens: number;
+  consultas: number;
+}
+
+export interface PainelDeCusto {
+  hoje: CustoDoDia & { limite: number | null; atingido: boolean };
+  dias: CustoDoDia[];
+  pedidos: {
+    id: string;
+    texto: string;
+    situacao: string;
+    projeto: string;
+    tokens: number;
+    tokens_total: number;
+  }[];
+  avulso: number;
+  estimativa: string;
+}
+
 /** Em que código a API e o servidor MCP estão (lote 11). */
 export interface ProcessoDoServidor {
   processo: "api" | "mcp";

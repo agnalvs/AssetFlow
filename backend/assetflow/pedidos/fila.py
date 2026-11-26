@@ -126,6 +126,17 @@ CREATE TABLE IF NOT EXISTS pedidos (
 CREATE INDEX IF NOT EXISTS pedidos_por_situacao ON pedidos (situacao, criado_em);
 CREATE INDEX IF NOT EXISTS pedidos_por_projeto ON pedidos (projeto, criado_em);
 CREATE INDEX IF NOT EXISTS pedidos_por_leva ON pedidos (leva);
+-- Lote 12: cada soma de custo, datada; pedido_id NULL é consulta avulsa.
+CREATE TABLE IF NOT EXISTS custos (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    pedido_id     TEXT,
+    em            TEXT NOT NULL,
+    entrada       INTEGER NOT NULL DEFAULT 0,
+    saida_texto   INTEGER NOT NULL DEFAULT 0,
+    saida_receita INTEGER NOT NULL DEFAULT 0,
+    imagens       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS custos_por_data ON custos (em);
 """
 
 
@@ -824,15 +835,30 @@ class FilaDePedidos:
 
     def somar_custo(
         self,
-        pedido_id: str,
+        pedido_id: str | None,
         *,
         entrada: int = 0,
         saida_texto: int = 0,
         saida_receita: int = 0,
         imagens: int = 0,
+        agora: datetime | None = None,
     ) -> None:
-        """Soma o que passou pela conversa por este pedido (caracteres e imagens)."""
+        """Soma o que passou pela conversa (caracteres e imagens).
+
+        Com ``pedido_id``, soma também no pedido; sem ele, é consulta avulsa.
+        Toda soma vira um evento datado em ``custos`` (lote 12: o custo do dia).
+        """
         with self._conexao() as conexao:
+            conexao.execute(
+                """
+                INSERT INTO custos (pedido_id, em, entrada, saida_texto, saida_receita, imagens)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (pedido_id, _carimbo(agora or agora_utc()), int(entrada), int(saida_texto),
+                 int(saida_receita), int(imagens)),
+            ).fetchall()
+            if pedido_id is None:
+                return
             conexao.execute(
                 """
                 UPDATE pedidos SET custo = json_object(
@@ -850,6 +876,16 @@ class FilaDePedidos:
                     "imagens": int(imagens),
                 },
             ).fetchall()
+
+    def custos_desde(self, desde: datetime) -> list[dict[str, Any]]:
+        """Os eventos de custo a partir de ``desde`` (lote 12)."""
+        with self._conexao() as conexao:
+            linhas = conexao.execute(
+                "SELECT pedido_id, em, entrada, saida_texto, saida_receita, imagens "
+                "FROM custos WHERE em >= ? ORDER BY em",
+                (_carimbo(desde),),
+            ).fetchall()
+        return [dict(linha) for linha in linhas]
 
     def _uma(self, sql: str, valores: dict[str, Any]) -> Pedido | None:
         # fetchall: a instrução vai até o fim e confirma antes de a conexão fechar.
