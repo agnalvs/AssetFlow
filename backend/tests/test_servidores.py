@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from assetflow.api.app import create_app
 from assetflow.servidores import registrar, situacao, vivo
-from assetflow.versao import commit_do_git
+from assetflow.versao import commit_do_git, ultima_alteracao
 
 
 def _gravar(settings, processo, pid, commit, subiu_ts):
@@ -35,11 +35,25 @@ def test_processo_em_dia_nao_avisa(settings):
     assert estado["aviso"] is None
 
 
-def test_mcp_em_commit_antigo_pede_para_reconectar(settings):
+def test_commit_novo_sem_arquivo_alterado_nao_avisa(settings):
+    """O --reload reinicia a API antes do commit: o commit sozinho não desatualiza."""
+    _gravar(settings, "api", os.getpid(), "0000000", time.time())
     _gravar(settings, "mcp", os.getpid(), "0000000", time.time())
     estado = situacao(settings)
-    assert estado["processos"][0]["desatualizado"]
-    assert "commit 0000000" in estado["aviso"] and "reconecte pelo /mcp" in estado["aviso"]
+    assert estado["aviso"] is None
+    assert {p["commit"] for p in estado["processos"]} == {"0000000"}  # fica como informação
+
+
+def test_pasta_que_ninguem_le_nao_conta(tmp_path):
+    lido = tmp_path / "config" / "engines.yaml"
+    proposta = tmp_path / "config" / "pixel_knowledge" / "propostas" / "nova.yaml"
+    for arquivo in (lido, proposta):
+        arquivo.parent.mkdir(parents=True, exist_ok=True)
+        arquivo.write_text("x", encoding="utf-8")
+    os.utime(lido, (1_000, 1_000))
+    os.utime(proposta, (2_000, 2_000))
+    assert ultima_alteracao(tmp_path / "config") == 2_000
+    assert ultima_alteracao(tmp_path / "config", ignorar=("propostas",)) == 1_000
 
 
 def test_codigo_mudado_depois_da_subida_tambem_conta(settings):
@@ -59,7 +73,7 @@ def test_registro_de_processo_morto_some(settings):
 def test_a_api_se_registra_e_a_rota_avisa(container):
     with TestClient(create_app(container=container)) as cliente:
         assert (container.settings.data_dir / "servidores" / f"api-{os.getpid()}.json").exists()
-        _gravar(container.settings, "mcp", os.getpid(), "0000000", time.time())
+        _gravar(container.settings, "mcp", os.getpid(), "0000000", 0.0)
         assert "reconecte pelo /mcp" in cliente.get("/api/servidores").json()["aviso"]
         container.settings.servidores.aviso = False
         assert cliente.get("/api/servidores").json()["aviso"] is None

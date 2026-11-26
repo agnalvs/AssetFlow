@@ -18,11 +18,17 @@ faixa no topo quando algum processo **vivo** está desatualizado:
 
 | Processo | Desatualizado quando | A faixa diz |
 |---|---|---|
-| servidor MCP | subiu noutro commit, **ou** um arquivo de `assetflow/` ou `config/` mudou depois que ele subiu | "reconecte pelo /mcp no Claude Code" |
-| API | subiu noutro commit, **ou** um arquivo de `config/` mudou depois (os `.py` o `--reload` já recarrega) | "reinicie a API" |
+| servidor MCP | um arquivo de `assetflow/` ou `config/` mudou depois que ele subiu | "reconecte pelo /mcp no Claude Code" |
+| API | um arquivo de `config/` mudou depois que ela subiu (os `.py` o `--reload` já recarrega) | "reinicie a API" |
 
-O segundo critério pega o caso mais comum, sem commit nenhum: mexer num YAML ou
-num `.py` e continuar desenhando pelo servidor que subiu antes.
+`config/pixel_knowledge/propostas/` não conta: nada a lê. O **commit** fica
+registrado só como informação.
+
+> **Corrigido em 2026-11-26.** A primeira versão também avisava quando o processo
+> tinha subido noutro commit. Era falso positivo: o `--reload` reinicia a API
+> assim que o `.py` muda, **antes** do commit, e ela sempre ficava "um commit
+> atrás" rodando o código certo. Um `git pull` ou `checkout` regrava os
+> arquivos alterados, e o horário deles já avisa.
 
 ## 2. Interruptor
 
@@ -36,8 +42,7 @@ rota devolve `aviso: null` e a faixa não aparece; o registro continua.
    cada).
 2. **"Vivo" sem `os.kill`**: no Windows, `os.kill(pid, 0)` encerra o processo;
    a conferência usa `OpenProcess` e `GetExitCodeProcess`.
-3. **Commit diferente conta como mais antigo**: o git não é chamado, e o
-   ponteiro do branch só anda para a frente no uso normal.
+3. **O horário dos arquivos decide, não o commit** (corrigido; ver acima).
 4. **O leitor de commit saiu de `banca/config.py` para `assetflow/versao.py`**
    e continua exportado pela banca.
 
@@ -46,5 +51,5 @@ rota devolve `aviso: null` e a faixa não aparece; o registro continua.
 1. **Os processos que subiram antes deste lote não se registram**: o servidor
    MCP desta sessão, por exemplo. Depois de uma reconexão pelo `/mcp`, ele passa
    a aparecer.
-2. **Trocar de branch** com o MCP aberto também avisa, mesmo que o outro branch
-   seja "mais novo": o aviso diz "commit diferente", e reconectar resolve.
+2. **Trocar de branch** com o MCP aberto avisa (os arquivos são regravados), e
+   reconectar resolve.

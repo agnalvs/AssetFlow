@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1888 passed, 1 skipped)
+pytest -q                                # suíte completa (1889 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -386,8 +386,9 @@ propostas sem ativar).
 - **Lote 11** (servidor desatualizado) — a API e o servidor MCP gravam ao
   subir `data/servidores/<processo>-<pid>.json` (pid, commit, hora;
   `assetflow/servidores.py`); `GET /api/servidores` diz se algum processo vivo
-  está noutro commit ou subiu antes da última mudança em `assetflow/` ou
-  `config/` (para a API, só `config/`), e a tela mostra a faixa "reconecte
+  subiu antes da última mudança em `assetflow/` ou `config/` (para a API, só
+  `config/`; `propostas/` não conta). O commit é só informação: o `--reload`
+  reinicia a API antes do commit. A tela mostra a faixa "reconecte
   pelo /mcp" ou "reinicie a API". No Windows, "vivo" não usa `os.kill`
   (ele encerraria o processo). Interruptor `ASSETFLOW_AVISO_SERVIDOR`.
   Detalhes: [backend/docs/LOTE_11_SERVIDOR.md](backend/docs/LOTE_11_SERVIDOR.md).

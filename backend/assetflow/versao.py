@@ -36,19 +36,28 @@ def commit_do_git(raiz: Path) -> str | None:
     return None
 
 
-def ultima_alteracao(*pastas: Path, sufixos: tuple[str, ...] = (".py", ".yaml", ".json")) -> float:
+def ultima_alteracao(
+    *pastas: Path,
+    sufixos: tuple[str, ...] = (".py", ".yaml", ".json"),
+    ignorar: tuple[str, ...] = (),
+) -> float:
     """O ``mtime`` mais recente dos arquivos de código e configuração das pastas.
 
     O servidor MCP carrega o código e o ``config/`` uma vez, quando sobe; a API
     só recarrega ``*.py``. Um arquivo alterado depois da subida é código que o
-    processo não está rodando, mesmo sem commit novo.
+    processo não está rodando, mesmo sem commit novo. ``ignorar`` tira as
+    pastas com esses nomes (``propostas/``, que nada lê).
     """
     mais_recente = 0.0
     for pasta in pastas:
         if not pasta.is_dir():
             continue
         for arquivo in pasta.rglob("*"):
-            if arquivo.suffix in sufixos and "__pycache__" not in arquivo.parts:
+            if (
+                arquivo.suffix in sufixos
+                and "__pycache__" not in arquivo.parts
+                and not any(nome in arquivo.parts for nome in ignorar)
+            ):
                 try:
                     mais_recente = max(mais_recente, arquivo.stat().st_mtime)
                 except OSError:

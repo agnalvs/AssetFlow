@@ -8,10 +8,16 @@ antigo, sem sinal nenhum. A API recarrega ``*.py`` (``--reload``), mas não o
 commit e a hora; e a tela pergunta à API se algum processo **vivo** está
 desatualizado:
 
-* subiu num **commit diferente** do atual do repositório; ou
 * subiu **antes da última alteração** de um arquivo de ``assetflow/`` ou de
   ``config/`` (código mudado sem commit também é código que ele não roda) —
   para a API, só ``config/``, porque o ``--reload`` cuida dos ``.py``.
+  ``config/pixel_knowledge/propostas/`` não conta: nada a lê.
+
+O commit fica registrado só como informação. Ele **não** decide: o
+``--reload`` reinicia a API quando o ``.py`` muda, antes do commit, e um
+commit de arquivos que já estavam no disco quando o processo subiu não muda o
+que ele roda. Um ``git pull`` ou ``checkout`` regrava os arquivos alterados, e o
+horário deles já avisa.
 
 Arquivo de processo que já morreu é descartado na leitura. Este módulo não
 importa API, MCP, gaveta nem jobs.
@@ -36,6 +42,8 @@ if TYPE_CHECKING:  # pragma: no cover
 __all__ = ["Processo", "registrar", "remover_registro", "situacao", "vivo"]
 
 PROCESSOS = ("api", "mcp")
+#: Pastas que nenhum processo lê: mudar nelas não desatualiza ninguém.
+IGNORADOS = ("propostas",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,19 +137,16 @@ def situacao(settings: Settings) -> dict[str, Any]:
     commit = commit_do_git(settings.base_dir)
     pacote = settings.base_dir / "assetflow"
     config = settings.config_dir
-    codigo_ts = ultima_alteracao(pacote, config)
-    config_ts = ultima_alteracao(config)
+    codigo_ts = ultima_alteracao(pacote, config, ignorar=IGNORADOS)
+    config_ts = ultima_alteracao(config, ignorar=IGNORADOS)
     processos = []
     avisos = []
     for registro in _registros(settings):
         motivo = None
-        if commit and registro.commit and registro.commit != commit:
-            motivo = f"subiu no commit {registro.commit}, e o código está no {commit}"
-        else:
-            limite = codigo_ts if registro.processo == "mcp" else config_ts
-            if limite > registro.subiu_ts + 1:
-                onde = "o código ou o config/" if registro.processo == "mcp" else "o config/"
-                motivo = f"{onde} mudou às {_hora(limite)}, depois que ele subiu ({_hora(registro.subiu_ts)})"
+        limite = codigo_ts if registro.processo == "mcp" else config_ts
+        if limite > registro.subiu_ts + 1:
+            onde = "o código ou o config/" if registro.processo == "mcp" else "o config/"
+            motivo = f"{onde} mudou às {_hora(limite)}, depois que ele subiu ({_hora(registro.subiu_ts)})"
         processos.append({**asdict(registro), "desatualizado": motivo is not None, "motivo": motivo})
         if motivo and registro.processo == "mcp":
             avisos.append(f"O servidor MCP {motivo}: reconecte pelo /mcp no Claude Code.")
