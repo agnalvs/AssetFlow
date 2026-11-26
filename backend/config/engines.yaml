@@ -64,6 +64,7 @@ engines:
       # ASSETFLOW_ENGINE_DESENHISTA_V1_OPTIONS='{"comandos_cor_e_luz": false}'.
       comandos_cor_e_luz: true
       comandos_construcao: true
+      comandos_linha: true
 
   # -------------------------------------------------------------------------
   # Gaveta de referência sem IA — exercita a arquitetura nos testes.

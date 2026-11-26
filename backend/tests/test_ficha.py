@@ -26,6 +26,7 @@ from assetflow.mcp.servico import MOTOR, ServicoDesenhista
 from assetflow.pedidos import CorpoDoPedido
 from assetflow.pixel_knowledge import BaseDeConhecimento, ConhecimentoInvalido
 from assetflow.pixel_knowledge.base import _ler_regra
+from assetflow.referencias.olho import _LINHA
 from tests.conftest import BACKEND_ROOT, run
 from tests.test_olhar_mcp import MESMO_VALOR
 
@@ -78,8 +79,9 @@ def test_as_medidas_conhecidas_existem_no_olho_e_no_validador():
     do_olho = set(re.findall(r'Desvio\(\s*"([A-Z]+)"', fonte)) | set(
         re.findall(r'desvios, "([A-Z]+)"', fonte)
     )
+    do_olho |= {codigo for codigo, _, _ in _LINHA}  # lote F1: códigos numa tabela
     assert MEDIDAS_CONHECIDAS - {"ORFAOS"} <= do_olho | {"TONS", "RAMPAS", "CONTORNO"}
-    assert set(CONFERE.values()) <= MEDIDAS_CONHECIDAS
+    assert {m for medidas in CONFERE.values() for m in medidas} <= MEDIDAS_CONHECIDAS
 
 
 def test_resultado_da_resposta():

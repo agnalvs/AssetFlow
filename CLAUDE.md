@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1768 passed, 1 skipped)
+pytest -q                                # suíte completa (1796 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -276,6 +276,18 @@ no [PLANO_BASE_CONHECIMENTO.md](backend/docs/PLANO_BASE_CONHECIMENTO.md). Toda
 ferramenta nova é opcional e nasce com interruptor; os ajustes que baixam o
 custo por desenho estão em [CUSTO.md](backend/docs/CUSTO.md).
 
+A ordem: banca e conceito, F2 (cor e luz), F3 (construção), F5 (ficha),
+editor de pixels, F1 (linha e contorno), F4 (detalhes e acabamento), a base
+por etiquetas (§4, 7, 8 e 17 do PIXEL_KNOWLEDGE.md, com `consultar_base`), e,
+pedidos depois, no mesmo ritmo: 9. cópia de segurança de `backend/data/`
+(botão e `python -m assetflow.backup`, com restaurar); 10. `iniciar.bat` (API
+e tela, espera as duas, abre o navegador na porta certa); 11. aviso de
+servidor desatualizado (API e MCP gravam o commit em que subiram); 12. painel
+de custo (por pedido e por dia, limite diário com aviso); 13. estudo dos 30
+melhores sprites CC0 (análises em `backend/data/`, técnicas gerais em
+`backend/docs/ESTUDO_SPRITES.md`, "bons exemplos" na biblioteca, regras novas
+propostas sem ativar).
+
 - **Lote 1** (banca e conceito) — `assetflow/banca/` (rodadas ligadas a uma
   versão da base, comparação cega, votos), `config/banca.yaml`, `/api/banca`,
   página "Banca e Comparar"; etapa de conceito com três modos por pedido
@@ -317,6 +329,16 @@ custo por desenho estão em [CUSTO.md](backend/docs/CUSTO.md).
   grava a paleta efetiva em `engine_metadata.paleta`. Interruptor
   `ASSETFLOW_EDITOR`; `editor/` não importa API, MCP, gaveta nem jobs. Detalhes:
   [backend/docs/LOTE_5_EDITOR.md](backend/docs/LOTE_5_EDITOR.md).
+- **Lote F1** (linha e contorno) — `engines/desenhista/linha.py`: `reta`
+  (degraus iguais; o fim ajusta), `curva` (passa pelos pontos, sem canto em
+  L), `limpar_linha` (dobras, depois cantos, e relata) e `contorno` na raiz
+  (inteiro, seletivo, colorido; camada `contorno_auto`, por último).
+  Interruptor `comandos_linha`. O olho do app mede cantos em L, dobras e
+  degraus no contorno escuro (`referencias/linha.py`), contra limites por
+  tipo calibrados nos pacotes (`scripts/calibrar_linha.py`, p90). As
+  perguntas do `olhar.yaml` são feitas de modo que "sim" é o desenho certo:
+  a ficha lê "sim" como passou. Detalhes:
+  [backend/docs/LOTE_F1_LINHA.md](backend/docs/LOTE_F1_LINHA.md).
 
 ## Arquitetura
 

@@ -47,11 +47,20 @@ import io
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from itertools import pairwise
+from typing import Any
 
 from PIL import Image
 
-from . import construcao, cor_e_luz
-from .receita import APAGAR, MANTER, Camada, Operacao, Receita, ReceitaInvalida
+from . import construcao, cor_e_luz, linha
+from .receita import (
+    APAGAR,
+    CAMADA_DO_CONTORNO,
+    MANTER,
+    Camada,
+    Operacao,
+    Receita,
+    ReceitaInvalida,
+)
 
 __all__ = ["SIMBOLOS_DE_CAMADA", "Desenho", "Grade", "desenhar", "para_png"]
 
@@ -138,7 +147,7 @@ def desenhar(receita: Receita, largura: int, altura: int) -> Desenho:
     donos: list[int | None] = [None] * (largura * altura)
     avisos: list[str] = []
     for indice, camada in enumerate(receita.camadas):
-        _aplicar_camada(grade, camada, avisos, donos, indice, receita.luz)
+        _aplicar_camada(grade, camada, avisos, donos, indice, receita.luz, receita.rampas)
     mapa = tuple(
         "".join(
             "." if dono is None or grade.celulas[y * largura + x] is None
@@ -157,6 +166,7 @@ def _aplicar_camada(
     donos: list[int | None] | None = None,
     indice: int = 0,
     luz: str = "cima-esquerda",
+    rampas: tuple[str, ...] = (),
 ) -> None:
     """Desenha a camada e, se pedido, espelha o que ela pintou.
 
@@ -173,6 +183,15 @@ def _aplicar_camada(
             for (x, y), valor in _construcao(op, trabalho, donos, avisos).items():
                 trabalho.escrever(x, y, valor)
                 escritas[(x, y)] = valor
+            continue
+        if op.forma in (*linha.TRACOS, "limpar_linha", CAMADA_DO_CONTORNO):
+            for (x, y), valor in _linha(op, escritas, trabalho, grade, avisos, luz, rampas).items():
+                if valor is _DEVOLVE:
+                    trabalho.escrever(x, y, grade.ler(x, y))
+                    escritas.pop((x, y), None)
+                else:
+                    trabalho.escrever(x, y, valor)
+                    escritas[(x, y)] = valor
             continue
         if op.forma in cor_e_luz.EFEITOS:
             proprias, de_outras = _efeito(op, camada, escritas, trabalho, donos, luz)
@@ -240,6 +259,84 @@ def _construcao(
             ny = soma_y - y if p.get("espelho") == "y" else y
             candidatas[(nx + dx, ny + dy)] = trabalho.ler(x, y)
     dentro = {c: v for c, v in candidatas.items() if trabalho.contem(*c)}
+    if candidatas and not dentro:
+        raise ReceitaInvalida(
+            f"{op.caminho}: a operação fica inteira fora da grade "
+            f"{trabalho.largura}×{trabalho.altura}"
+        )
+    if len(dentro) < len(candidatas):
+        avisos.append(
+            f"{op.caminho}: {len(candidatas) - len(dentro)} pixel(s) fora da grade "
+            f"{trabalho.largura}×{trabalho.altura} foram recortados"
+        )
+    return dentro
+
+
+#: Marca, no que ``_linha`` devolve, o pixel que a camada deixa de pintar
+#: (a ``limpar_linha`` o tirou): ele volta a ser o que estava embaixo.
+_DEVOLVE: object = object()
+
+
+def _posicoes(pontos, limite: int = 6) -> str:
+    lista = sorted(pontos, key=lambda p: (p[1], p[0]))
+    texto = " ".join(f"({x},{y})" for x, y in lista[:limite])
+    return texto + (f" +{len(lista) - limite}" if len(lista) > limite else "")
+
+
+def _linha(
+    op: Operacao,
+    escritas: dict[Ponto, Celula],
+    trabalho: Grade,
+    grade: Grade,
+    avisos: list[str],
+    luz: str,
+    rampas: tuple[str, ...],
+) -> dict[Ponto, Any]:
+    """Linha e contorno (lote F1): o que a operação pinta ou tira da camada."""
+    if op.forma == "reta":
+        x0, y0, x1, y1 = op.numeros
+        pontos, fim = linha.reta(x0, y0, x1, y1)
+        if fim != (x1, y1):
+            avisos.append(
+                f"{op.caminho}: para os degraus ficarem iguais, a reta terminou em "
+                f"({fim[0]},{fim[1]}) em vez de ({x1},{y1}); use 'linha' se a emenda importa mais"
+            )
+        candidatas = dict.fromkeys(pontos, op.cor)
+    elif op.forma == "curva":
+        pontos = linha.curva(_pares(op.numeros))
+        calombos = linha.calombos_do_caminho(pontos)
+        if calombos:
+            avisos.append(
+                f"{op.caminho}: degraus fora de progressão em {_posicoes(calombos)}; "
+                "ajuste um ponto da curva ou corrija com px"
+            )
+        candidatas = dict.fromkeys(pontos, op.cor)
+    elif op.forma == "limpar_linha":
+        cores = op.parametros.get("cores")
+        da_dobra, do_canto, sobrou, puladas = linha.limpar(escritas, cores)
+        partes = []
+        if da_dobra:
+            partes.append(f"{len(da_dobra)} de dobra em {_posicoes(da_dobra)}")
+        if do_canto:
+            partes.append(f"{len(do_canto)} de canto em L em {_posicoes(do_canto)}")
+        texto = "tirou " + " e ".join(partes) if partes else "nada a tirar"
+        texto += f"; sobraram {sobrou['cantos']} canto(s) em L e {sobrou['dobras']} dobra(s)"
+        if puladas:
+            texto += f"; dobras não conferidas em {', '.join(puladas)} (cor com preenchimento)"
+        avisos.append(f"{op.caminho}: {texto}")
+        return dict.fromkeys([*da_dobra, *do_canto], _DEVOLVE)
+    else:  # o contorno da raiz, por último
+        return linha.contorno_automatico(
+            trabalho.celulas,
+            trabalho.largura,
+            trabalho.altura,
+            tipo=op.parametros["tipo"],
+            cor=op.cor or "",
+            cor_luz=op.parametros.get("cor_luz"),
+            luz=cor_e_luz.LUZES.get(luz, (-1.0, -1.0)),
+            rampas=rampas,
+        )
+    dentro = {p: v for p, v in candidatas.items() if trabalho.contem(*p)}
     if candidatas and not dentro:
         raise ReceitaInvalida(
             f"{op.caminho}: a operação fica inteira fora da grade "
@@ -471,8 +568,8 @@ def _balde(op: Operacao, trabalho: Grade) -> Iterator[tuple[Ponto, Celula]]:
 
 def _px(op: Operacao) -> Iterator[tuple[Ponto, Celula]]:
     ox, oy = op.em
-    for j, linha in enumerate(op.linhas):
-        for i, caractere in enumerate(linha):
+    for j, texto in enumerate(op.linhas):
+        for i, caractere in enumerate(texto):
             if caractere == MANTER:
                 continue
             yield (ox + i, oy + j), (None if caractere == APAGAR else caractere)

@@ -87,6 +87,8 @@ cor e luz (opcionais): raiz "rampas": [{"chaves": "abc", "base": "#rrggbb", "des
      {"oclusao": "<camada anterior>", "cor": "a"} · {"sombra_projetada": "<camada de trás>", "cor": "a", "distancia"?: 1} — efeitos não valem em camada com espelho""",
     "construcao": """construção (opcional): {"capsula": [x0, y0, x1, y1, (x2, y2)], "espessura": 1–8, "cor": "b", "contorno"?: "k", "vao"?: "<camada>"} · {"copiar": "<camada>", "desloca": [dx, dy], "espelho"?: "x"|"y"}
      raiz "boneco": {"altura", "cabecas": 1.5–8, "chao", "centro", "forma": circulo|quadrado|triangulo, "acao": reta|curva|inclinada, "lado", "pose": parado|andando|ataque|conjurando, "cores": {"pele", "roupa", "contorno"}} — gera camadas boneco_* antes das suas""",
+    "linha": """linha (opcional): {"reta": [x0, y0, x1, y1], "cor": "k"} degraus iguais · {"curva": [x0, y0, x1, y1, x2, y2…], "cor": "k"} pelos pontos · {"limpar_linha": "k"|true} tira dobras e cantos em L da camada
+     raiz "contorno": {"tipo": inteiro|seletivo|colorido, "cor": "k", "cor_luz"?: "c"} contorna tudo por último""",
 }
 
 

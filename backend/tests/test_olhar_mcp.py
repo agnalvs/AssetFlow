@@ -55,7 +55,9 @@ def test_desenho_avulso_traz_imagem_olho_lista_e_instrucao(servico):
     laudo = run(servico.desenhar(pedido="poção vermelha 16x16", receita=_pocao(), perfil="pixel_prop_64"))
 
     assert laudo.imagem.startswith(b"\x89PNG") and laudo.ampliacao == 24
-    assert "olho do app (sem referências ativas de prop; só o contraste entre partes): nada fora da faixa" in laudo
+    assert "olho do app (sem referências ativas de prop; só o contraste entre partes)" in laudo
+    # Lote F1: o ombro do frasco tem 4 cantos em L, acima do p90 dos props.
+    assert "4 canto(s) em L no contorno" in laudo and "(4,6) (11,6) (4,13) (11,13)" in laudo
     assert "olhar — na imagem: à esquerda ampliada 24×" in laudo and "\n1. silhueta: " in laudo
     assert laudo.splitlines()[-2].endswith("Se estiver bom, diga que está e pare.")
     assert laudo.splitlines()[-1].startswith("arquivo: ")

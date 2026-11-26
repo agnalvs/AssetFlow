@@ -16,6 +16,10 @@
 #
 # No texto, {luz} vira a direção de luz do pedido (ou a padrão de luz.yaml).
 #
+# Toda pergunta é feita de modo que "sim" é o desenho certo: a ficha de
+# verificação (lote F5) lê "sim" como passou e "não: <onde>" como não passou.
+# Pergunta no negativo ("há pixel solto?") inverteria a ficha.
+#
 # O que a base ainda não tem para perguntar, e por isso não está aqui:
 # - cuidados por categoria de objeto (poção, arma, baú: PIXEL_KNOWLEDGE §10,
 #   tabela "Por categoria"), porque não há props.yaml e a lista é escolhida
@@ -51,7 +55,7 @@ listas:
       texto: "no tamanho real, os olhos e o rosto se leem?"
       secao: "§9"
     - nome: limpeza
-      texto: "há pixel solto, contorno serrilhado ou curva com degraus irregulares (como 3, 1, 3)?"
+      texto: "o contorno está limpo — sem pixel solto, serrilhado nem curva com degraus irregulares (como 3, 1, 3)?"
       secao: "§4"
     - nome: assimetria
       texto: "há uma assimetria intencional (pose, arma, cabelo ou capa), ou a figura parece carimbo?"
@@ -75,7 +79,7 @@ listas:
       secao: "§17"
       de: "luz.yaml: luz do lado de onde ela vem"
     - nome: limpeza
-      texto: "há pixel solto ou contorno serrilhado? Se for arma longa, está na diagonal de 45°?"
+      texto: "o contorno está limpo, sem pixel solto nem serrilhado, e a arma longa (se houver) está na diagonal de 45°?"
       secao: "§8"
       de: "proporcoes.yaml/prop: arma longa na diagonal de 45°"
 
@@ -93,5 +97,5 @@ listas:
       secao: "§6"
       de: "luz.yaml: luz do lado de onde ela vem e sombra no oposto"
     - nome: limpeza
-      texto: "há pixel solto, contorno serrilhado ou curva com degraus irregulares (como 3, 1, 3)?"
+      texto: "o contorno está limpo — sem pixel solto, serrilhado nem curva com degraus irregulares (como 3, 1, 3)?"
       secao: "§4"

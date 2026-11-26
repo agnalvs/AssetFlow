@@ -41,6 +41,7 @@ from typing import Any
 import numpy as np
 
 from .colecao import ParteDaLinha, ReferenciasAtivas, distribuicao, quantis
+from .linha import medir_linha
 from .medidor import _grupos_de_matiz, _luminancia, medir_quadro
 from .pacote import ConfiguracaoDoOlho
 
@@ -174,6 +175,10 @@ def olhar_desenho(
                 )
             )
 
+    linha = medir_linha(rgba, cor_do_contorno)
+    if linha is not None:
+        _linha(desvios, linha, config.linha.get(tipo) or {})
+
     if porte.suficiente:
         cabecalho = (
             f"olho do app (contra {len(porte.quadros)} quadros de {porte.pacotes} pacotes do "
@@ -196,6 +201,11 @@ def olhar_desenho(
         "preenchimento": medidas["preenchimento"],
         "tons_por_grupo": medidas["tons_por_grupo"],
         "contorno": contorno,
+        "linha": (
+            {k: v for k, v in linha.items() if k.endswith("_por_100") or k == "pixels"}
+            if linha is not None
+            else None
+        ),
         "contraste_por_camada": [
             {"a": p["a"], "b": p["b"], "dL": round(p["dL"], 1), "contato": len(p["contato"])}
             for p in pares
@@ -215,6 +225,34 @@ def _comparar(desvios, codigo, quadros, valor, medido, fracoes, formato, frase) 
     if baixo <= medido <= alto:
         return
     desvios.append(Desvio(codigo, frase(formato(medido), formato(baixo), formato(alto))))
+
+
+#: Código do desvio, chave da medida e o nome dela na frase (lote F1).
+_LINHA = (
+    ("CANTOS", "cantos", "canto(s) em L"),
+    ("DOBRAS", "dobras", "dobra(s) de 2×2"),
+    ("DEGRAUS", "calombos", "degrau(s) fora de progressão"),
+)
+
+
+def _linha(desvios, linha: dict[str, Any], limites: dict[str, float]) -> None:
+    """Cantos em L, dobras e degraus acima do p90 das referências do tipo."""
+    for codigo, chave, nome in _LINHA:
+        medida = "degraus" if chave == "calombos" else chave
+        limite = limites.get(medida)
+        taxa = linha.get(f"{medida}_por_100")
+        if limite is None or taxa is None or taxa <= limite:
+            continue
+        posicoes = linha[chave] or []
+        lista = " ".join(f"({x},{y})" for x, y in posicoes[:MAX_POSICOES])
+        resto = len(posicoes) - min(len(posicoes), MAX_POSICOES)
+        desvios.append(
+            Desvio(
+                codigo,
+                f"{len(posicoes)} {nome} no contorno ({_num(taxa, 1)} por 100 px; referências "
+                f"até {_num(limite, 1)}) em {lista}" + (f" +{resto}" if resto > 0 else ""),
+            )
+        )
 
 
 def _tons(desvios, quadros, medidas, fracoes, rgba, cor_do_contorno) -> None:

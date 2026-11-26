@@ -45,7 +45,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `ebb0d2d` | Lote F2 — cor e luz | Comandos opcionais da receita: `rampas` (com desvio de matiz), `luz`, `material`, `sombrear` (esfera, cilindro, caixa, plano), `brilho`, `oclusao`, `sombra_projetada`. Interruptor `comandos_cor_e_luz` em `engines.yaml`; o MCP mostra no formato só os grupos ligados. | 1708 / 1 |
 | `59fabc1` | Lote F3 — construção | `capsula` (2 ou 3 pontos, espessura, contorno, vão até outra camada), `copiar` (deslocada, espelhada) e `boneco` na raiz (altura, cabeças, forma dominante, linha de ação, pose, cores), que vira camadas `boneco_*`. Interruptor `comandos_construcao`. | 1724 / 1 |
 | `9ffea04` | Lote F5 — ficha de verificação | Toda regra da base declara `verificacao` (`construcao`, `medida`, `olhar`, `autora`), e a carga recusa a que não declara; teste confere que o alvo existe. `concluir_pedido` com `respostas` por pergunta; `000_ficha.json` por asset (`mcp/ficha.py`) com uma linha por regra e as divergências entre resposta e medida; `GET /api/pedidos/{id}/ficha` e a ficha dobrada no resultado. Interruptor `ASSETFLOW_FICHA`. | 1735 / 1 |
-| (este) | Lote 5 — editor de pixels | `assetflow/editor/` e o editor na tela (lápis, apagar, conta-gotas, paleta do asset, desfazer, prévia 2×): a troca vira a camada `retoque_N` no fim da receita, desenhada pelo caminho de sempre; aprovado, vira um pedido de ajuste já concluído (`registrar_edicao`). "O que estava errado" vira opinião pendente no original. `GET`/`POST /api/pedidos/{id}/editor`; a gaveta grava a paleta efetiva. Interruptor `ASSETFLOW_EDITOR`. | 1768 / 1 |
+| `51f14f6` | Lote 5 — editor de pixels | `assetflow/editor/` e o editor na tela (lápis, apagar, conta-gotas, paleta do asset, desfazer, prévia 2×): a troca vira a camada `retoque_N` no fim da receita, desenhada pelo caminho de sempre; aprovado, vira um pedido de ajuste já concluído (`registrar_edicao`). "O que estava errado" vira opinião pendente no original. `GET`/`POST /api/pedidos/{id}/editor`; a gaveta grava a paleta efetiva. Interruptor `ASSETFLOW_EDITOR`. | 1768 / 1 |
+| (este) | Lote F1 — linha e contorno | `reta` (degraus iguais), `curva` (Catmull-Rom pelos pontos, sem canto em L), `limpar_linha` (dobras, depois cantos, relata posições) e `contorno` na raiz (inteiro, seletivo, colorido). Interruptor `comandos_linha`. Olho do app: cantos em L, dobras e degraus no contorno escuro, contra limites por tipo calibrados nos pacotes ativos (p90, `scripts/calibrar_linha.py`). Ficha: `limpeza` cruza com as medidas novas; as perguntas `limpeza` reescritas no positivo (corrige o F5). | 1796 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -939,6 +940,11 @@ A autora pediu para seguir sem esperar "sim" entre lotes, registrando aqui o
 que foi decidido sem consulta e o que ficou em dúvida. Cada lote tem o seu
 documento em `backend/docs/`.
 
+Em 2026-11-26 ela acrescentou ao fim da lista, no mesmo ritmo, os lotes 9
+(cópia de segurança), 10 (`iniciar.bat`), 11 (aviso de servidor
+desatualizado), 12 (painel de custo) e 13 (estudo dos 30 melhores sprites
+CC0). A lista inteira está no CLAUDE.md, "Sessão de lotes".
+
 ### Lote 1 — banca e conceito ([BANCA_E_CONCEITO.md](BANCA_E_CONCEITO.md))
 
 Decisões:
@@ -1007,3 +1013,18 @@ quantos ficaram; respeitar a edição mexeria numa regra da arquitetura); editar
 pedido que falhou ficou de fora; a ficha do asset editado sai vazia. **O editor
 não foi usado no navegador nesta sessão**: os testes cobrem o backend e a rota,
 e a tela só passou no `tsc` e no build.
+
+### Lote F1 — linha e contorno ([LOTE_F1_LINHA.md](LOTE_F1_LINHA.md))
+
+Decisões: a reta ajusta o fim, não o degrau; a curva passa pelos pontos; o
+ápice de uma curva recomeça a progressão; o contorno é a borda de dentro e
+repinta traços finos na borda; limites por tipo (character, prop, tile), p90
+dos pacotes; limpeza e medida em dois códigos com a mesma regra, conferidos
+por teste. Correção do F5: as perguntas `limpeza` eram negativas e a ficha
+as contaria ao contrário.
+
+Dúvidas: os pacotes profissionais têm canto em L (mediana 2,2 por 100 px nos
+personagens), então a regra do §4 não é absoluta e o olho só acusa acima do
+p90 — a poção de exemplo da gaveta passa a receber o desvio; contorno seletivo
+e colorido sem medida contra as referências; o degrau 2, 1, 2, 1 conta como
+irregular.

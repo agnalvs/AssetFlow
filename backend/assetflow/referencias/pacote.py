@@ -302,6 +302,10 @@ class ConfiguracaoDoOlho:
     contraste_minimo: float | None = None
     #: IoU da silhueta com a do exemplo mostrado, a partir do qual o desenho o repete.
     iou_copia: float | None = None
+    #: Por tipo de asset: o máximo de cantos em L, dobras e degraus fora de
+    #: progressão por 100 px do contorno escuro (lote F1). Tipo ausente, sem
+    #: comparação.
+    linha: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -385,7 +389,42 @@ def _olho(bruto: Any, problemas: list[str]) -> ConfiguracaoDoOlho:
             problemas.append(f"olho.{chave}: entre {minimo:g} e {maximo:g}")
             valor = None
         valores[chave] = valor
-    return ConfiguracaoDoOlho(**valores)
+    return ConfiguracaoDoOlho(**valores, linha=_limites_de_linha(bruto.get("linha"), problemas))
+
+
+#: As medidas de linha que o olho compara (lote F1).
+MEDIDAS_DE_LINHA = ("cantos", "dobras", "degraus")
+
+
+def _limites_de_linha(bruto: Any, problemas: list[str]) -> dict[str, dict[str, float]]:
+    if bruto is None:
+        return {}
+    if not isinstance(bruto, Mapping):
+        problemas.append("olho.linha: um mapeamento de tipo de asset para os limites")
+        return {}
+    limites: dict[str, dict[str, float]] = {}
+    for tipo, valores in bruto.items():
+        onde = f"olho.linha.{tipo}"
+        if not isinstance(valores, Mapping):
+            problemas.append(f"{onde}: use {{cantos: N, dobras: N, degraus: N, a_calibrar: true}}")
+            continue
+        if not valores.get("fonte") and valores.get("a_calibrar") is not True:
+            problemas.append(f"{onde}: número sem fonte; marque a_calibrar: true")
+            continue
+        estranhas = set(valores) - {*MEDIDAS_DE_LINHA, "classe", "secao", "fonte", "a_calibrar"}
+        if estranhas:
+            problemas.append(f"{onde}: chaves desconhecidas {sorted(estranhas)}")
+        lidos = {}
+        for medida in MEDIDAS_DE_LINHA:
+            valor = valores.get(medida)
+            if valor is None:
+                continue
+            if not isinstance(valor, (int, float)) or valor < 0:
+                problemas.append(f"{onde}.{medida}: um número de 0 para cima")
+                continue
+            lidos[medida] = float(valor)
+        limites[str(tipo)] = lidos
+    return limites
 
 
 def _inteiro_positivo(porte: Mapping[str, Any], chave: str, problemas: list[str]) -> int | None:

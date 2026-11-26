@@ -68,3 +68,14 @@ olho:
   # IoU da silhueta do desenho com a do exemplo mostrado no pedido, no melhor
   # alinhamento, a partir do qual o desenho é não aprovado por repetir o exemplo.
   iou_copia:        {valor: 0.85, classe: semantic, secao: "§3", a_calibrar: true}
+  # Cantos em L, dobras (2×2) e degraus fora de progressão por 100 px do
+  # contorno escuro (lote F1, FUNDAMENTOS §4): acima disto é desvio. p90 dos
+  # quadros com contorno "escuro único" dos pacotes ativos, peso igual por
+  # pacote, medido em 2026-11-26 por scripts/calibrar_linha.py — character:
+  # 3.320 quadros de 7 pacotes (p50 2,2 / 0 / 2,4); prop: 248 de 5; tile: 411
+  # de 5 (p50 0 nos três). Os pacotes têm canto em L: a regra do §4 não é
+  # absoluta, e o olho só acusa o que passa do p90.
+  linha:
+    character: {cantos: 6.3, dobras: 3.5, degraus: 5.6, classe: style, secao: "§4", a_calibrar: true}
+    prop:      {cantos: 5.9, dobras: 0.4, degraus: 5.3, classe: style, secao: "§4", a_calibrar: true}
+    tile:      {cantos: 2.4, dobras: 1.4, degraus: 4.8, classe: style, secao: "§4", a_calibrar: true}

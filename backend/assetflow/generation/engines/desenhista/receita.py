@@ -36,6 +36,7 @@ from typing import Any
 
 from .construcao import expandir_boneco
 from .cor_e_luz import DESVIO_MAXIMO, EFEITOS, LUZES, MATERIAIS, VOLUMES, gerar_rampa
+from .linha import TIPOS_DE_CONTORNO
 
 #: Operações de construção (lote F3): ``capsula`` e ``copiar``.
 CONSTRUCAO = ("capsula", "copiar")
@@ -66,7 +67,7 @@ FORMAS = ("ret", "elipse", "linha", "poligono", "balde", "px")
 ESPELHOS = ("x", "y", "xy")
 
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
-_CHAVES_RAIZ = frozenset({"grade", "paleta", "camadas", "rampas", "luz", "boneco"})
+_CHAVES_RAIZ = frozenset({"grade", "paleta", "camadas", "rampas", "luz", "boneco", "contorno"})
 _CHAVES_CAMADA = frozenset({"nome", "espelho", "ops", "material"})
 #: Campos de cada efeito do lote F2 (cor e luz), além da própria chave.
 _EXTRAS_EFEITOS = {
@@ -80,9 +81,19 @@ _EXTRAS_CONSTRUCAO = {
     "capsula": frozenset({"espessura", "cor", "contorno", "vao"}),
     "copiar": frozenset({"desloca", "espelho"}),
 }
+#: Operações de linha (lote F1), com os campos além da própria chave.
+LINHA = ("reta", "curva", "limpar_linha")
+_EXTRAS_LINHA = {
+    "reta": frozenset({"cor"}),
+    "curva": frozenset({"cor"}),
+    "limpar_linha": frozenset(),
+}
+#: A camada que o ``contorno`` da raiz acrescenta no fim (lote F1).
+CAMADA_DO_CONTORNO = "contorno_auto"
 #: Nome de cada grupo de comandos opcionais, como o interruptor da gaveta o chama.
 COR_E_LUZ = "cor_e_luz"
 CONSTRUCAO_GRUPO = "construcao"
+LINHA_GRUPO = "linha"
 #: Campos que cada forma aceita além da própria chave.
 _EXTRAS = {
     "ret": frozenset({"cor", "contorno"}),
@@ -142,6 +153,9 @@ class Receita:
     #: Os grupos de comandos opcionais que a receita usa (``cor_e_luz``...),
     #: para a gaveta conferir os interruptores.
     usa: frozenset[str] = frozenset()
+    #: As chaves de cada rampa gerada, do escuro ao claro (o contorno colorido
+    #: as usa).
+    rampas: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -162,8 +176,10 @@ def ler_receita(bruta: Any) -> Receita:
     paleta = _ler_paleta(bruta.get("paleta"))
     grade = _ler_grade(bruta.get("grade")) if "grade" in bruta else None
     usa: set[str] = set()
+    rampas: tuple[str, ...] = ()
     if "rampas" in bruta:
         paleta.update(_ler_rampas(bruta["rampas"], paleta))
+        rampas = tuple(item["chaves"] for item in bruta["rampas"])
         usa.add(COR_E_LUZ)
     luz = bruta.get("luz", "cima-esquerda")
     if luz not in LUZES:
@@ -206,10 +222,56 @@ def ler_receita(bruta: Any) -> Receita:
             usa.add(COR_E_LUZ)
         if any(op.forma in CONSTRUCAO for op in camada.ops):
             usa.add(CONSTRUCAO_GRUPO)
+        if any(op.forma in LINHA for op in camada.ops):
+            usa.add(LINHA_GRUPO)
+
+    if "contorno" in bruta:
+        if CAMADA_DO_CONTORNO in nomes:
+            raise ReceitaInvalida(
+                f"camadas: o nome '{CAMADA_DO_CONTORNO}' é do contorno da raiz; use outro"
+            )
+        camadas.append(_ler_contorno(bruta["contorno"], paleta))
+        usa.add(LINHA_GRUPO)
 
     return Receita(
-        paleta=paleta, camadas=tuple(camadas), grade=grade, luz=luz, usa=frozenset(usa)
+        paleta=paleta,
+        camadas=tuple(camadas),
+        grade=grade,
+        luz=luz,
+        usa=frozenset(usa),
+        rampas=rampas,
     )
+
+
+def _ler_contorno(bruto: Any, paleta: dict[str, RGB]) -> Camada:
+    """O ``contorno`` da raiz (lote F1): a camada que o pinta, depois de todas."""
+    onde = "contorno"
+    if not isinstance(bruto, dict):
+        raise ReceitaInvalida(
+            'contorno: um objeto como {"tipo": "inteiro", "cor": "k"} '
+            f"(tipos: {', '.join(TIPOS_DE_CONTORNO)})"
+        )
+    _sem_chaves_estranhas(bruto, frozenset({"tipo", "cor", "cor_luz"}), onde)
+    tipo = bruto.get("tipo", "inteiro")
+    if tipo not in TIPOS_DE_CONTORNO:
+        raise ReceitaInvalida(f"contorno: 'tipo' é {', '.join(TIPOS_DE_CONTORNO)}, e chegou {tipo!r}")
+    cor = bruto.get("cor")
+    if cor not in paleta:
+        raise ReceitaInvalida("contorno: 'cor' é a chave da cor do contorno, na paleta")
+    cor_luz = bruto.get("cor_luz")
+    if tipo == "seletivo" and cor_luz not in paleta:
+        raise ReceitaInvalida(
+            "contorno: o seletivo precisa de 'cor_luz', a chave do contorno do lado da luz"
+        )
+    if tipo != "seletivo" and cor_luz is not None:
+        raise ReceitaInvalida("contorno: 'cor_luz' só vale no tipo seletivo")
+    op = Operacao(
+        forma=CAMADA_DO_CONTORNO,
+        cor=cor,
+        caminho=onde,
+        parametros={"tipo": tipo, "cor_luz": cor_luz},
+    )
+    return Camada(nome=CAMADA_DO_CONTORNO, ops=(op,))
 
 
 def _ler_rampas(bruta: Any, paleta: dict[str, RGB]) -> dict[str, RGB]:
@@ -344,7 +406,7 @@ def _ler_operacao(
     if not isinstance(bruta, dict):
         raise ReceitaInvalida(f"{onde}: cada operação precisa ser um objeto, e chegou {_tipo(bruta)}")
 
-    todas = (*FORMAS, *EFEITOS, *CONSTRUCAO)
+    todas = (*FORMAS, *EFEITOS, *CONSTRUCAO, *LINHA)
     formas = [chave for chave in bruta if chave in todas]
     if len(formas) != 1:
         achadas = ", ".join(formas) if formas else "nenhuma"
@@ -357,6 +419,8 @@ def _ler_operacao(
         return _ler_efeito(bruta, forma, onde, paleta, anteriores or {})
     if forma in CONSTRUCAO:
         return _ler_construcao(bruta, forma, onde, paleta, anteriores or {})
+    if forma in LINHA:
+        return _ler_linha(bruta, forma, onde, paleta)
     _sem_chaves_estranhas(bruta, _EXTRAS[forma] | {forma}, f"{onde} ({forma})")
     onde = f"{onde} ({forma})"
 
@@ -438,6 +502,28 @@ def _ler_efeito(
                 raise ReceitaInvalida(f"{onde}: 'distancia' vai de 1 a 4 pixels")
             parametros["distancia"] = distancia
     return Operacao(forma=efeito, cor=cor, caminho=onde, parametros=parametros)
+
+
+def _ler_linha(bruta: dict[str, Any], forma: str, onde: str, paleta: dict[str, RGB]) -> Operacao:
+    """``reta``, ``curva`` e ``limpar_linha`` (lote F1), conferidos no formato."""
+    _sem_chaves_estranhas(bruta, _EXTRAS_LINHA[forma] | {forma}, f"{onde} ({forma})")
+    onde = f"{onde} ({forma})"
+    if forma == "limpar_linha":
+        valor = bruta["limpar_linha"]
+        if valor is True:
+            return Operacao(forma=forma, caminho=onde, parametros={"cores": None})
+        cores = _chaves_da_paleta(valor, onde, "limpar_linha", paleta)
+        return Operacao(forma=forma, caminho=onde, parametros={"cores": cores})
+    cor = bruta.get("cor")
+    if cor not in paleta:
+        raise ReceitaInvalida(f"{onde}: falta 'cor', a chave da paleta")
+    if forma == "reta":
+        numeros = _inteiros(bruta["reta"], 4, onde, formato="[x0, y0, x1, y1]")
+    else:
+        numeros = _pontos(bruta["curva"], minimo=3, onde=onde)
+        if len(numeros) > 16:
+            raise ReceitaInvalida(f"{onde}: a curva aceita até 8 pontos")
+    return Operacao(forma=forma, numeros=numeros, cor=cor, caminho=onde)
 
 
 def _ler_construcao(

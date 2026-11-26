@@ -33,10 +33,11 @@ __all__ = [
 #: delas (tests/test_ficha.py).
 MEDIDAS_CONHECIDAS = {
     "VALOR", "PREENCHIMENTO", "PROPORCAO", "ALTURA", "CORES", "TONS", "RAMPAS", "CONTORNO",
-    "ORFAOS",
+    "ORFAOS", "CANTOS", "DOBRAS", "DEGRAUS",
 }
-#: Pergunta do olhar -> a medida que confere a mesma coisa (para o cruzamento).
-CONFERE = {"valores": "VALOR", "limpeza": "ORFAOS"}
+#: Pergunta do olhar -> as medidas que conferem a mesma coisa (para o cruzamento).
+#: Cantos, dobras e degraus vêm do lote F1 (``referencias/linha.py``).
+CONFERE = {"valores": ("VALOR",), "limpeza": ("ORFAOS", "CANTOS", "DOBRAS", "DEGRAUS")}
 _AVISOS_DO_VALIDADOR = {"PX-WARN-ORPHAN": "ORFAOS"}
 
 
@@ -132,17 +133,20 @@ def montar_ficha(
     divergencias = []
     lista = [p.strip().lower() for p in perguntas]
     for nome in lista:
-        medida = CONFERE.get(nome)
         resultado, _ = resultado_da_resposta(respostas.get(nome))
-        if medida and resultado == "passou" and medida in desvios:
-            divergencias.append(
-                {
-                    "pergunta": nome,
-                    "resposta": respostas.get(nome),
-                    "medida": medida,
-                    "detalhe": desvios[medida],
-                }
-            )
+        if resultado != "passou":
+            continue
+        for medida in CONFERE.get(nome, ()):
+            if medida in desvios:
+                divergencias.append(
+                    {
+                        "pergunta": nome,
+                        "resposta": respostas.get(nome),
+                        "medida": medida,
+                        "detalhe": desvios[medida],
+                    }
+                )
+                break
     return {
         "linhas": linhas,
         "respostas": {nome: respostas.get(nome) for nome in lista},

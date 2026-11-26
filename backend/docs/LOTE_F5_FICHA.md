@@ -57,7 +57,11 @@ mesma coisa acusou o problema vira divergência (`CONFERE` em `ficha.py`):
 | Pergunta | Medida |
 |---|---|
 | `valores` | `VALOR` (contraste entre camadas vizinhas, do olho do app) |
-| `limpeza` | `ORFAOS` (aviso de pixel solto do validador) |
+| `limpeza` | `ORFAOS` (aviso de pixel solto do validador) e, desde o lote F1, `CANTOS`, `DOBRAS` e `DEGRAUS` do olho |
+
+> Corrigido no lote F1: as perguntas `limpeza` eram feitas no negativo, e a
+> ficha lia o "sim" de um desenho sujo como limpo. Agora toda pergunta é
+> feita de modo que "sim" é o desenho certo ([LOTE_F1_LINHA.md](LOTE_F1_LINHA.md) §3).
 
 A resposta do `concluir_pedido` acrescenta uma linha por divergência e uma com
 as perguntas sem resposta.
