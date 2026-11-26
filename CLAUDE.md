@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1735 passed, 1 skipped)
+pytest -q                                # suíte completa (1768 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -308,6 +308,15 @@ custo por desenho estão em [CUSTO.md](backend/docs/CUSTO.md).
   por regra e as **divergências** — "sim" do Claude contra a medida do app.
   Interruptor `ASSETFLOW_FICHA`; a obrigação do campo não tem. Detalhes:
   [backend/docs/LOTE_F5_FICHA.md](backend/docs/LOTE_F5_FICHA.md).
+- **Lote 5** (editor de pixels) — `assetflow/editor/` e `EditorDePixels.tsx`:
+  a autora troca pixels de um pedido pronto com as cores da receita, e a troca
+  vira a camada `retoque_N` no fim da receita da base, desenhada pelo caminho
+  de sempre (Optimizer e validador incluídos), sem o Claude. Aprovado, vira um
+  pedido de ajuste já concluído (`FilaDePedidos.registrar_edicao`); "o que
+  estava errado" vira um "não gostei" pendente no asset original. A gaveta
+  grava a paleta efetiva em `engine_metadata.paleta`. Interruptor
+  `ASSETFLOW_EDITOR`; `editor/` não importa API, MCP, gaveta nem jobs. Detalhes:
+  [backend/docs/LOTE_5_EDITOR.md](backend/docs/LOTE_5_EDITOR.md).
 
 ## Arquitetura
 

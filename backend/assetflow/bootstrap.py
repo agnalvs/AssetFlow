@@ -110,6 +110,11 @@ class AppContainer:
     banca: ServicoDaBanca
     _worker_started: bool = field(default=False, init=False)
 
+    @property
+    def worker_rodando(self) -> bool:
+        """O worker embutido está de pé (quem espera um job só precisa aguardar)."""
+        return self._worker_started
+
     async def startup(self) -> None:
         """Sobe o worker embutido, quando configurado."""
         if self.settings.worker.embedded and not self._worker_started:

@@ -35,6 +35,10 @@ Outros que já existiam: `ASSETFLOW_LICOES=0` tira as lições do recorte (~0 a
 lote F5) soma ~10 a 30 tokens de respostas por pedido; desligá-la quase não
 economiza e tira o cruzamento com as medidas.
 
+O **editor de pixels** (`ASSETFLOW_EDITOR`, lote 5, ligado) não custa token
+nenhum: a correção pequena feita ali poupa um remendo do olhar (~1.000 tokens)
+ou um pedido de ajuste inteiro (~3.000 a 5.000).
+
 **O que não reduzir.** A imagem do olhar (294 tokens) é o que permite julgar o
 desenho; o laudo do validador é pequeno. Em vez de tirar a imagem, tire os
 remendos: o olhar continua, só não corrige.

@@ -565,6 +565,44 @@ class ConceitoEscolha(AssetFlowModel):
     simplificar: str | None = None
 
 
+class EditorView(AssetFlowModel):
+    """A grade lógica de um asset pronto, para o editor de pixels (lote 5)."""
+
+    pedido_id: str
+    asset_id: str
+    largura: int
+    altura: int
+    #: Chave da receita -> ``#rrggbb``: as únicas cores do editor.
+    paleta: dict[str, str]
+    #: Linha a linha, ``#rrggbb`` ou ``null`` (transparente).
+    pixels: list[list[str | None]]
+
+
+class PixelTrocado(AssetFlowModel):
+    x: int = Field(ge=0)
+    y: int = Field(ge=0)
+    #: Uma chave da paleta, ou ``null`` para apagar.
+    cor: str | None = Field(default=None, min_length=1, max_length=1)
+
+
+class EdicaoCorpo(AssetFlowModel):
+    pixels: list[PixelTrocado] = Field(min_length=1, max_length=16_384)
+    #: "O que estava errado": vira um "não gostei" com motivo no asset original.
+    motivo: str | None = Field(default=None, max_length=240)
+
+
+class EdicaoView(AssetFlowModel):
+    aprovado: bool
+    asset_id: str
+    mudados: int
+    ficaram: int
+    camada: str
+    #: O pedido de ajuste concluído (só quando aprovado).
+    pedido: PedidoView | None = None
+    motivo: str | None = None
+    avisos: list[str] = Field(default_factory=list)
+
+
 class RodadaItemView(AssetFlowModel):
     item: str
     pedido_id: str

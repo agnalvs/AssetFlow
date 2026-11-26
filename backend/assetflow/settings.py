@@ -137,6 +137,11 @@ class PedidosSettings(AssetFlowModel):
     #: ``ASSETFLOW_CONCEITO``. **Ajuste de custo**: ``sem_conceito`` economiza
     #: ~900 tokens por pedido (docs/CUSTO.md).
     conceito: str = Field(default="eu_escolho", pattern="^(eu_escolho|claude_escolhe|sem_conceito)$")
+    #: O editor de pixels da tela (lote 5): a autora troca pixels de um asset
+    #: pronto e salva como remendo, sem chamar o Claude. ``ASSETFLOW_EDITOR``
+    #: (``0`` desliga). **Ajuste de custo**: cada correção feita ali poupa um
+    #: remendo (~1.000 tokens) ou um pedido de ajuste (docs/CUSTO.md).
+    editor: bool = True
 
 
 class AprendizadoSettings(AssetFlowModel):
@@ -397,6 +402,7 @@ def load_settings(
         espera_s=float(_env("PEDIDOS_ESPERA_S") or padrao_pedidos.espera_s),
         remendos=int(_env("PEDIDOS_REMENDOS") or padrao_pedidos.remendos),
         conceito=_env("CONCEITO") or padrao_pedidos.conceito,
+        editor=_env_bool("EDITOR", padrao_pedidos.editor),
     )
 
     padrao_aprendizado = AprendizadoSettings()

@@ -27,12 +27,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
+from ...editor import ServicoDoEditor, Troca
 from ...generation.schemas import PromptPreview
 from ...pedidos import CorpoDoPedido, Pedido, Situacao, agora_utc
 from ..deps import ContainerDep
 from ..schemas import (
     AssetView,
     ConceitoEscolha,
+    EdicaoCorpo,
+    EdicaoView,
+    EditorView,
     PedidoDetalhe,
     PedidoEventoView,
     PedidoListResponse,
@@ -124,6 +128,46 @@ async def ficha(pedido_id: str, container: ContainerDep) -> dict:
                 )
                 linha["detalhe"] = (opiniao.motivo or "") if opiniao else ""
     return lida
+
+
+@router.get(
+    "/{pedido_id}/editor",
+    response_model=EditorView,
+    summary="A grade lógica do asset pronto, para o editor de pixels (lote 5)",
+)
+async def abrir_editor(pedido_id: str, container: ContainerDep) -> EditorView:
+    dados = await ServicoDoEditor(container).abrir(pedido_id)
+    return EditorView(
+        pedido_id=dados.pedido_id,
+        asset_id=dados.asset_id,
+        largura=dados.largura,
+        altura=dados.altura,
+        paleta=dados.paleta,
+        pixels=dados.pixels,
+    )
+
+
+@router.post(
+    "/{pedido_id}/editor",
+    response_model=EdicaoView,
+    summary="Salva os pixels trocados como remendo (um pedido de ajuste pronto)",
+)
+async def salvar_edicao(pedido_id: str, corpo: EdicaoCorpo, container: ContainerDep) -> EdicaoView:
+    resultado = await ServicoDoEditor(container).salvar(
+        pedido_id,
+        [Troca(x=p.x, y=p.y, cor=p.cor) for p in corpo.pixels],
+        motivo=corpo.motivo,
+    )
+    return EdicaoView(
+        aprovado=resultado.aprovado,
+        asset_id=resultado.asset_id,
+        mudados=resultado.mudados,
+        ficaram=resultado.ficaram,
+        camada=resultado.camada,
+        pedido=await _vista(resultado.pedido, container, agora_utc()) if resultado.pedido else None,
+        motivo=resultado.motivo,
+        avisos=resultado.avisos,
+    )
 
 
 @router.post(

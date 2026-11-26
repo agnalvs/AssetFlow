@@ -1,6 +1,9 @@
+import { useState } from "react";
+
 import { optimizationLabel } from "../labels";
 import { type GenerationOutcome, MODES, type PixelOptimization } from "../types";
 import { AssetPreview } from "./AssetPreview";
+import { EditorDePixels } from "./EditorDePixels";
 import { FichaDoPedido } from "./FichaDoPedido";
 import { GenerationNotices } from "./GenerationNotices";
 import { OpiniaoControls } from "./OpiniaoControls";
@@ -21,6 +24,8 @@ export function GenerationResult({
   onNewPrompt,
 }: GenerationResultProps) {
   const mode = MODES[outcome.mode];
+  const [editando, setEditando] = useState<string | null>(null);
+  const pedidoId = outcome.pedidoId ?? null;
 
   return (
     <section className="result" aria-label="Resultado da geração">
@@ -40,6 +45,13 @@ export function GenerationResult({
         </p>
       ) : null}
       {outcome.pedidoId ? <FichaDoPedido pedidoId={outcome.pedidoId} /> : null}
+      {pedidoId && editando === pedidoId ? (
+        <EditorDePixels pedidoId={pedidoId} onFechar={() => setEditando(null)} />
+      ) : pedidoId ? (
+        <button type="button" className="button button--ghost" onClick={() => setEditando(pedidoId)}>
+          Editar pixels
+        </button>
+      ) : null}
       {outcome.assetId ? <OpiniaoControls assetId={outcome.assetId} /> : null}
       <ResultActions
         variant={outcome.variant}

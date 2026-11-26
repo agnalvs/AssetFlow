@@ -44,7 +44,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `7baa4b5` | Lote 1 — banca e conceito | Banca de teste (`assetflow/banca/`, `config/banca.yaml`, `/api/banca`, página "Banca e Comparar"): rodadas ligadas a uma versão da base, comparação cega com nota de 1 a 5, resumo com veredito; custo por pedido registrado pelo MCP. Etapa de conceito: três modos por pedido, `propor_conceitos`, situação `escolhendo`, conceito na medida da grade, pergunta do conceito no olhar. Ajustes de custo em settings (`ASSETFLOW_CONCEITO`, `ASSETFLOW_PEDIDOS_REMENDOS`, `ASSETFLOW_OLHAR_LISTA_CURTA`), documentados em `CUSTO.md`. Entram `PLANO_BASE_CONHECIMENTO.md` e `FUNDAMENTOS_E_FERRAMENTAS.md`, da autora. | 1693 / 1 |
 | `ebb0d2d` | Lote F2 — cor e luz | Comandos opcionais da receita: `rampas` (com desvio de matiz), `luz`, `material`, `sombrear` (esfera, cilindro, caixa, plano), `brilho`, `oclusao`, `sombra_projetada`. Interruptor `comandos_cor_e_luz` em `engines.yaml`; o MCP mostra no formato só os grupos ligados. | 1708 / 1 |
 | `59fabc1` | Lote F3 — construção | `capsula` (2 ou 3 pontos, espessura, contorno, vão até outra camada), `copiar` (deslocada, espelhada) e `boneco` na raiz (altura, cabeças, forma dominante, linha de ação, pose, cores), que vira camadas `boneco_*`. Interruptor `comandos_construcao`. | 1724 / 1 |
-| (este) | Lote F5 — ficha de verificação | Toda regra da base declara `verificacao` (`construcao`, `medida`, `olhar`, `autora`), e a carga recusa a que não declara; teste confere que o alvo existe. `concluir_pedido` com `respostas` por pergunta; `000_ficha.json` por asset (`mcp/ficha.py`) com uma linha por regra e as divergências entre resposta e medida; `GET /api/pedidos/{id}/ficha` e a ficha dobrada no resultado. Interruptor `ASSETFLOW_FICHA`. | 1735 / 1 |
+| `9ffea04` | Lote F5 — ficha de verificação | Toda regra da base declara `verificacao` (`construcao`, `medida`, `olhar`, `autora`), e a carga recusa a que não declara; teste confere que o alvo existe. `concluir_pedido` com `respostas` por pergunta; `000_ficha.json` por asset (`mcp/ficha.py`) com uma linha por regra e as divergências entre resposta e medida; `GET /api/pedidos/{id}/ficha` e a ficha dobrada no resultado. Interruptor `ASSETFLOW_FICHA`. | 1735 / 1 |
+| (este) | Lote 5 — editor de pixels | `assetflow/editor/` e o editor na tela (lápis, apagar, conta-gotas, paleta do asset, desfazer, prévia 2×): a troca vira a camada `retoque_N` no fim da receita, desenhada pelo caminho de sempre; aprovado, vira um pedido de ajuste já concluído (`registrar_edicao`). "O que estava errado" vira opinião pendente no original. `GET`/`POST /api/pedidos/{id}/editor`; a gaveta grava a paleta efetiva. Interruptor `ASSETFLOW_EDITOR`. | 1768 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -990,3 +991,19 @@ Dúvidas: nove das dez regras de hoje são `olhar` — as medidas e construçõe
 chegam com as regras dos lotes F1, F4 e 8; a revisão independente na banca não
 entrou (a conversa nova não é distinguível); o cruzamento cobre só `valores` e
 `limpeza`.
+
+### Lote 5 — editor de pixels ([LOTE_5_EDITOR.md](LOTE_5_EDITOR.md))
+
+Decisões: só pedido pronto abre no editor; a edição é sempre uma camada nova
+(`retoque_N`), com um `px` sobre o retângulo do que mudou; o resultado aprovado
+vira um ajuste já concluído (um `INSERT`), e o não aprovado não entra na fila;
+a paleta vem da gaveta (`engine_metadata.paleta`), com a da receita para assets
+antigos; "ficou" com tolerância de 8 por canal; o motivo vai para o asset
+original; a requisição de ajuste é montada pelo `ServicoDePedidos`
+(`requisicao_de_ajuste`), a mesma do pedido de ajuste da fila.
+
+Dúvidas: o Optimizer pode desfazer um pixel isolado da autora (a tela avisa
+quantos ficaram; respeitar a edição mexeria numa regra da arquitetura); editar
+pedido que falhou ficou de fora; a ficha do asset editado sai vazia. **O editor
+não foi usado no navegador nesta sessão**: os testes cobrem o backend e a rota,
+e a tela só passou no `tsc` e no build.

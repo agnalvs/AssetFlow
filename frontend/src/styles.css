@@ -1406,6 +1406,77 @@ input {
   color: #f2707f;
 }
 
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  outline: none;
+}
+
+.editor__ferramentas,
+.editor__paleta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.editor__cor {
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 1px 3px;
+}
+
+.editor__cor span {
+  font-size: 0.66rem;
+  color: #fff;
+  text-shadow: 0 0 2px #000;
+}
+
+.editor__cor--escolhida {
+  border-color: var(--accent);
+}
+
+.editor__area {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.editor__tela {
+  image-rendering: pixelated;
+  cursor: crosshair;
+  touch-action: none;
+  border: 1px solid var(--border);
+  max-width: 100%;
+}
+
+.editor__previa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.editor__previa canvas {
+  image-rendering: pixelated;
+  border: 1px solid var(--border);
+}
+
+.editor__estado,
+.editor__estado p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
 .ficha {
   font-size: 0.82rem;
   color: var(--text-muted);

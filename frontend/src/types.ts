@@ -527,6 +527,30 @@ export interface Ficha {
   divergencias: FichaDivergencia[];
 }
 
+/** A grade lógica de um asset pronto, para o editor de pixels (lote 5). */
+export interface EditorDados {
+  pedido_id: string;
+  asset_id: string;
+  largura: number;
+  altura: number;
+  /** Chave da receita -> `#rrggbb`: as únicas cores do editor. */
+  paleta: Record<string, string>;
+  /** Linha a linha, `#rrggbb` ou `null` (transparente). */
+  pixels: (string | null)[][];
+}
+
+/** O que a edição salva deu (espelha `EdicaoView`). */
+export interface EdicaoResultado {
+  aprovado: boolean;
+  asset_id: string;
+  mudados: number;
+  ficaram: number;
+  camada: string;
+  pedido: Pedido | null;
+  motivo: string | null;
+  avisos: string[];
+}
+
 /** O pedido inteiro (espelha `PedidoDetalhe`). */
 export interface PedidoDetalhe extends Pedido {
   corpo: PedidoCorpo;

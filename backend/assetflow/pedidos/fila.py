@@ -299,6 +299,67 @@ class FilaDePedidos:
             ).fetchall()[0]
         return _pedido(linha)
 
+    def registrar_edicao(
+        self,
+        *,
+        projeto: str,
+        texto: str,
+        corpo: dict[str, Any],
+        leitura: dict[str, Any],
+        origem_asset_id: str,
+        asset_id: str,
+        job_id: str,
+        asset_projeto: str,
+        olhar: str,
+        agora: datetime | None = None,
+    ) -> Pedido:
+        """A edição da autora no editor de pixels (lote 5), já concluída.
+
+        É uma criação, não uma transição: um ``INSERT`` só, com o desenho como
+        candidato e o pedido pronto. Nenhum estado intermediário fica visível
+        a quem pega pedidos pendentes.
+        """
+        momento = _carimbo(agora or agora_utc())
+        evento = json.dumps(
+            [{"em": momento, "situacao": Situacao.CONCLUIDO.value, "nota": f"editado na tela: {asset_id}"}],
+            ensure_ascii=False,
+        )
+        candidato = json.dumps(
+            [{"asset_id": asset_id, "job_id": job_id, "asset_projeto": asset_projeto}]
+        )
+        with self._conexao() as conexao:
+            linha = conexao.execute(
+                """
+                INSERT INTO pedidos (
+                    id, tipo, situacao, projeto, texto, liberdade, direcao_de_arte,
+                    corpo, leitura, origem_asset_id, max_tentativas, max_remendos,
+                    modo_conceito, asset_id, job_id, asset_projeto, olhar, candidatos,
+                    eventos, criado_em, atualizado_em
+                ) VALUES (?, 'ajuste', 'concluido', ?, ?, 'fiel', NULL, ?, ?, ?, ?, ?,
+                          'sem_conceito', ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING *
+                """,
+                (
+                    f"ped_{secrets.token_hex(6)}",
+                    projeto,
+                    texto,
+                    json.dumps(corpo, ensure_ascii=False),
+                    json.dumps(leitura, ensure_ascii=False),
+                    origem_asset_id,
+                    self._max_tentativas,
+                    self._max_remendos,
+                    asset_id,
+                    job_id,
+                    asset_projeto,
+                    olhar,
+                    candidato,
+                    evento,
+                    momento,
+                    momento,
+                ),
+            ).fetchall()[0]
+        return _pedido(linha)
+
     def obter(self, pedido_id: str) -> Pedido:
         with self._conexao() as conexao:
             linha = conexao.execute("SELECT * FROM pedidos WHERE id = ?", (pedido_id,)).fetchone()

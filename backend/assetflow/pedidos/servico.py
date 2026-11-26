@@ -248,12 +248,31 @@ class ServicoDePedidos:
                 corpo, projeto=pedido.projeto, semantica=pedido.semantica, receita=receita
             )
         registro = await self.registro(pedido.origem_asset_id or "")
+        return self.requisicao_de_ajuste(
+            registro=registro,
+            profile_id=pedido.spec.profile_id,
+            semantica=pedido.semantica,
+            receita=receita,
+            projeto=pedido.projeto,
+        )
+
+    def requisicao_de_ajuste(
+        self,
+        *,
+        registro: GenerationRecord,
+        profile_id: str,
+        semantica: SemanticPrompt | None,
+        receita: dict[str, Any],
+        projeto: str | None = None,
+    ) -> AssetGenerationRequest:
+        """O pedido de geração de um ajuste: o do pedido de ajuste da fila e o
+        do editor de pixels da tela (lote 5), montados aqui, num lugar só."""
         return AssetGenerationRequest(
-            project_id=pedido.projeto,
-            profile=pedido.spec.profile_id,
+            project_id=projeto or self.projeto,
+            profile=profile_id,
             prompt=registro.user_prompt,
             output=AssetOutputOverrides(variations=1),
-            semantic_prompt=pedido.semantica,
+            semantic_prompt=semantica,
             engine=EngineSelector(mode="manual", engine_id=self.gerador, allow_fallback=False),
             engine_options={self.gerador: {"receita": receita}},
         )

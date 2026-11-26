@@ -682,3 +682,43 @@ def test_engines_ignore_the_banca(path: Path):
         if _imports_any(module, ("assetflow.banca",))
     ]
     assert not violations, "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# Editor de pixels da tela (lote 5)
+# ---------------------------------------------------------------------------
+# ``assetflow/editor/`` lê a receita do histórico e o PNG do storage e submete
+# pelo GenerationService; quem o mostra é a API. Ele não importa API, MCP,
+# gaveta nem jobs, e nenhuma gaveta o importa.
+
+EDITOR_FILES = _python_files(PACKAGE_ROOT / "editor")
+LAYERS_FORBIDDEN_TO_EDITOR = (
+    "assetflow.api",
+    "assetflow.mcp",
+    "assetflow.generation.engines",
+    "assetflow.jobs",
+)
+
+
+def test_there_are_editor_files_to_inspect():
+    assert len(EDITOR_FILES) >= 2
+
+
+@pytest.mark.parametrize("path", EDITOR_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT)))
+def test_editor_does_not_import_api_mcp_engines_or_jobs(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, LAYERS_FORBIDDEN_TO_EDITOR)
+    ]
+    assert not violations, "assetflow/editor/ é estante:\n" + "\n".join(violations)
+
+
+@pytest.mark.parametrize("path", ENGINE_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT)))
+def test_engines_ignore_the_editor(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, ("assetflow.editor",))
+    ]
+    assert not violations, "\n".join(violations)

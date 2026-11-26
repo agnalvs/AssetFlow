@@ -222,6 +222,12 @@ class DesenhistaEngine(ImageGenerationEngine):
                     "nomes": [camada.nome for camada in receita.camadas],
                     "linhas": list(desenho.mapa_de_camadas),
                 },
+                # A paleta efetiva, com as chaves que ``rampas`` gerou (lote 5):
+                # o editor de pixels da tela pinta só com ela.
+                "paleta": {
+                    chave: "#{:02x}{:02x}{:02x}".format(*cor)
+                    for chave, cor in receita.paleta.items()
+                },
             },
         )
 

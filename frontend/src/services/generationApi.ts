@@ -20,6 +20,8 @@ import {
   type BancaResumo,
   type Comparacao,
   type Conceito,
+  type EdicaoResultado,
+  type EditorDados,
   type Ficha,
   type Licao,
   type LicaoLista,
@@ -278,6 +280,23 @@ export function opinar(assetId: string, gostei: boolean, motivo?: string): Promi
   return request<Opiniao>(`${APRENDIZADO_URL}/opinioes/${encodeURIComponent(assetId)}`, {
     method: "PUT",
     body: JSON.stringify({ gostei, motivo: motivo?.trim() || null }),
+  });
+}
+
+/** A grade e a paleta do asset pronto, para o editor de pixels (lote 5). */
+export function abrirEditor(pedidoId: string): Promise<EditorDados> {
+  return request<EditorDados>(`${PEDIDOS_URL}/${encodeURIComponent(pedidoId)}/editor`);
+}
+
+/** Salva os pixels trocados como remendo; aprovado, vira um ajuste pronto. */
+export function salvarEdicao(
+  pedidoId: string,
+  pixels: { x: number; y: number; cor: string | null }[],
+  motivo?: string,
+): Promise<EdicaoResultado> {
+  return request<EdicaoResultado>(`${PEDIDOS_URL}/${encodeURIComponent(pedidoId)}/editor`, {
+    method: "POST",
+    body: JSON.stringify({ pixels, motivo: motivo?.trim() || null }),
   });
 }
 

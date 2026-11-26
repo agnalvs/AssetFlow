@@ -117,6 +117,11 @@ Liberdade e direção de arte **não** entram no spec.
 Num **ajuste**, o spec é o do asset de origem, lido do `resolved_spec.json` que
 o job dele gravou, e o desenho é um remendo sobre a receita da origem.
 
+O **editor de pixels** da tela (lote 5, [LOTE_5_EDITOR.md](LOTE_5_EDITOR.md))
+também cria um ajuste, mas já concluído: a edição da autora é desenhada na hora,
+sem o Claude, e só o resultado aprovado entra na fila (`registrar_edicao`, um
+`INSERT`), com `corpo.editor: true`.
+
 ## 4. API
 
 | Rota | O que faz |
@@ -127,6 +132,9 @@ o job dele gravou, e o desenho é um remendo sobre a receita da origem.
 | `GET /api/pedidos/{id}` | o pedido inteiro: corpo, leitura, eventos, último laudo |
 | `POST /api/pedidos/{id}/cancelar` | pendente, em desenho ou em revisão → cancelado; senão 409 |
 | `POST /api/pedidos/{id}/devolver` | em desenho ou em revisão → pendente, sem cancelar nem zerar tentativas (os candidatos ficam); senão 409 |
+| `GET /api/pedidos/{id}/ficha` | a ficha de verificação do asset ([LOTE_F5_FICHA.md](LOTE_F5_FICHA.md)) |
+| `GET /api/pedidos/{id}/editor` | a grade lógica e a paleta do asset de um pedido pronto ([LOTE_5_EDITOR.md](LOTE_5_EDITOR.md)) |
+| `POST /api/pedidos/{id}/editor` | `{"pixels": [{"x", "y", "cor"}], "motivo"?}`: desenha o remendo; aprovado, cria o ajuste pronto |
 
 As lições e as opiniões da tela ficam em `/api/aprendizado` ([OLHAR.md](OLHAR.md) §4).
 
