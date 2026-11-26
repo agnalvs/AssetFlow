@@ -153,6 +153,16 @@ líquido na camada seguinte, sem espelho.
   mede o contraste de valor entre partes vizinhas
   ([OLHAR.md](OLHAR.md) §2).
 
+## 3b. Comandos opcionais (sessão de lotes)
+
+Grupos de comandos que deixam pedir o resultado em vez de pintar cada pixel.
+Cada grupo tem um interruptor em `engines.yaml` (`options.comandos_<grupo>`);
+desligado, a receita que o usar é recusada.
+
+- **cor e luz** (`comandos_cor_e_luz`): `rampas` e `luz` na raiz, `material`
+  na camada, e as operações `sombrear`, `brilho`, `oclusao` e
+  `sombra_projetada`. Ver [LOTE_F2_COR_E_LUZ.md](LOTE_F2_COR_E_LUZ.md).
+
 ## 4. Erros e avisos
 
 Quem lê a mensagem é o Claude, que corrige e manda de novo. Toda mensagem diz

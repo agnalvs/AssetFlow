@@ -31,8 +31,10 @@ no rasterizador e na gaveta, que conhecem o pedido.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+
+from .cor_e_luz import DESVIO_MAXIMO, EFEITOS, LUZES, MATERIAIS, VOLUMES, gerar_rampa
 
 __all__ = [
     "ESPELHOS",
@@ -60,8 +62,17 @@ FORMAS = ("ret", "elipse", "linha", "poligono", "balde", "px")
 ESPELHOS = ("x", "y", "xy")
 
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
-_CHAVES_RAIZ = frozenset({"grade", "paleta", "camadas"})
-_CHAVES_CAMADA = frozenset({"nome", "espelho", "ops"})
+_CHAVES_RAIZ = frozenset({"grade", "paleta", "camadas", "rampas", "luz"})
+_CHAVES_CAMADA = frozenset({"nome", "espelho", "ops", "material"})
+#: Campos de cada efeito do lote F2 (cor e luz), além da própria chave.
+_EXTRAS_EFEITOS = {
+    "sombrear": frozenset({"rampa"}),
+    "brilho": frozenset({"sobre"}),
+    "oclusao": frozenset({"cor", "sobre"}),
+    "sombra_projetada": frozenset({"cor", "sobre", "distancia"}),
+}
+#: Nome de cada grupo de comandos opcionais, como o interruptor da gaveta o chama.
+COR_E_LUZ = "cor_e_luz"
 #: Campos que cada forma aceita além da própria chave.
 _EXTRAS = {
     "ret": frozenset({"cor", "contorno"}),
@@ -95,6 +106,9 @@ class Operacao:
     em: tuple[int, int] = (0, 0)
     #: Onde a operação está na receita, para as mensagens: ``camadas[1] ('vidro').ops[0]``.
     caminho: str = ""
+    #: Os campos de um efeito (lote F2): ``rampa``, ``sobre``, ``camada`` (o
+    #: índice da camada citada), ``distancia``.
+    parametros: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +116,8 @@ class Camada:
     nome: str
     ops: tuple[Operacao, ...]
     espelho: str | None = None
+    #: Material da camada (lote F2): muda o contraste do sombrear e o brilho.
+    material: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +127,11 @@ class Receita:
     #: Tamanho para o qual a receita foi desenhada, quando ela declara. Só
     #: serve para conferir: quem manda no tamanho é o pedido.
     grade: tuple[int, int] | None = None
+    #: De onde vem a luz dos efeitos (lote F2).
+    luz: str = "cima-esquerda"
+    #: Os grupos de comandos opcionais que a receita usa (``cor_e_luz``...),
+    #: para a gaveta conferir os interruptores.
+    usa: frozenset[str] = frozenset()
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +151,15 @@ def ler_receita(bruta: Any) -> Receita:
 
     paleta = _ler_paleta(bruta.get("paleta"))
     grade = _ler_grade(bruta.get("grade")) if "grade" in bruta else None
+    usa: set[str] = set()
+    if "rampas" in bruta:
+        paleta.update(_ler_rampas(bruta["rampas"], paleta))
+        usa.add(COR_E_LUZ)
+    luz = bruta.get("luz", "cima-esquerda")
+    if luz not in LUZES:
+        raise ReceitaInvalida(f"luz: '{luz}' não existe; use {', '.join(LUZES)}")
+    if "luz" in bruta:
+        usa.add(COR_E_LUZ)
 
     camadas_brutas = bruta.get("camadas")
     if not isinstance(camadas_brutas, list) or not camadas_brutas:
@@ -138,18 +168,61 @@ def ler_receita(bruta: Any) -> Receita:
         )
 
     camadas: list[Camada] = []
-    nomes: set[str] = set()
+    nomes: dict[str, int] = {}
     for indice, camada_bruta in enumerate(camadas_brutas):
-        camada = _ler_camada(camada_bruta, indice, paleta)
+        camada = _ler_camada(camada_bruta, indice, paleta, nomes)
         if camada.nome in nomes:
             raise ReceitaInvalida(
                 f"camadas[{indice}]: o nome '{camada.nome}' já foi usado por outra "
                 "camada — cada camada precisa de um nome único"
             )
-        nomes.add(camada.nome)
+        nomes[camada.nome] = indice
         camadas.append(camada)
+        if camada.material or any(op.forma in EFEITOS for op in camada.ops):
+            usa.add(COR_E_LUZ)
 
-    return Receita(paleta=paleta, camadas=tuple(camadas), grade=grade)
+    return Receita(
+        paleta=paleta, camadas=tuple(camadas), grade=grade, luz=luz, usa=frozenset(usa)
+    )
+
+
+def _ler_rampas(bruta: Any, paleta: dict[str, RGB]) -> dict[str, RGB]:
+    """As rampas geradas (lote F2): chave -> cor, do escuro ao claro."""
+    if not isinstance(bruta, list) or not bruta:
+        raise ReceitaInvalida(
+            'rampas: uma lista como [{"chaves": "abc", "base": "#3e8948", "desvio": 12}]'
+        )
+    geradas: dict[str, RGB] = {}
+    for i, item in enumerate(bruta):
+        onde = f"rampas[{i}]"
+        if not isinstance(item, dict):
+            raise ReceitaInvalida(f"{onde}: cada rampa é um objeto com chaves, base e desvio")
+        _sem_chaves_estranhas(item, frozenset({"chaves", "base", "desvio", "base_em"}), onde)
+        chaves = item.get("chaves")
+        if not isinstance(chaves, str) or not 2 <= len(chaves) <= 5 or len(set(chaves)) != len(chaves):
+            raise ReceitaInvalida(
+                f"{onde}: 'chaves' são de 2 a 5 caracteres diferentes, do escuro ao claro (\"abc\")"
+            )
+        for chave in chaves:
+            if chave in RESERVADOS or chave in paleta or chave in geradas:
+                raise ReceitaInvalida(
+                    f"{onde}: a chave '{chave}' já está na paleta ou é reservada; use outra"
+                )
+        base = item.get("base")
+        if not isinstance(base, str) or not _HEX.match(base):
+            raise ReceitaInvalida(f"{onde}: 'base' é a cor do meio, \"#rrggbb\"")
+        desvio = item.get("desvio", 12)
+        if not _e_inteiro(desvio) or not 0 <= desvio <= DESVIO_MAXIMO:
+            raise ReceitaInvalida(
+                f"{onde}: 'desvio' é o desvio de matiz por passo, de 0 a {DESVIO_MAXIMO} graus"
+            )
+        base_em = item.get("base_em")
+        if base_em is not None and (not _e_inteiro(base_em) or not 0 <= base_em < len(chaves)):
+            raise ReceitaInvalida(f"{onde}: 'base_em' é a posição da base nas chaves (0 a {len(chaves) - 1})")
+        rgb = (int(base[1:3], 16), int(base[3:5], 16), int(base[5:7], 16))
+        for chave, cor in zip(chaves, gerar_rampa(rgb, len(chaves), desvio, base_em)):
+            geradas[chave] = cor
+    return geradas
 
 
 def _ler_paleta(bruta: Any) -> dict[str, RGB]:
@@ -185,7 +258,9 @@ def _ler_grade(bruta: Any) -> tuple[int, int]:
     return (numeros[0], numeros[1])
 
 
-def _ler_camada(bruta: Any, indice: int, paleta: dict[str, RGB]) -> Camada:
+def _ler_camada(
+    bruta: Any, indice: int, paleta: dict[str, RGB], anteriores: dict[str, int] | None = None
+) -> Camada:
     onde = f"camadas[{indice}]"
     if not isinstance(bruta, dict):
         raise ReceitaInvalida(f"{onde}: cada camada precisa ser um objeto, e chegou {_tipo(bruta)}")
@@ -202,16 +277,28 @@ def _ler_camada(bruta: Any, indice: int, paleta: dict[str, RGB]) -> Camada:
             f"{onde}: 'espelho' aceita {', '.join(repr(e) for e in ESPELHOS)}, e chegou {espelho!r}"
         )
 
+    material = bruta.get("material")
+    if material is not None and material not in MATERIAIS:
+        raise ReceitaInvalida(
+            f"{onde}: 'material' aceita {', '.join(MATERIAIS)}, e chegou {material!r}"
+        )
+
     ops_brutas = bruta.get("ops")
     if not isinstance(ops_brutas, list) or not ops_brutas:
         raise ReceitaInvalida(f"{onde}: a camada precisa de 'ops', uma lista com pelo menos uma operação")
 
     ops = tuple(
-        _ler_operacao(op, f"{onde}.ops[{posicao}]", paleta)
+        _ler_operacao(op, f"{onde}.ops[{posicao}]", paleta, anteriores or {})
         for posicao, op in enumerate(ops_brutas)
     )
     if espelho is not None:
         for op in ops:
+            if op.forma in EFEITOS:
+                raise ReceitaInvalida(
+                    f"{op.caminho}: '{op.forma}' não pode ficar em camada com 'espelho' — "
+                    "a cópia levaria a luz para o lado errado; aplique o efeito numa camada "
+                    "sem espelho, depois desta"
+                )
             if op.forma == "balde":
                 # O balde enxerga a grade *antes* do espelho: numa camada
                 # espelhada ele vaza pelo lado que ainda não foi desenhado, e
@@ -222,21 +309,26 @@ def _ler_camada(bruta: Any, indice: int, paleta: dict[str, RGB]) -> Camada:
                     "ele preenche antes da cópia e vazaria pelo lado ainda vazio; "
                     "ponha o balde numa camada sem espelho, depois desta"
                 )
-    return Camada(nome=nome, ops=ops, espelho=espelho)
+    return Camada(nome=nome, ops=ops, espelho=espelho, material=material)
 
 
-def _ler_operacao(bruta: Any, onde: str, paleta: dict[str, RGB]) -> Operacao:
+def _ler_operacao(
+    bruta: Any, onde: str, paleta: dict[str, RGB], anteriores: dict[str, int] | None = None
+) -> Operacao:
     if not isinstance(bruta, dict):
         raise ReceitaInvalida(f"{onde}: cada operação precisa ser um objeto, e chegou {_tipo(bruta)}")
 
-    formas = [chave for chave in bruta if chave in FORMAS]
+    todas = (*FORMAS, *EFEITOS)
+    formas = [chave for chave in bruta if chave in todas]
     if len(formas) != 1:
         achadas = ", ".join(formas) if formas else "nenhuma"
         raise ReceitaInvalida(
             f"{onde}: cada operação tem exatamente uma forma entre "
-            f"{', '.join(FORMAS)} (achadas: {achadas})"
+            f"{', '.join(todas)} (achadas: {achadas})"
         )
     forma = formas[0]
+    if forma in EFEITOS:
+        return _ler_efeito(bruta, forma, onde, paleta, anteriores or {})
     _sem_chaves_estranhas(bruta, _EXTRAS[forma] | {forma}, f"{onde} ({forma})")
     onde = f"{onde} ({forma})"
 
@@ -268,6 +360,56 @@ def _ler_operacao(bruta: Any, onde: str, paleta: dict[str, RGB]) -> Operacao:
         numeros = _inteiros(valor, 2, f"{onde}", formato="[x, y]")
 
     return Operacao(forma=forma, numeros=numeros, cor=cor, contorno=contorno, caminho=onde)
+
+
+def _chaves_da_paleta(valor: Any, onde: str, campo: str, paleta: dict[str, RGB], minimo: int = 1) -> str:
+    if not isinstance(valor, str) or len(valor) < minimo:
+        raise ReceitaInvalida(f"{onde}: '{campo}' é um texto com chaves da paleta (\"abc\")")
+    faltam = [c for c in valor if c not in paleta]
+    if faltam:
+        raise ReceitaInvalida(
+            f"{onde}: '{campo}' cita {', '.join(faltam)}, que não está na paleta"
+        )
+    return valor
+
+
+def _ler_efeito(
+    bruta: dict[str, Any], efeito: str, onde: str, paleta: dict[str, RGB], anteriores: dict[str, int]
+) -> Operacao:
+    """Um efeito de cor e luz (lote F2), conferido no formato."""
+    _sem_chaves_estranhas(bruta, _EXTRAS_EFEITOS[efeito] | {efeito}, f"{onde} ({efeito})")
+    onde = f"{onde} ({efeito})"
+    valor = bruta[efeito]
+    parametros: dict[str, Any] = {}
+    cor = None
+    if efeito == "sombrear":
+        if valor not in VOLUMES:
+            raise ReceitaInvalida(f"{onde}: o volume é {', '.join(VOLUMES)}, e chegou {valor!r}")
+        parametros["volume"] = valor
+        parametros["rampa"] = _chaves_da_paleta(bruta.get("rampa"), onde, "rampa", paleta, 2)
+    elif efeito == "brilho":
+        cor = _chaves_da_paleta(valor, onde, "brilho", paleta)
+        if len(cor) != 1:
+            raise ReceitaInvalida(f"{onde}: 'brilho' é a chave de uma cor só")
+        parametros["sobre"] = _chaves_da_paleta(bruta.get("sobre"), onde, "sobre", paleta)
+    else:  # oclusao, sombra_projetada
+        if valor not in anteriores:
+            raise ReceitaInvalida(
+                f"{onde}: '{valor}' precisa ser o nome de uma camada desenhada antes desta "
+                f"(antes: {', '.join(anteriores) or 'nenhuma'})"
+            )
+        parametros["camada"] = anteriores[valor]
+        cor = bruta.get("cor")
+        if cor not in paleta:
+            raise ReceitaInvalida(f"{onde}: 'cor' é a chave da cor da sombra, na paleta")
+        if "sobre" in bruta:
+            parametros["sobre"] = _chaves_da_paleta(bruta["sobre"], onde, "sobre", paleta)
+        if efeito == "sombra_projetada":
+            distancia = bruta.get("distancia", 1)
+            if not _e_inteiro(distancia) or not 1 <= distancia <= 4:
+                raise ReceitaInvalida(f"{onde}: 'distancia' vai de 1 a 4 pixels")
+            parametros["distancia"] = distancia
+    return Operacao(forma=efeito, cor=cor, caminho=onde, parametros=parametros)
 
 
 def _ler_px(bruta: dict[str, Any], onde: str, paleta: dict[str, RGB]) -> Operacao:

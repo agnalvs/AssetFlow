@@ -50,6 +50,7 @@ from itertools import pairwise
 
 from PIL import Image
 
+from . import cor_e_luz
 from .receita import APAGAR, MANTER, Camada, Operacao, Receita, ReceitaInvalida
 
 __all__ = ["SIMBOLOS_DE_CAMADA", "Desenho", "Grade", "desenhar", "para_png"]
@@ -137,7 +138,7 @@ def desenhar(receita: Receita, largura: int, altura: int) -> Desenho:
     donos: list[int | None] = [None] * (largura * altura)
     avisos: list[str] = []
     for indice, camada in enumerate(receita.camadas):
-        _aplicar_camada(grade, camada, avisos, donos, indice)
+        _aplicar_camada(grade, camada, avisos, donos, indice, receita.luz)
     mapa = tuple(
         "".join(
             "." if dono is None or grade.celulas[y * largura + x] is None
@@ -155,6 +156,7 @@ def _aplicar_camada(
     avisos: list[str],
     donos: list[int | None] | None = None,
     indice: int = 0,
+    luz: str = "cima-esquerda",
 ) -> None:
     """Desenha a camada e, se pedido, espelha o que ela pintou.
 
@@ -165,7 +167,15 @@ def _aplicar_camada(
     """
     trabalho = grade.copia()
     escritas: dict[Ponto, Celula] = {}
+    alheias: dict[Ponto, Celula] = {}
     for op in camada.ops:
+        if op.forma in cor_e_luz.EFEITOS:
+            proprias, de_outras = _efeito(op, camada, escritas, trabalho, donos, luz)
+            for (x, y), valor in proprias.items():
+                trabalho.escrever(x, y, valor)
+                escritas[(x, y)] = valor
+            alheias.update(de_outras)
+            continue
         for (x, y), valor in _escritas_da_operacao(op, trabalho, avisos):
             trabalho.escrever(x, y, valor)
             escritas[(x, y)] = valor
@@ -177,6 +187,39 @@ def _aplicar_camada(
         grade.escrever(x, y, valor)
         if donos is not None:
             donos[y * grade.largura + x] = None if valor is None else indice
+    # A sombra projetada escurece outra camada sem tomar os pixels dela.
+    for (x, y), valor in alheias.items():
+        grade.escrever(x, y, valor)
+
+
+def _efeito(
+    op: Operacao,
+    camada: Camada,
+    escritas: dict[Ponto, Celula],
+    trabalho: Grade,
+    donos: list[int | None] | None,
+    luz: str,
+) -> tuple[dict[Ponto, Celula], dict[Ponto, Celula]]:
+    """Um efeito de cor e luz (lote F2): o que muda nesta camada e em outras."""
+    p = op.parametros
+    if op.forma == "sombrear":
+        return cor_e_luz.sombrear(escritas, p["rampa"], p["volume"], luz, camada.material), {}
+    if op.forma == "brilho":
+        return cor_e_luz.brilho(escritas, op.cor, p["sobre"], luz, camada.material), {}
+    largura = trabalho.largura
+    mapa = {
+        (i % largura, i // largura): dono
+        for i, dono in enumerate(donos or [])
+        if dono is not None
+    }
+    if op.forma == "oclusao":
+        return cor_e_luz.oclusao(escritas, mapa, p["camada"], op.cor, p.get("sobre")), {}
+    chaves = {
+        (x, y): trabalho.ler(x, y) for (x, y) in mapa
+    }
+    return {}, cor_e_luz.sombra_projetada(
+        escritas, mapa, p["camada"], op.cor, luz, p.get("distancia", 1), p.get("sobre"), chaves
+    )
 
 
 def _espelhar(

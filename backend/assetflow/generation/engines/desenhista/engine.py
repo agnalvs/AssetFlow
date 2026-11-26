@@ -91,6 +91,11 @@ class DesenhistaEngine(ImageGenerationEngine):
         self._config = config
         self._ready = True
 
+    def _ligado(self, grupo: str) -> bool:
+        """Se um grupo de comandos opcionais está ligado (padrão: ligado)."""
+        opcoes = self._config.options if self._config is not None else {}
+        return bool(opcoes.get(f"comandos_{grupo}", True))
+
     async def unload(self) -> None:
         self._ready = False
         self._active.clear()
@@ -155,6 +160,14 @@ class DesenhistaEngine(ImageGenerationEngine):
         try:
             try:
                 receita = ler_receita(bruta)
+                desligados = sorted(g for g in receita.usa if not self._ligado(g))
+                if desligados:
+                    raise ReceitaInvalida(
+                        "a receita usa comandos desligados nesta instalação ("
+                        + ", ".join(desligados)
+                        + "; engines.yaml, desenhista-v1, options.comandos_<grupo>): "
+                        "desenhe esse trecho com px, ret, elipse, linha, poligono e balde"
+                    )
                 desenho = desenhar(receita, largura, altura)
             except ReceitaInvalida as exc:
                 raise InvalidGenerationRequest(

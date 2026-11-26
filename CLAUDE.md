@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1693 passed, 1 skipped)
+pytest -q                                # suíte completa (1708 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -289,6 +289,12 @@ custo por desenho estão em [CUSTO.md](backend/docs/CUSTO.md).
   - **o lado de cada rodada nunca aparece no par**: só o resumo, com todos os
     pares avaliados, revela os lados (hash estável de `a|b|item`);
   - **`banca/` não importa API, MCP, gaveta nem jobs** (teste de fronteiras).
+- **Lote F2** (cor e luz) — comandos opcionais da receita em
+  `engines/desenhista/cor_e_luz.py`: `rampas`, `luz`, `material`, `sombrear`,
+  `brilho`, `oclusao`, `sombra_projetada`. Interruptor
+  `comandos_cor_e_luz` nas opções da gaveta; o MCP só cita os grupos ligados
+  (`formato_da_receita`). Efeito em camada com espelho é recusado. Detalhes:
+  [backend/docs/LOTE_F2_COR_E_LUZ.md](backend/docs/LOTE_F2_COR_E_LUZ.md).
 
 ## Arquitetura
 

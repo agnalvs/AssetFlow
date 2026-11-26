@@ -85,7 +85,6 @@ from ..referencias.olho import RelatorioDoOlho, olhar_desenho, repete_o_exemplo
 from ..storage.records import GenerationRecord
 from .imagem import imagem_do_olhar
 from .laudo import (
-    FORMATO_RECEITA,
     MAX_CAMPO_CONCEITO,
     MAX_OLHAR,
     MAX_SIMPLIFICAR,
@@ -96,6 +95,7 @@ from .laudo import (
     formatar_consulta,
     formatar_laudo,
     formatar_pendentes,
+    formato_da_receita,
     instrucao_avulsa,
     instrucao_do_pedido,
     secao_de_licoes,
@@ -161,6 +161,9 @@ class ServicoDesenhista:
         # O teto do worker já envolve o pipeline inteiro; esperar além dele
         # não faria um job terminar.
         self._timeout_s = timeout_s or (container.settings.worker.job_timeout_s + 30.0)
+        # Os grupos de comandos opcionais ligados na gaveta: o formato da
+        # receita só cita os que ela aceita.
+        self._formato = formato_da_receita(_grupos_ligados(container))
         # O que o último consultar_pedido avulso entregou, por (texto, perfil):
         # o desenho avulso não tem pedido na fila para guardar o envio.
         self._envios: dict[tuple[str, str], dict[str, Any]] = {}
@@ -201,7 +204,13 @@ class ServicoDesenhista:
             self._exemplo_mostrado(fonte)
         self._envios[(texto, perfil)] = envio
         return formatar_consulta(
-            texto, perfil, spec, conhecimento=recorte, liberdade=livre.value, extras=extras
+            texto,
+            perfil,
+            spec,
+            conhecimento=recorte,
+            liberdade=livre.value,
+            extras=extras,
+            formato=self._formato,
         )
 
     # ------------------------------------------------------------------
@@ -259,6 +268,7 @@ class ServicoDesenhista:
             rampas=rampas,
             opinioes=opinioes,
             com_formato=any(desenho for *_, desenho in entregues),
+            formato=self._formato,
         )
         if entregues:
             # O que é comum à resposta se divide entre os pedidos dela.
@@ -323,7 +333,7 @@ class ServicoDesenhista:
                         f"agora com desenhar(pedido_id={pedido_id}, receita=...)."
                     ),
                     "",
-                    FORMATO_RECEITA,
+                    self._formato,
                     *(["", rampas] if rampas else []),
                     "",
                     bloco,
@@ -1207,6 +1217,18 @@ class _Olhado:
         self.ampliacao = ampliacao
         self.relatorio = relatorio
         self.iou = iou
+
+
+def _grupos_ligados(container: AppContainer) -> set[str]:
+    """Os grupos de comandos opcionais que a gaveta aceita (``comandos_<grupo>``)."""
+    from ..settings import engine_runtime_configs
+
+    try:
+        opcoes = engine_runtime_configs(container.settings)[MOTOR].options
+    except (KeyError, ValueError):
+        return set()
+    grupos = {"cor_e_luz"}
+    return {g for g in grupos if bool(opcoes.get(f"comandos_{g}", True))}
 
 
 def _conceitos_conferidos(

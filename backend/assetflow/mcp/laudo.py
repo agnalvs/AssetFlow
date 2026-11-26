@@ -78,6 +78,22 @@ ops: ret|elipse [x, y, l, a] e poligono [x0, y0, ...], com cor e contorno? · li
 origem no canto superior esquerdo; chave de cor tem 1 caractere; camada seguinte pinta por cima;
 o espelho só preenche o que a camada não pintou."""
 
+#: As linhas de cada grupo de comandos opcionais da receita, que entram no
+#: formato quando o grupo está ligado na gaveta (sessão de lotes).
+FORMATO_OPCIONAL = {
+    "cor_e_luz": """\
+cor e luz (opcionais): raiz "rampas": [{"chaves": "abc", "base": "#rrggbb", "desvio"?: 0–20}] gera os tons do escuro ao claro · raiz "luz": cima-esquerda|cima-direita|cima|esquerda|direita
+     camada "material": metal|vidro|tecido|pele|madeira|pelo|pedra · {"sombrear": esfera|cilindro|caixa|plano, "rampa": "abc"} · {"brilho": "c", "sobre": "ab"}
+     {"oclusao": "<camada anterior>", "cor": "a"} · {"sombra_projetada": "<camada de trás>", "cor": "a", "distancia"?: 1} — efeitos não valem em camada com espelho""",
+}
+
+
+def formato_da_receita(ligados) -> str:
+    """O formato da receita com as linhas dos grupos opcionais ligados."""
+    extras = [FORMATO_OPCIONAL[g] for g in FORMATO_OPCIONAL if g in ligados]
+    return "\n".join([FORMATO_RECEITA, *extras])
+
+
 #: Teto de coordenadas de pixels isolados listadas no laudo.
 MAX_POSICOES = 8
 
@@ -121,6 +137,7 @@ def formatar_consulta(
     liberdade: str | None = None,
     com_formato: bool = True,
     extras: str = "",
+    formato: str = FORMATO_RECEITA,
 ) -> str:
     """O que o AssetFlow entendeu do pedido, o formato da receita e o recorte.
 
@@ -172,7 +189,7 @@ def formatar_consulta(
         "",
     ]
     if com_formato:
-        linhas.extend([FORMATO_RECEITA, ""])
+        linhas.extend([formato, ""])
     # O recorte da base (assetflow.pixel_knowledge) vem pronto; aqui só entra
     # no lugar. Sem nada para este pedido, a linha diz isso em vez de sumir.
     abertura = linha_de_liberdade(liberdade, spec)
@@ -455,6 +472,7 @@ def formatar_pendentes(
     rampas: str,
     opinioes: str = "",
     com_formato: bool = True,
+    formato: str = FORMATO_RECEITA,
 ) -> str:
     """A resposta de ``pedidos_pendentes``: as opiniões novas, o comum uma vez, depois cada pedido.
 
@@ -481,7 +499,7 @@ def formatar_pendentes(
         ),
     ]
     if com_formato:
-        linhas.extend(["", FORMATO_RECEITA])
+        linhas.extend(["", formato])
         if rampas:
             linhas.extend(["", rampas])
     for bloco in blocos:
