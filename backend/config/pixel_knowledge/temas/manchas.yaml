@@ -1,0 +1,22 @@
+# Tema "manchas" (lote 8): PIXEL_KNOWLEDGE.md §8, "Clusters e limpeza".
+# Formato e etiquetas: cabeçalho de temas/contorno.yaml.
+tema: manchas
+titulo: "manchas e limpeza"
+secao: "§8"
+regras:
+  - {texto: "a cor se organiza em manchas; pixel solto só como brilho forte, olho ou detalhe essencial",
+     classe: style, secao: "§8", verificacao: "medida:ORFAOS",
+     fonte: "https://gwern.net/doc/www/pixeljoint.com/ddfba8b00ecdc232df4936b61575ca99d5aba345.html"}
+  - {texto: "sem sujeira externa: nenhum pixel opaco solto fora da silhueta",
+     classe: style, secao: "§8", verificacao: "medida:ORFAOS"}
+  - {texto: "sem buraco: nenhum pixel transparente dentro da silhueta",
+     classe: style, secao: "§8", verificacao: "olhar:*/limpeza"}
+  - {texto: "sem tira de 1 px de cor entre duas áreas: engrosse ou absorva",
+     classe: style, secao: "§8", verificacao: "olhar:*/limpeza", a_calibrar: true}
+  - {texto: "dois tons quase iguais viram um só",
+     classe: style, secao: "§8", verificacao: "medida:REDUNDANCIA"}
+  - {texto: "mancha com borda de comprimentos variados, não retângulo perfeito",
+     classe: style, secao: "§8", verificacao: "autora",
+     etiquetas: {liberdade: [fiel, equilibrado]}}
+  - {texto: "fronteira entre dois tons sem escadinha regular: ela vira faixa",
+     classe: style, secao: "§8", verificacao: "autora"}

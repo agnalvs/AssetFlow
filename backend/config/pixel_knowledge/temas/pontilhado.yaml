@@ -1,0 +1,23 @@
+# Tema "pontilhado" (lote 8): PIXEL_KNOWLEDGE.md §7, "Dithering". Formato e
+# etiquetas: cabeçalho de temas/contorno.yaml.
+tema: pontilhado
+titulo: "pontilhado (dithering)"
+secao: "§7"
+regras:
+  - {texto: "personagem e objeto de até 32×32 não pontilham",
+     classe: style, secao: "§7", verificacao: "medida:PONTILHADO", a_calibrar: true,
+     fonte: "https://pixelparmesan.com/dithering-for-pixel-artists",
+     etiquetas: {tipos: [character, prop], tamanho: [0, 32]}}
+  - {texto: "pontilhado até 15% da área; acima disso, uma cor a mais",
+     classe: style, secao: "§7", verificacao: "medida:PONTILHADO", a_calibrar: true,
+     fonte: "https://gwern.net/doc/www/pixeljoint.com/ddfba8b00ecdc232df4936b61575ca99d5aba345.html",
+     etiquetas: {tamanho: [33, 4096]}}
+  - {texto: "pontilhe para afinar a borda de uma área sólida ou num fundo grande, não sobre a forma",
+     classe: style, secao: "§7", verificacao: "construcao:pontilhar",
+     etiquetas: {tamanho: [33, 4096]}}
+  - {texto: "em animação, o padrão fica preso à grade: o que muda de lugar entre quadros cintila",
+     classe: style, secao: "§7", verificacao: "construcao:pontilhar"}
+  - {texto: "quanto menor o contraste entre as duas cores, menos áspero o pontilhado",
+     classe: style, secao: "§7", verificacao: "autora",
+     fonte: "https://gwern.net/doc/www/pixeljoint.com/ddfba8b00ecdc232df4936b61575ca99d5aba345.html",
+     etiquetas: {tamanho: [33, 4096], liberdade: [fiel, equilibrado]}}

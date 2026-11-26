@@ -42,6 +42,10 @@ nas consultas seguintes, uma linha com os nomes — ~600 tokens a menos por
 consulta. Desligar um grupo (`comandos_<grupo>: false`) tira o custo dele
 também da primeira.
 
+A **base por temas** (`ASSETFLOW_CONSULTAR_BASE`, lote 8, ligada) custa ~30
+tokens por consulta (a linha dos temas) e ~25 por lista de pendentes; o texto
+de um tema, ~150 a 300 tokens, só quando o Claude chama `consultar_base`.
+
 O **editor de pixels** (`ASSETFLOW_EDITOR`, lote 5, ligado) não custa token
 nenhum: a correção pequena feita ali poupa um remendo do olhar (~1.000 tokens)
 ou um pedido de ajuste inteiro (~3.000 a 5.000).

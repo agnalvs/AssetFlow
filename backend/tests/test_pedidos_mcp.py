@@ -357,7 +357,8 @@ def test_consultar_ousado(servico):
         "material tenha tons vizinhos (escuro, médio, claro); como sugestão, as rampas da "
         "paleta-mestra endesga-32, do escuro ao claro:"
     )
-    assert recorte[-1].startswith("silhueta: arma e escudo fora do corpo")
+    assert recorte[-2].startswith("silhueta: arma e escudo fora do corpo")
+    assert recorte[-1].startswith("temas (consultar_base")  # lote 8
     # Nenhuma medida do corpo, nenhum molde, nenhuma referência.
     assert "cabeça y" not in texto and "larguras" not in texto and "camadas:" not in texto
     assert "referências:" not in texto

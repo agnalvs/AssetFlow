@@ -373,9 +373,9 @@ claude mcp add --scope local assetflow -- <caminho-do-clone>\backend\.venv\Scrip
 
 **4. Verifique.** Abra uma **conversa nova** — a configuração vale para as
 conversas que começam depois dela — e digite `/mcp`. O `assetflow` deve
-aparecer como **Connected**, com as oito ferramentas: `consultar_pedido`,
+aparecer como **Connected**, com as nove ferramentas: `consultar_pedido`,
 `pedidos_pendentes`, `propor_conceitos`, `desenhar`, `concluir_pedido`,
-`registrar_licao`, `ver_asset` e `ver_referencia`. Pelo terminal (3a), também dá para conferir com:
+`registrar_licao`, `ver_asset`, `ver_referencia` e `consultar_base`. Pelo terminal (3a), também dá para conferir com:
 
 ```bash
 claude mcp list            # assetflow ... ✔ Connected

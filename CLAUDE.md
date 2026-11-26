@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1820 passed, 1 skipped)
+pytest -q                                # suíte completa (1830 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -349,6 +349,16 @@ propostas sem ativar).
   opcionais vai **uma vez por conversa** (`ASSETFLOW_FORMATO_UMA_VEZ`;
   `consultar_pedido(..., formato=true)` repete). Detalhes:
   [backend/docs/LOTE_F4_ACABAMENTO.md](backend/docs/LOTE_F4_ACABAMENTO.md).
+- **Lote 8** (base por temas) — os §4, 7, 8 e 17 do PIXEL_KNOWLEDGE.md viraram
+  `config/pixel_knowledge/temas/*.yaml` (contorno, suavizacao, pontilhado,
+  manchas, erros; 32 regras), cada regra com seção, fonte, `verificacao` e
+  **etiquetas** (tipos, corpos, tamanho, liberdade, materiais). O pedido
+  aciona as etiquetas (`pixel_knowledge/temas.py`). A consulta leva uma linha
+  com os temas e quantas regras valem; a lista de pendentes, uma linha só no
+  topo; a ferramenta nova `consultar_base(tema, pedido?)` traz o texto. As
+  regras de tema que valem entram na ficha. Interruptor
+  `ASSETFLOW_CONSULTAR_BASE`. Detalhes:
+  [backend/docs/LOTE_8_BASE.md](backend/docs/LOTE_8_BASE.md).
 
 ## Arquitetura
 

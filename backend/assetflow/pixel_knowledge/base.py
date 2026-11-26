@@ -69,6 +69,35 @@ class ConhecimentoInvalido(ValueError):
 # ---------------------------------------------------------------------------
 # O que a base contém
 # ---------------------------------------------------------------------------
+#: As liberdades, como o pedido as chama (lote 8: uma regra pode valer só em algumas).
+LIBERDADES = ("fiel", "equilibrado", "ousado")
+
+
+@dataclass(frozen=True, slots=True)
+class Etiquetas:
+    """A quem uma regra de tema vale (lote 8, PLANO_BASE_CONHECIMENTO §6).
+
+    Campo vazio vale para todos. ``tamanho`` é o lado maior da grade, de ``[0]``
+    a ``[1]`` inclusive. ``materiais`` fica gravado para quando o pedido tiver
+    material (as seções convertidas até aqui não têm regra de material).
+    """
+
+    tipos: tuple[str, ...] = ()
+    corpos: tuple[str, ...] = ()
+    tamanho: tuple[int, int] | None = None
+    liberdades: tuple[str, ...] = ()
+    materiais: tuple[str, ...] = ()
+
+    def vale(self, *, tipo: str | None, corpo: str | None, lado: int | None, liberdade: str) -> bool:
+        if self.tipos and tipo not in self.tipos:
+            return False
+        if self.corpos and corpo not in self.corpos:
+            return False
+        if self.tamanho is not None and (lado is None or not self.tamanho[0] <= lado <= self.tamanho[1]):
+            return False
+        return not (self.liberdades and liberdade not in self.liberdades)
+
+
 @dataclass(frozen=True, slots=True)
 class Regra:
     """Uma regra em uma frase, com a classe e a origem."""
@@ -84,6 +113,8 @@ class Regra:
     #: app mede: ``medida:VALOR``), ``olhar`` (uma pergunta do olhar:
     #: ``olhar:humanoid/silhueta``) e ``autora`` (só a nota dela).
     verificacao: str = ""
+    #: A quem a regra vale (só nas regras de tema, lote 8).
+    etiquetas: Etiquetas | None = None
 
     @property
     def tipo_de_verificacao(self) -> str:
@@ -96,7 +127,18 @@ class Regra:
 
 #: Os tipos de verificação de uma regra (FUNDAMENTOS_E_FERRAMENTAS §7).
 TIPOS_DE_VERIFICACAO = ("construcao", "medida", "olhar", "autora")
-_VERIFICACAO = re.compile(r"^(construcao|medida|olhar):[\w/ çãéíóú-]+$|^autora$")
+#: Em ``olhar:*/limpeza``, o ``*`` é a lista da forma do pedido (lote 8).
+_VERIFICACAO = re.compile(r"^(construcao|medida|olhar):[\w/* çãéíóú-]+$|^autora$")
+
+
+@dataclass(frozen=True, slots=True)
+class Tema:
+    """Um tema da base consultável (lote 8): ``config/pixel_knowledge/temas/<id>.yaml``."""
+
+    id: str
+    titulo: str
+    secao: str
+    regras: tuple[Regra, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,6 +263,8 @@ class BaseDeConhecimento:
     moldes: Mapping[tuple[str, str], Molde] = field(default_factory=dict)
     #: A lista de verificação do olhar (``olhar.yaml``); ``None`` sem o arquivo.
     olhar: ListasDoOlhar | None = None
+    #: Os temas consultáveis (``temas/*.yaml``, lote 8), pelo id.
+    temas: Mapping[str, Tema] = field(default_factory=dict)
     #: Um texto por arquivo ignorado na carga. Vazio numa base saudável.
     problemas: tuple[str, ...] = ()
 
@@ -290,6 +334,16 @@ class BaseDeConhecimento:
                 continue
             moldes[chave] = molde
 
+        temas: dict[str, Tema] = {}
+        pasta = diretorio / "temas"
+        for caminho in sorted(pasta.glob("*.yaml")) if pasta.is_dir() else ():
+            tema = carregar(
+                f"temas/{caminho.name}",
+                lambda dados, origem, tid=caminho.stem: _ler_tema(dados, origem, tid),
+            )
+            if tema is not None:
+                temas[tema.id] = tema
+
         return cls(
             paletas=paletas,
             mestra=mestra,
@@ -297,6 +351,7 @@ class BaseDeConhecimento:
             formas=formas,
             moldes=moldes,
             olhar=olhar,
+            temas=temas,
             problemas=tuple(problemas),
         )
 
@@ -557,7 +612,9 @@ def _regras(bruta: Any, onde: str) -> tuple[Regra, ...]:
 
 def _ler_regra(bruta: Any, onde: str) -> Regra:
     bruta = _mapa(bruta, onde)
-    _so_chaves(bruta, {"texto", "classe", "secao", "fonte", "a_calibrar", "verificacao"}, onde)
+    _so_chaves(
+        bruta, {"texto", "classe", "secao", "fonte", "a_calibrar", "verificacao", "etiquetas"}, onde
+    )
     texto = _texto(bruta.get("texto"), f"{onde}.texto")
     fonte, a_calibrar = _origem(bruta, onde)
     if _DIGITO.search(texto) and not fonte and not a_calibrar:
@@ -578,6 +635,55 @@ def _ler_regra(bruta: Any, onde: str) -> Regra:
         fonte=fonte,
         a_calibrar=a_calibrar,
         verificacao=verificacao,
+        etiquetas=_ler_etiquetas(bruta["etiquetas"], f"{onde}.etiquetas") if "etiquetas" in bruta else None,
+    )
+
+
+def _ler_etiquetas(bruta: Any, onde: str) -> Etiquetas:
+    bruta = _mapa(bruta, onde)
+    _so_chaves(bruta, {"tipos", "corpos", "tamanho", "liberdade", "materiais"}, onde)
+
+    def lista(chave: str) -> tuple[str, ...]:
+        valor = bruta.get(chave) or []
+        if not isinstance(valor, list) or not all(isinstance(v, str) and v for v in valor):
+            raise ConhecimentoInvalido(f"{onde}.{chave}: uma lista de textos")
+        return tuple(valor)
+
+    tamanho = bruta.get("tamanho")
+    if tamanho is not None:
+        if (
+            not isinstance(tamanho, list)
+            or len(tamanho) != 2
+            or not all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in tamanho)
+            or tamanho[0] > tamanho[1]
+        ):
+            raise ConhecimentoInvalido(f"{onde}.tamanho: [mínimo, máximo] do lado maior, em px")
+        tamanho = (tamanho[0], tamanho[1])
+    liberdades = lista("liberdade")
+    estranhas = [v for v in liberdades if v not in LIBERDADES]
+    if estranhas:
+        raise ConhecimentoInvalido(f"{onde}.liberdade: {estranhas} (use {', '.join(LIBERDADES)})")
+    return Etiquetas(
+        tipos=lista("tipos"),
+        corpos=lista("corpos"),
+        tamanho=tamanho,
+        liberdades=liberdades,
+        materiais=lista("materiais"),
+    )
+
+
+def _ler_tema(dados: Mapping[str, Any], origem: str, tema_id: str) -> Tema:
+    _so_chaves(dados, {"tema", "titulo", "secao", "regras"}, origem)
+    if dados.get("tema") != tema_id:
+        raise ConhecimentoInvalido(f"{origem}: 'tema' precisa ser '{tema_id}', o nome do arquivo")
+    regras_brutas = dados.get("regras")
+    if not isinstance(regras_brutas, list) or not regras_brutas:
+        raise ConhecimentoInvalido(f"{origem}: 'regras' é uma lista com pelo menos uma regra")
+    return Tema(
+        id=tema_id,
+        titulo=_texto(dados.get("titulo"), f"{origem}.titulo"),
+        secao=_texto(dados.get("secao"), f"{origem}.secao"),
+        regras=tuple(_ler_regra(r, f"{origem}.regras[{i}]") for i, r in enumerate(regras_brutas)),
     )
 
 

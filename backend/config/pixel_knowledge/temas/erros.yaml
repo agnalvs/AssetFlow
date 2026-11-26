@@ -1,0 +1,23 @@
+# Tema "erros" (lote 8): PIXEL_KNOWLEDGE.md §17, "Erros comuns e checklist de
+# validação" — só os defeitos de estilo e de processo; os hard checks já são
+# do validador e reprovam sozinhos. Formato e etiquetas: cabeçalho de
+# temas/contorno.yaml.
+tema: erros
+titulo: "erros comuns"
+secao: "§17"
+regras:
+  - {texto: "sombreie pela luz, não pelo contorno: faixas que repetem a borda em todos os lados achatam (pillow shading)",
+     classe: style, secao: "§17", verificacao: "olhar:*/luz"}
+  - {texto: "rampa com desvio de matiz, não reta (o mesmo matiz só mais claro e mais escuro)",
+     classe: style, secao: "§17", verificacao: "construcao:rampas"}
+  - {texto: "silhueta numa peça só, salvo partes soltas de propósito",
+     classe: semantic, secao: "§17", verificacao: "olhar:*/silhueta"}
+  - {texto: "o sprite não encosta na borda do quadro",
+     classe: semantic, secao: "§17", verificacao: "medida:BORDA"}
+  - {texto: "feche a silhueta antes de detalhar",
+     classe: style, secao: "§17", verificacao: "olhar:*/silhueta"}
+  - {texto: "comece com poucas cores; cor a mais é decisão, não ponto de partida",
+     classe: style, secao: "§17", verificacao: "medida:CORES",
+     fonte: "https://gwern.net/doc/www/pixeljoint.com/ddfba8b00ecdc232df4936b61575ca99d5aba345.html"}
+  - {texto: "a mesma luz, proporção e paleta entre os assets do projeto",
+     classe: style, secao: "§17", verificacao: "olhar:*/luz"}

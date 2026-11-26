@@ -6,7 +6,8 @@
 > [DESENHISTA.md](DESENHISTA.md). Para registrar no Claude Code, veja o
 > [SETUP.md](../../SETUP.md) §10.
 
-O servidor expõe oito ferramentas por stdio (as duas da Fase B2 —
+O servidor expõe nove ferramentas por stdio (`consultar_base`, do lote 8, em
+[LOTE_8_BASE.md](LOTE_8_BASE.md); as duas da Fase B2 —
 `concluir_pedido` e `registrar_licao` — e o olhar estão em [OLHAR.md](OLHAR.md);
 `propor_conceitos`, do lote 1, em [BANCA_E_CONCEITO.md](BANCA_E_CONCEITO.md)). Ele chama o `GenerationService`
 direto, sem HTTP, montado pelo mesmo `bootstrap.py` da API. E pede sempre a
@@ -40,6 +41,7 @@ nelas.
 | `registrar_licao` | `asset_id`, `tema`, `errou`, `porque`, `regra`, `geral?`, `mesma_que?`, `da_autora?` | registra a lição de um olhar; repetida, soma no contador ([OLHAR.md](OLHAR.md) §4) |
 | `ver_asset` | `id` | uma legenda e a imagem do olhar (a mesma do `desenhar`) |
 | `ver_referencia` | `pedido`, `perfil?`, `liberdade?` | um quadro de referência do tipo do pedido, ampliado, com origem e licença ([REFERENCIAS.md](REFERENCIAS.md)) |
+| `consultar_base` | `tema`, `pedido?`, `perfil?`, `liberdade?` | as regras de um tema da base (contorno, suavizacao, pontilhado, manchas, erros), filtradas pelas etiquetas do pedido ([LOTE_8_BASE.md](LOTE_8_BASE.md)) |
 
 - **`perfil`** é o profile de partida, e só vale no que o texto não disser. O
   padrão é `pixel_character_32`. A lista de opções na descrição sai dos

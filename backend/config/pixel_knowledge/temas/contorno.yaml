@@ -1,0 +1,33 @@
+# Tema "contorno" (lote 8): PIXEL_KNOWLEDGE.md §4, "Linhas e contorno".
+#
+# Um tema é a base consultável por consultar_base(tema): regras curtas, cada
+# uma com a seção de onde sai, a fonte quando tem número, como é conferida
+# (`verificacao`, lote F5) e a quem vale (`etiquetas`: tipos, corpos,
+# tamanho [mín, máx] do lado maior, liberdade, materiais; vazio vale para
+# todos). O recorte só cita o tema e quantas regras valem para o pedido; o
+# texto vem quando o Claude pede. Toda regra que vale entra na ficha do asset.
+tema: contorno
+titulo: "linhas e contorno"
+secao: "§4"
+regras:
+  - {texto: "reta inclinada em degraus do mesmo tamanho: 1:1, 2:1, 3:1; mistura (2,3,2,3) só se o padrão for periódico",
+     classe: style, secao: "§4", verificacao: "construcao:reta",
+     fonte: "https://gwern.net/doc/www/pixeljoint.com/ddfba8b00ecdc232df4936b61575ca99d5aba345.html"}
+  - {texto: "curva com degraus em progressão de um sentido só (4, 3, 2, 1, 1, 2, 3, 4); 3, 1, 3, 2 cria bico",
+     classe: style, secao: "§4", verificacao: "medida:DEGRAUS",
+     fonte: "https://gwern.net/doc/www/pixeljoint.com/ddfba8b00ecdc232df4936b61575ca99d5aba345.html"}
+  - {texto: "linha de 1 px sem dobra: na diagonal, tire o pixel do canto interno",
+     classe: style, secao: "§4", verificacao: "medida:DOBRAS", a_calibrar: true}
+  - {texto: "sem canto em L no contorno de 1 px: o pixel do meio do degrau sobra",
+     classe: style, secao: "§4", verificacao: "medida:CANTOS", a_calibrar: true}
+  - {texto: "contorno de cinza muito escuro com leve matiz, não preto puro",
+     classe: style, secao: "§4", verificacao: "autora",
+     fonte: "https://pixnote.net/en/learn/character",
+     etiquetas: {liberdade: [fiel, equilibrado]}}
+  - {texto: "seletivo (sel-out) só com o fundo conhecido e a direção de luz do pedido",
+     classe: style, secao: "§4", verificacao: "construcao:contorno"}
+  - {texto: "contorno interno mais claro que o externo, ou só a troca de valor entre as áreas",
+     classe: style, secao: "§4", verificacao: "olhar:*/valores",
+     etiquetas: {tipos: [character]}}
+  - {texto: "contorno inteiro, sem falha de 1 px na linha externa",
+     classe: style, secao: "§4", verificacao: "medida:FRAGMENTADO", a_calibrar: true}

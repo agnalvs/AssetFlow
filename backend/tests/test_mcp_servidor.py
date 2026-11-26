@@ -52,6 +52,7 @@ def test_ferramentas_com_descricao_curta(servidor):
     ferramentas = {f.name: f for f in run(cenario())}
     assert set(ferramentas) == {
         "concluir_pedido",
+        "consultar_base",
         "consultar_pedido",
         "desenhar",
         "pedidos_pendentes",
@@ -166,6 +167,7 @@ def test_o_servidor_sobe_por_stdio():
 
     assert sorted(run(cenario())) == [
         "concluir_pedido",
+        "consultar_base",
         "consultar_pedido",
         "desenhar",
         "pedidos_pendentes",

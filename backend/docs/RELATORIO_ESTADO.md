@@ -47,7 +47,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `9ffea04` | Lote F5 — ficha de verificação | Toda regra da base declara `verificacao` (`construcao`, `medida`, `olhar`, `autora`), e a carga recusa a que não declara; teste confere que o alvo existe. `concluir_pedido` com `respostas` por pergunta; `000_ficha.json` por asset (`mcp/ficha.py`) com uma linha por regra e as divergências entre resposta e medida; `GET /api/pedidos/{id}/ficha` e a ficha dobrada no resultado. Interruptor `ASSETFLOW_FICHA`. | 1735 / 1 |
 | `51f14f6` | Lote 5 — editor de pixels | `assetflow/editor/` e o editor na tela (lápis, apagar, conta-gotas, paleta do asset, desfazer, prévia 2×): a troca vira a camada `retoque_N` no fim da receita, desenhada pelo caminho de sempre; aprovado, vira um pedido de ajuste já concluído (`registrar_edicao`). "O que estava errado" vira opinião pendente no original. `GET`/`POST /api/pedidos/{id}/editor`; a gaveta grava a paleta efetiva. Interruptor `ASSETFLOW_EDITOR`. | 1768 / 1 |
 | `0ede490` | Lote F1 — linha e contorno | `reta` (degraus iguais), `curva` (Catmull-Rom pelos pontos, sem canto em L), `limpar_linha` (dobras, depois cantos, relata posições) e `contorno` na raiz (inteiro, seletivo, colorido). Interruptor `comandos_linha`. Olho do app: cantos em L, dobras e degraus no contorno escuro, contra limites por tipo calibrados nos pacotes ativos (p90, `scripts/calibrar_linha.py`). Ficha: `limpeza` cruza com as medidas novas; as perguntas `limpeza` reescritas no positivo (corrige o F5). | 1796 / 1 |
-| (este) | Lote F4 — detalhes e acabamento | `rosto`, `extremidade`, `suavizar`, `pontilhar`, `textura`, `luz_de_borda`; interruptor `comandos_acabamento`; recusas em sprite pequeno como aviso. Olho: pontilhado por manchas de xadrez, calibrado nos pacotes. Formato dos opcionais uma vez por conversa (`ASSETFLOW_FORMATO_UMA_VEZ`, `consultar_pedido(formato=true)`). | 1820 / 1 |
+| `fc14d13` | Lote F4 — detalhes e acabamento | `rosto`, `extremidade`, `suavizar`, `pontilhar`, `textura`, `luz_de_borda`; interruptor `comandos_acabamento`; recusas em sprite pequeno como aviso. Olho: pontilhado por manchas de xadrez, calibrado nos pacotes. Formato dos opcionais uma vez por conversa (`ASSETFLOW_FORMATO_UMA_VEZ`, `consultar_pedido(formato=true)`). | 1820 / 1 |
+| (este) | Lote 8 — base por temas | §4, 7, 8 e 17 do PIXEL_KNOWLEDGE em `config/pixel_knowledge/temas/` (5 temas, 32 regras com seção, fonte, verificação e etiquetas). Linha dos temas na consulta e uma vez no topo da lista; ferramenta `consultar_base`; regras de tema na ficha, com três medidas novas do validador (fragmentado, redundância, borda). Interruptor `ASSETFLOW_CONSULTAR_BASE`. | 1830 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -1047,3 +1048,14 @@ Dúvidas: os carimbos de mão aberta; rosto de perfil sem nariz nem queixo; o
 pontilhado não confere o contraste entre as duas cores. Achado: contar a
 janela xadrez solta como pontilhado acusaria 2.392 de 3.469 personagens
 profissionais de até 32 px; a medida conta só manchas de 4 janelas (67 acusam).
+
+### Lote 8 — base por temas ([LOTE_8_BASE.md](LOTE_8_BASE.md))
+
+Decisões: um arquivo por tema, com o leitor de regra de sempre; o recorte não
+leva a linha dos temas por padrão (por pedido, numa lista de dez, passava o
+teto), e ela vai depois do recorte na consulta e uma vez no topo da lista; só
+técnica e processo do §17; material gravado sem uso; as regras de tema entram
+na ficha.
+
+Dúvidas: sete regras são de gosto (`autora`); não há como saber, sem a banca,
+se o Claude vai pedir `consultar_base`; o §7 virou dois temas.

@@ -177,6 +177,11 @@ class AprendizadoSettings(AssetFlowModel):
     #: ``ASSETFLOW_FORMATO_UMA_VEZ`` (``0`` manda sempre). **Ajuste de custo**:
     #: ~600 tokens por consulta depois da primeira (docs/CUSTO.md).
     formato_uma_vez: bool = True
+    #: A base por temas (lote 8): a linha ``temas da base`` no recorte e a
+    #: ferramenta ``consultar_base(tema)``. ``ASSETFLOW_CONSULTAR_BASE``
+    #: (``0`` desliga as duas). Custo: ~30 tokens por pedido na linha; o tema,
+    #: ~150 a 300 tokens, só quando o Claude pede.
+    consultar_base: bool = True
     #: A ficha de verificação de cada asset concluído (lote F5): uma linha por
     #: regra aplicável, com as respostas do olhar e o cruzamento com as
     #: medidas. ``ASSETFLOW_FICHA`` (``0`` desliga).
@@ -419,6 +424,7 @@ def load_settings(
         peso_autora=int(_env("LICOES_PESO_AUTORA") or padrao_aprendizado.peso_autora),
         lista_curta=_env_bool("OLHAR_LISTA_CURTA", padrao_aprendizado.lista_curta),
         formato_uma_vez=_env_bool("FORMATO_UMA_VEZ", padrao_aprendizado.formato_uma_vez),
+        consultar_base=_env_bool("CONSULTAR_BASE", padrao_aprendizado.consultar_base),
         ficha=_env_bool("FICHA", padrao_aprendizado.ficha),
         espera_s=float(_env("PEDIDOS_ESPERA_S") or padrao_aprendizado.espera_s),
     )

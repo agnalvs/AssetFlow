@@ -218,6 +218,21 @@ def criar_servidor(
             raise ToolError(str(exc)) from exc
 
     @servidor.tool(structured_output=False)
+    def consultar_base(
+        tema: Annotated[str, Field(description="O tema: contorno, suavizacao, pontilhado, manchas ou erros.")],
+        pedido: Annotated[
+            str | None, Field(description="O texto do pedido, para trazer só as regras que valem para ele.")
+        ] = None,
+        perfil: Annotated[str | None, Field(description="Igual a consultar_pedido.")] = None,
+        liberdade: Annotated[str | None, Field(description="fiel, equilibrado ou ousado.")] = None,
+    ) -> str:
+        """Devolve as regras de um tema da base de pixel art (contorno, suavização, pontilhado, manchas, erros comuns), com a seção de origem e como cada uma é conferida. Use quando tiver dúvida num tema; o recorte do pedido só cita os temas."""
+        try:
+            return servico.consultar_base(tema, pedido, perfil, liberdade)
+        except ErroDoPedido as exc:
+            raise ToolError(str(exc)) from exc
+
+    @servidor.tool(structured_output=False)
     def ver_referencia(
         pedido: Annotated[str, Field(description="O mesmo texto de consultar_pedido.")],
         perfil: Annotated[str | None, Field(description="Igual a consultar_pedido.")] = None,

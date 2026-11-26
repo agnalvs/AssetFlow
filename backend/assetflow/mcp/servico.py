@@ -76,6 +76,12 @@ from ..pixel_knowledge import (
     porte,
     rampas_da_base,
 )
+from ..pixel_knowledge.temas import (
+    linha_dos_temas,
+    linha_geral_dos_temas,
+    regras_que_valem,
+    texto_do_tema,
+)
 from ..referencias.exemplo import (
     FONTE_GOSTEI,
     CandidatoDeGostei,
@@ -221,6 +227,9 @@ class ServicoDesenhista:
             liberdade=livre,
         )
         extras, envio, fonte = self._extras(spec, livre, set())
+        if self._config.consultar_base:
+            temas = linha_dos_temas(self._container.conhecimento, spec, livre.value)
+            extras = "\n".join(parte for parte in (extras, temas) if parte)
         if fonte:
             self._exemplo_mostrado(fonte)
         self._envios[(texto, perfil)] = envio
@@ -252,6 +261,10 @@ class ServicoDesenhista:
 
         opinioes = await self._opinioes_pendentes()
         rampas = rampas_da_base(self._container.conhecimento)
+        if self._config.consultar_base:
+            # Lote 8: os temas uma vez só, no topo, e não por pedido.
+            geral = linha_geral_dos_temas(self._container.conhecimento)
+            rampas = "\n".join(parte for parte in (rampas, geral) if parte)
         # O que vem uma vez só (cabeçalho, formato da receita, rampas,
         # opiniões) entra na conta antes dos pedidos; cada pedido entra
         # inteiro ou não entra.
@@ -504,6 +517,10 @@ class ServicoDesenhista:
         spec = pedido.spec
         forma = base.formas.get(forma_do_olhar(spec))
         regras = [*(forma.regras if forma else ()), *(base.luz.regras if base.luz else ())]
+        if self._config.consultar_base:
+            # Lote 8: as regras de tema que o pedido aciona também vão para a ficha.
+            for tema in base.temas.values():
+                regras.extend(regras_que_valem(tema, spec, pedido.liberdade.value))
         traco = (pedido.conceito or {}).get("traco")
         variante = asset.variants[0]
         try:
@@ -614,6 +631,28 @@ class ServicoDesenhista:
         return imagem, legenda
 
     # ------------------------------------------------------------------
+    def consultar_base(
+        self,
+        tema: str,
+        pedido: str | None = None,
+        perfil: str | None = None,
+        liberdade: str | None = None,
+    ) -> str:
+        """Um tema da base (lote 8), filtrado pelo pedido quando ele vem."""
+        if not self._config.consultar_base:
+            raise ErroDoPedido(
+                "consultar_base está desligada nesta instalação (ASSETFLOW_CONSULTAR_BASE)"
+            )
+        temas = self._container.conhecimento.temas
+        chave = (tema or "").strip().lower()
+        if chave not in temas:
+            raise ErroDoPedido(
+                f"não há o tema '{tema}' na base; os temas são: {', '.join(temas) or 'nenhum'}"
+            )
+        spec = self._resolver(self._texto(pedido), self._perfil(perfil)) if pedido else None
+        livre = self._liberdade(liberdade)
+        return texto_do_tema(temas[chave], spec, livre.value)
+
     def ver_referencia(
         self, pedido: str, perfil: str | None = None, liberdade: str | None = None
     ) -> tuple[bytes, str]:

@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from assetflow.api.app import create_app
 from assetflow.mcp.ficha import (
+    AVISOS_DO_VALIDADOR,
     CONFERE,
     MEDIDAS_CONHECIDAS,
     montar_ficha,
@@ -26,6 +27,7 @@ from assetflow.mcp.servico import MOTOR, ServicoDesenhista
 from assetflow.pedidos import CorpoDoPedido
 from assetflow.pixel_knowledge import BaseDeConhecimento, ConhecimentoInvalido
 from assetflow.pixel_knowledge.base import _ler_regra
+from assetflow.pixel_knowledge.temas import regras_que_valem
 from assetflow.referencias.olho import _LINHA
 from tests.conftest import BACKEND_ROOT, run
 from tests.test_olhar_mcp import MESMO_VALOR
@@ -34,6 +36,8 @@ CONHECIMENTO = BACKEND_ROOT / "config" / "pixel_knowledge"
 COMANDOS_DA_RECEITA = {
     "ret", "elipse", "linha", "poligono", "balde", "px", "sombrear", "brilho", "oclusao",
     "sombra_projetada", "capsula", "copiar", "rampas", "luz", "boneco", "material",
+    "reta", "curva", "limpar_linha", "contorno", "rosto", "extremidade", "suavizar",
+    "pontilhar", "textura", "luz_de_borda",
 }
 
 
@@ -46,6 +50,8 @@ def _todas_as_regras(base):
     for forma in base.formas.values():
         yield from forma.regras
     yield from base.luz.regras
+    for tema in base.temas.values():  # lote 8
+        yield from tema.regras
 
 
 def test_toda_regra_declara_a_verificacao_e_o_alvo_existe(base):
@@ -59,6 +65,9 @@ def test_toda_regra_declara_a_verificacao_e_o_alvo_existe(base):
         tipo, alvo = regra.tipo_de_verificacao, regra.alvo_da_verificacao
         if tipo == "medida":
             assert alvo in MEDIDAS_CONHECIDAS, regra.texto
+        elif tipo == "olhar" and alvo.startswith("*/"):
+            # A lista da forma do pedido: a pergunta existe em alguma lista.
+            assert any(p.endswith("/" + alvo[2:]) for p in perguntas), regra.texto
         elif tipo == "olhar":
             assert alvo in perguntas, regra.texto
         elif tipo == "construcao":
@@ -80,7 +89,11 @@ def test_as_medidas_conhecidas_existem_no_olho_e_no_validador():
         re.findall(r'desvios, "([A-Z]+)"', fonte)
     )
     do_olho |= {codigo for codigo, _, _ in _LINHA}  # lote F1: códigos numa tabela
-    assert MEDIDAS_CONHECIDAS - {"ORFAOS"} <= do_olho | {"TONS", "RAMPAS", "CONTORNO"}
+    do_validador = set(AVISOS_DO_VALIDADOR.values())
+    assert MEDIDAS_CONHECIDAS - do_validador <= do_olho | {"TONS", "RAMPAS", "CONTORNO"}
+    validacao = (BACKEND_ROOT / "assetflow" / "pixel" / "validation").rglob("*.py")
+    codigos = set().union(*(re.findall(r"PX-WARN-[A-Z-]+", f.read_text(encoding="utf-8")) for f in validacao))
+    assert set(AVISOS_DO_VALIDADOR) <= codigos
     assert {m for medidas in CONFERE.values() for m in medidas} <= MEDIDAS_CONHECIDAS
 
 
@@ -123,7 +136,11 @@ def test_concluir_grava_a_ficha_e_aponta_a_divergencia(container):
     arquivo = (container.settings.storage_root / "projects" / depois.asset_projeto / "jobs"
                / depois.job_id / "000_ficha.json")
     ficha = json.loads(arquivo.read_text(encoding="utf-8"))
-    assert ficha["pedido_id"] == pedido.id and len(ficha["linhas"]) == 5  # 3 de objeto + 2 de luz
+    temas = sum(  # lote 8: as regras de tema que o pedido aciona
+        len(regras_que_valem(t, depois.spec, "fiel")) for t in container.conhecimento.temas.values()
+    )
+    assert temas > 0
+    assert ficha["pedido_id"] == pedido.id and len(ficha["linhas"]) == 5 + temas  # 3 de objeto + 2 de luz
     with TestClient(create_app(container=container)) as cliente:
         assert cliente.get(f"/api/pedidos/{pedido.id}/ficha").json()["respostas"]["silhueta"] == "sim"
 

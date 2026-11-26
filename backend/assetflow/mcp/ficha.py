@@ -22,6 +22,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 __all__ = [
+    "AVISOS_DO_VALIDADOR",
     "CONFERE",
     "MEDIDAS_CONHECIDAS",
     "montar_ficha",
@@ -34,11 +35,18 @@ __all__ = [
 MEDIDAS_CONHECIDAS = {
     "VALOR", "PREENCHIMENTO", "PROPORCAO", "ALTURA", "CORES", "TONS", "RAMPAS", "CONTORNO",
     "ORFAOS", "CANTOS", "DOBRAS", "DEGRAUS", "PONTILHADO",
+    "FRAGMENTADO", "REDUNDANCIA", "BORDA",
 }
 #: Pergunta do olhar -> as medidas que conferem a mesma coisa (para o cruzamento).
 #: Cantos, dobras e degraus vêm do lote F1 (``referencias/linha.py``).
 CONFERE = {"valores": ("VALOR",), "limpeza": ("ORFAOS", "CANTOS", "DOBRAS", "DEGRAUS")}
-_AVISOS_DO_VALIDADOR = {"PX-WARN-ORPHAN": "ORFAOS"}
+#: Os avisos do validador que são medidas da ficha (lote 8: os do §8 e do §17).
+AVISOS_DO_VALIDADOR = {
+    "PX-WARN-ORPHAN": "ORFAOS",
+    "PX-WARN-OUTLINE-FRAGMENTED": "FRAGMENTADO",
+    "PX-WARN-COLOR-REDUNDANCY": "REDUNDANCIA",
+    "PX-WARN-BORDER": "BORDA",
+}
 
 
 def resultado_da_resposta(resposta: str | None) -> tuple[str, str]:
@@ -86,7 +94,7 @@ def montar_ficha(
         for d in ((olhar or {}).get("olho") or {}).get("desvios") or []
     }
     for aviso in ((validacao or {}).get("quality") or {}).get("warnings") or []:
-        codigo = _AVISOS_DO_VALIDADOR.get(aviso.get("code"))
+        codigo = AVISOS_DO_VALIDADOR.get(aviso.get("code"))
         if codigo:
             desvios[codigo] = aviso.get("message", codigo)
     medidas = ((olhar or {}).get("olho") or {}).get("medidas") or {}

@@ -51,6 +51,7 @@ from typing import Any, Protocol
 
 from ..generation.schemas import AssetType
 from .base import BaseDeConhecimento, Forma, Luz, Medida, Molde, Paleta
+from .temas import linha_dos_temas
 
 __all__ = [
     "CONVITE_OUSADO",
@@ -158,6 +159,7 @@ def montar_recorte(
     teto: int = TETO_CARACTERES,
     liberdade: Liberdade | str = Liberdade.FIEL,
     rampas: bool = True,
+    temas: bool = False,
 ) -> str:
     """As linhas da base que valem para este spec; ``""`` quando não há nada.
 
@@ -195,6 +197,7 @@ def montar_recorte(
             ("luz", _luz(resolved, estilo.luz)),
             ("cores", cores),
             ("silhueta", _silhueta(forma)),
+            ("temas", linha_dos_temas(base, resolved, liberdade.value) if temas else ""),
         ]
         return _caber([(nome, texto) for nome, texto in secoes if texto], teto)
 
@@ -212,6 +215,9 @@ def montar_recorte(
         ("silhueta", _silhueta(forma)),
         ("molde", _molde(molde_base, encaixe, largura, altura, completo=molde)),
         ("referências", linha_de_referencias),
+        # Lote 8: só os temas e quantas regras valem; o texto vem por
+        # consultar_base(tema). As regras gerais são as últimas a caber.
+        ("temas", linha_dos_temas(base, resolved, liberdade.value) if temas else ""),
     ]
     return _caber([(nome, texto) for nome, texto in secoes if texto], teto)
 

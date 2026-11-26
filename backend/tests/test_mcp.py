@@ -248,6 +248,9 @@ def test_consultar_traz_o_recorte_da_base(servico: ServicoDesenhista):
     assert "cores: até 8, contorno incluído · paleta-mestra endesga-32" in recorte
     # Por padrão, só medidas e nomes de camadas: a receita do molde engessava o desenho.
     assert "{" not in recorte
+    # Lote 8: depois do recorte, a linha dos temas da base consultável.
+    recorte, temas = recorte.rsplit("\n", 1)
+    assert temas.startswith("temas (consultar_base, regras que valem): contorno ")
     assert recorte.endswith("· a receita do molde-base vem com molde=true")
     # O recorte orienta e não muda o que o pedido virou.
     assert "estilo: contorno auto · sombreamento auto · luz não definida" in texto
@@ -258,7 +261,7 @@ def test_consultar_com_molde_traz_a_receita(servico: ServicoDesenhista):
 
     assert "molde humanoid_32x32: " in texto
     assert '{"grade":[32,32],"paleta":' in texto
-    assert texto.endswith(USO_DO_MOLDE)
+    assert texto.rsplit("\n", 1)[0].endswith(USO_DO_MOLDE)  # e a linha dos temas
 
 
 def test_consultar_sem_nada_da_base_diz_isso(container: AppContainer):

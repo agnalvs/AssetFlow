@@ -1,0 +1,23 @@
+# Tema "suavizacao" (lote 8): PIXEL_KNOWLEDGE.md §7, "Anti-aliasing (AA)
+# manual". Formato e etiquetas: cabeçalho de temas/contorno.yaml.
+tema: suavizacao
+titulo: "suavização (anti-aliasing manual)"
+secao: "§7"
+regras:
+  - {texto: "em sprite pequeno de jogo, sem suavização: vira ruído",
+     classe: style, secao: "§7", verificacao: "construcao:suavizar", a_calibrar: true,
+     fonte: "https://pixelparmesan.com/anti-aliasing-fundamentals-for-pixel-artists",
+     etiquetas: {tamanho: [0, 31]}}
+  - {texto: "suavize por dentro da silhueta, nunca na borda externa: o alpha é binário",
+     classe: hard, secao: "§7", verificacao: "construcao:suavizar",
+     etiquetas: {tamanho: [32, 4096]}}
+  - {texto: "o tom intermediário é um vizinho da rampa, não a média das duas cores",
+     classe: style, secao: "§7", verificacao: "autora",
+     fonte: "https://pixelparmesan.com/anti-aliasing-fundamentals-for-pixel-artists",
+     etiquetas: {tamanho: [32, 4096]}}
+  - {texto: "degrau longo pede suavização longa; trechos iguais e paralelos à borda fazem faixa",
+     classe: style, secao: "§7", verificacao: "construcao:suavizar",
+     etiquetas: {tamanho: [32, 4096]}}
+  - {texto: "não suavize reta horizontal nem vertical",
+     classe: style, secao: "§7", verificacao: "construcao:suavizar",
+     etiquetas: {tamanho: [32, 4096]}}
