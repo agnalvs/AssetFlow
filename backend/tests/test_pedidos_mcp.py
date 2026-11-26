@@ -39,6 +39,8 @@ def servico(container: AppContainer) -> ServicoDesenhista:
 
 
 def _pedido(container: AppContainer, texto: str = "poção azul 16x16", **campos):
+    # Estes testes cobram o desenho: sem a etapa de conceito (ver test_conceito.py).
+    campos.setdefault("modo_conceito", "sem_conceito")
     corpo = CorpoDoPedido(prompt=texto, profile="pixel_prop_64", **campos)
     return run(container.pedidos.criar(corpo))
 
@@ -410,7 +412,12 @@ def test_marco_tres_pedidos_da_tela_ficam_prontos(container: AppContainer):
         ids = [
             tela.post(
                 "/api/pedidos",
-                json={"capability": "text_to_image.pixel", "profile": "pixel_prop_64", "prompt": texto},
+                json={
+                    "capability": "text_to_image.pixel",
+                    "profile": "pixel_prop_64",
+                    "prompt": texto,
+                    "modo_conceito": "sem_conceito",
+                },
             ).json()["id"]
             for texto in ("poção vermelha 16x16", "poção verde 16x16", "poção azul 16x16")
         ]

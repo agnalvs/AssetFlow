@@ -36,6 +36,7 @@ def servico(container: AppContainer) -> ServicoDesenhista:
 
 
 def _pedido(container: AppContainer, texto: str = "poção azul 16x16", perfil: str = "pixel_prop_64", **campos):
+    campos.setdefault("modo_conceito", "sem_conceito")
     return run(container.pedidos.criar(CorpoDoPedido(prompt=texto, profile=perfil, **campos)))
 
 

@@ -86,7 +86,8 @@ def test_cancelar_e_devolver(client: TestClient, container: AppContainer):
     assert recusa.json()["detail"] == {"situacao": "pendente"}
 
     container.pedidos.fila.reservar([pedido], "lev_teste")
-    assert client.get(f"/api/pedidos/{pedido}").json()["etapa"] == "na_vez"
+    # O padrão da instalação é "eu escolho": reservado, o pedido espera os conceitos.
+    assert client.get(f"/api/pedidos/{pedido}").json()["etapa"] == "conceituando"
     devolvido = client.post(f"/api/pedidos/{pedido}/devolver").json()
     assert devolvido["situacao"] == "pendente"
 

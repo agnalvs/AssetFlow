@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from ..aprendizado import ErroDoAprendizado, LicaoInvalida, LicaoNaoEncontrada
+from ..banca import BancaInvalida, ErroDaBanca, RodadaNaoEncontrada
 from ..bootstrap import AppContainer, build_container
 from ..generation.kernel.exceptions import ErrorCode, GenerationError
 from ..pedidos import ErroDaFila, PedidoNaoEncontrado, TransicaoRecusada
@@ -25,6 +26,7 @@ from ..version import __version__
 from .routers import (
     aprendizado,
     assets,
+    banca,
     capabilities,
     dev_pixel,
     engines,
@@ -168,6 +170,23 @@ def create_app(
             ).model_dump(mode="json"),
         )
 
+    @app.exception_handler(ErroDaBanca)
+    @app.exception_handler(BancaInvalida)
+    async def _banca_error_handler(_request: Request, exc: Exception) -> JSONResponse:
+        """Erros da banca de teste, em português."""
+        if isinstance(exc, RodadaNaoEncontrada):
+            status_code, codigo = 404, exc.codigo
+        elif isinstance(exc, BancaInvalida):
+            status_code, codigo = 422, "banca_invalida"
+        else:
+            status_code, codigo = 503, getattr(exc, "codigo", "banca_indisponivel")
+        return JSONResponse(
+            status_code=status_code,
+            content=ErrorResponse(
+                code=codigo, message=str(exc), retryable=status_code == 503
+            ).model_dump(mode="json"),
+        )
+
     @app.exception_handler(RequestValidationError)
     async def _validation_error_handler(
         _request: Request, exc: RequestValidationError
@@ -222,6 +241,7 @@ def create_app(
     app.include_router(assets.router)
     app.include_router(pedidos.router)
     app.include_router(aprendizado.router)
+    app.include_router(banca.router)
 
     # Diagnóstico do Pixel Exact (plano Pixel §78). Quem decide se ele
     # responde é o próprio endpoint, lendo `api.dev_endpoints` do container em

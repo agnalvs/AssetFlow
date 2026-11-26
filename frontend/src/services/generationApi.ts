@@ -17,15 +17,20 @@ import {
 import {
   type GenerationMode,
   type Liberdade,
+  type BancaResumo,
+  type Comparacao,
+  type Conceito,
   type Licao,
   type LicaoLista,
   MODES,
+  type ModoConceito,
   type Opiniao,
   type Pedido,
   type PedidoCorpo,
   type PedidoDetalhe,
   type PedidoLista,
   type PromptPreview,
+  type Rodada,
   type SemanticPrompt,
   type SpecOverrides,
 } from "../types";
@@ -47,6 +52,7 @@ export function buildPedidoPayload(input: {
   semantic?: SemanticPrompt | null;
   liberdade?: Liberdade;
   direcaoDeArte?: string;
+  modoConceito?: ModoConceito;
 }): PedidoCorpo {
   const config = MODES[input.mode];
   const selection = input.selection ?? null;
@@ -64,6 +70,7 @@ export function buildPedidoPayload(input: {
     ...(input.semantic ? { semantic_prompt: input.semantic } : {}),
     ...(input.liberdade ? { liberdade: input.liberdade } : {}),
     ...(direcao ? { direcao_de_arte: direcao } : {}),
+    ...(input.modoConceito ? { modo_conceito: input.modoConceito } : {}),
   };
 }
 
@@ -184,6 +191,61 @@ export function devolverPedido(id: string): Promise<Pedido> {
 }
 
 // ---------------------------------------------------------------------------
+// Etapa de conceito (lote 1)
+// ---------------------------------------------------------------------------
+
+/** A autora escolhe o conceito `indice` (1 a 3), com os campos que editou. */
+export function escolherConceito(
+  id: string,
+  indice: number,
+  editado?: Partial<Conceito>,
+): Promise<Pedido> {
+  return request<Pedido>(`${PEDIDOS_URL}/${encodeURIComponent(id)}/conceito`, {
+    method: "POST",
+    body: JSON.stringify({ indice, ...(editado ?? {}) }),
+  });
+}
+
+export function outrosConceitos(id: string): Promise<Pedido> {
+  return request<Pedido>(`${PEDIDOS_URL}/${encodeURIComponent(id)}/outros-conceitos`, {
+    method: "POST",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Banca de teste (lote 1)
+// ---------------------------------------------------------------------------
+const BANCA_URL = "/api/banca";
+
+export function lerBanca(): Promise<BancaResumo> {
+  return request<BancaResumo>(BANCA_URL);
+}
+
+export function criarRodada(rotulo: string, modoConceito: ModoConceito): Promise<Rodada> {
+  return request<Rodada>(`${BANCA_URL}/rodadas`, {
+    method: "POST",
+    body: JSON.stringify({ rotulo, modo_conceito: modoConceito }),
+  });
+}
+
+export function comparar(a: string, b: string): Promise<Comparacao> {
+  return request<Comparacao>(
+    `${BANCA_URL}/comparar?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`,
+  );
+}
+
+export function votar(voto: {
+  a: string;
+  b: string;
+  item: string;
+  escolha: "esquerda" | "direita" | "empate";
+  nota_esquerda: number;
+  nota_direita: number;
+}): Promise<void> {
+  return request<void>(`${BANCA_URL}/votos`, { method: "PUT", body: JSON.stringify(voto) });
+}
+
+// ---------------------------------------------------------------------------
 // Aprendizado: lições e opiniões (Fase B2 do plano do app)
 // ---------------------------------------------------------------------------
 const APRENDIZADO_URL = "/api/aprendizado";
@@ -243,6 +305,8 @@ function messageForCode(code: string, reason?: string): string {
     "pedido_nao_encontrado",
     "pedido_em_outra_situacao",
     "licao_nao_encontrada",
+    "rodada_nao_encontrada",
+    "banca_invalida",
     "licao_invalida",
     "aprendizado_indisponivel",
   ]);

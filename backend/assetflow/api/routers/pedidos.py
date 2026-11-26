@@ -31,6 +31,7 @@ from ...pedidos import CorpoDoPedido, Pedido, Situacao, agora_utc
 from ..deps import ContainerDep
 from ..schemas import (
     AssetView,
+    ConceitoEscolha,
     PedidoDetalhe,
     PedidoEventoView,
     PedidoListResponse,
@@ -69,16 +70,19 @@ async def listar(
     situacao: Annotated[list[Situacao] | None, Query()] = None,
     limit: int = Query(default=30, ge=1, le=100),
 ) -> PedidoListResponse:
-    alvo = projeto or container.pedidos.projeto
+    # Vários projetos separados por vírgula. Sem projeto, o do app e o da banca:
+    # a tela mostra os dois na fila (os da banca, com etiqueta).
+    alvo = projeto or f"{container.pedidos.projeto},{container.banca.projeto}"
+    projetos = [p.strip() for p in alvo.split(",") if p.strip()]
     pedidos = await asyncio.to_thread(
         container.pedidos.fila.listar,
-        projeto=alvo,
+        projeto=projetos,
         situacoes=tuple(situacao or ()),
         limite=limit,
     )
     agora = agora_utc()
     itens = [await _vista(pedido, container, agora) for pedido in pedidos]
-    return PedidoListResponse(projeto=alvo, items=itens)
+    return PedidoListResponse(projeto=projeto or container.pedidos.projeto, items=itens)
 
 
 @router.get("/{pedido_id}", response_model=PedidoDetalhe, summary="Um pedido inteiro")
@@ -90,6 +94,31 @@ async def detalhe(pedido_id: str, container: ContainerDep) -> PedidoDetalhe:
 @router.post("/{pedido_id}/cancelar", response_model=PedidoView, summary="Cancela um pedido")
 async def cancelar(pedido_id: str, container: ContainerDep) -> PedidoView:
     pedido = await asyncio.to_thread(container.pedidos.fila.cancelar, pedido_id)
+    return await _vista(pedido, container, agora_utc())
+
+
+@router.post(
+    "/{pedido_id}/conceito",
+    response_model=PedidoView,
+    summary="A autora escolhe (e talvez edita) um dos três conceitos",
+)
+async def escolher_conceito(
+    pedido_id: str, escolha: ConceitoEscolha, container: ContainerDep
+) -> PedidoView:
+    editado = escolha.model_dump(exclude={"indice"}, exclude_none=True)
+    pedido = await asyncio.to_thread(
+        container.pedidos.escolher_conceito, pedido_id, escolha.indice, editado or None
+    )
+    return await _vista(pedido, container, agora_utc())
+
+
+@router.post(
+    "/{pedido_id}/outros-conceitos",
+    response_model=PedidoView,
+    summary="A autora pede outros três conceitos",
+)
+async def outros_conceitos(pedido_id: str, container: ContainerDep) -> PedidoView:
+    pedido = await asyncio.to_thread(container.pedidos.outros_conceitos, pedido_id)
     return await _vista(pedido, container, agora_utc())
 
 
@@ -145,6 +174,12 @@ async def _campos(pedido: Pedido, container, agora) -> dict:
         "max_remendos": pedido.max_remendos,
         "candidatos": list(pedido.candidatos),
         "olhar": pedido.olhar,
+        "modo_conceito": pedido.modo_conceito.value,
+        "conceitos": list(pedido.conceitos),
+        "conceito": pedido.conceito,
+        "motivo_conceito": pedido.motivo_conceito,
+        "recusados": len(pedido.conceitos_recusados),
+        "banca": pedido.banca,
         "reservado_ate": pedido.reservado_ate,
         "motivo": pedido.motivo,
         "criado_em": pedido.criado_em,

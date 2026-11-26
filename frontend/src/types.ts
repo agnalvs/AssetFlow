@@ -339,6 +339,8 @@ export interface PedidoCorpo {
   liberdade?: Liberdade;
   /** Texto livre, entregue ao Claude como está. */
   direcao_de_arte?: string;
+  /** Quem escolhe o conceito antes do desenho (lote 1). */
+  modo_conceito?: ModoConceito;
   /** Num ajuste: o asset de origem e o que mudar. */
   origem_asset_id?: string;
   texto?: string;
@@ -351,6 +353,8 @@ export type PedidoEtapa =
   | "desenhando"
   | "corrigindo"
   | "olhando"
+  | "conceituando"
+  | "escolha_conceito"
   | "pronto"
   | "nao_aprovado"
   | "cancelado";
@@ -359,7 +363,14 @@ export type PedidoEtapa =
 export interface Pedido {
   id: string;
   tipo: "desenho" | "ajuste";
-  situacao: "pendente" | "em_desenho" | "em_revisao" | "concluido" | "falhou" | "cancelado";
+  situacao:
+    | "pendente"
+    | "em_desenho"
+    | "em_revisao"
+    | "escolhendo"
+    | "concluido"
+    | "falhou"
+    | "cancelado";
   etapa: PedidoEtapa;
   texto: string;
   projeto: string;
@@ -375,6 +386,14 @@ export interface Pedido {
   candidatos: string[];
   /** A linha do olhar do Claude que concluiu o pedido. */
   olhar: string | null;
+  /** A etapa de conceito (lote 1). */
+  modo_conceito: ModoConceito;
+  conceitos: Conceito[];
+  conceito: (Conceito & { indice?: number; editado?: boolean }) | null;
+  motivo_conceito: string | null;
+  recusados: number;
+  /** Numa rodada da banca de teste. */
+  banca: { rodada: string; item: string; ordem: number; total: number } | null;
   reservado_ate: string | null;
   motivo: string | null;
   criado_em: string;
@@ -387,6 +406,62 @@ export interface Pedido {
   };
   /** O desenho que concluiu o pedido, o que espera o olhar, ou o último não aprovado. */
   asset: Asset | null;
+}
+
+/** Quem escolhe o conceito antes do desenho (lote 1). */
+export type ModoConceito = "eu_escolho" | "claude_escolhe" | "sem_conceito";
+
+/** Um conceito: traço marcante, silhueta, objeto, pose e o que simplificar. */
+export interface Conceito {
+  traco: string;
+  silhueta: string;
+  objeto: string;
+  pose: string;
+  simplificar: string;
+}
+
+/** Uma rodada da banca de teste (espelha `RodadaView`). */
+export interface Rodada {
+  id: string;
+  rotulo: string;
+  modo_conceito: ModoConceito;
+  criada_em: string;
+  versao_base: string;
+  git_commit: string | null;
+  interruptores: Record<string, unknown>;
+  itens: { item: string; pedido_id: string; ordem: number; etapa: string | null; asset_id: string | null }[];
+  pronta: boolean;
+  tokens_estimados: number;
+}
+
+export interface BancaResumo {
+  itens: { id: string; texto: string; testa: string }[];
+  rodadas: Rodada[];
+}
+
+/** Um lado de um par: a imagem e a etapa, nunca a rodada. */
+export interface LadoDoPar {
+  asset: Asset | null;
+  etapa: string | null;
+}
+
+export interface ParDaBanca {
+  item: string;
+  texto: string;
+  testa: string;
+  esquerda: LadoDoPar;
+  direita: LadoDoPar;
+  escolha: "esquerda" | "direita" | "empate" | null;
+  nota_esquerda: number | null;
+  nota_direita: number | null;
+}
+
+export interface Comparacao {
+  a: string;
+  b: string;
+  pares: ParDaBanca[];
+  avaliados: number;
+  resumo: Record<string, unknown> | null;
 }
 
 /** Uma lição do aprendizado (espelha `LicaoView`, Fase B2). */

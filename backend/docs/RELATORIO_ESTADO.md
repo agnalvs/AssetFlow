@@ -40,7 +40,8 @@ do app, que o baixou para 144 (os achados estavam em arquivos apagados).
 | `4f9fdc6` | Fase A do plano do app — simplificação | Saem o seletor e o crédito de motor e o modo 2D Normal da tela; o modo "Automático" (`auto_policy.py`, `engine_policy.yaml`, `engine_advisor.py`, `EngineAdvice`, `EngineSuggestion`, a dica `preferred_engine_id`); os pipelines Studio e Raw, o pós-processamento e os prompt builders Studio, os profiles `studio_character`, `studio_background` e `raw_image`. Mocks só no ambiente de testes (`AppEnvironment.TEST`), rotas Pixel só com a desenhista, fallback desligado. "Gerar" desligado com a frase da fila. Leitor do histórico tolerante a campos antigos. `prompting/`, `AssetMode.STUDIO`, o campo `engine` da API e o `SessionHistory` ficam. | 1448 / 1 |
 | `9362e26` | Fase B do plano do app — fila de pedidos | "Gerar" cria um pedido; fila num SQLite em `data/pedidos/` (`assetflow/pedidos/`), dividida pela API (`/api/pedidos`: prévia, criar, listar, ler, cancelar, devolver) e pelo MCP (`pedidos_pendentes`, `desenhar(pedido_id)`). Spec resolvido uma vez, na criação, e executado pelo desenho (`submit(resolved=)`). Tentativas (3), reserva por leva (30 min), conclusão condicional. Liberdade criativa (fiel, equilibrado, ousado) e direção de arte, só no recorte; `liberdade` também em `consultar_pedido` e `ver_referencia` avulsos. Projeto fixo `principal`; gerador do app no `engines.yaml`. Tela com fila, prontos e resultado sem recarregar. Textos pendentes da Fase A corrigidos. | 1540 / 1 |
 | `9c652c1` | Fase B2 do plano do app — ver, corrigir e aprender | `desenhar` e `ver_asset` devolvem a imagem do olhar (ampliada, silhueta, tamanho real; 294 tokens); olho do app (`referencias/olho.py`) com os desvios contra as referências do mesmo porte e o contraste entre camadas (mapa gravado pela gaveta); lista de verificação de `config/pixel_knowledge/olhar.yaml` no primeiro olhar. Aprovado no validador vai para `em_revisao` e conclui com `concluir_pedido`, até 2 remendos do olhar. Exemplo de construção CC0 convertido para receita (`referencias/exemplo.py`; regra dos sprites de terceiros mudada com autorização), guarda "repete o exemplo". `assetflow/aprendizado/` (lições, opiniões, exemplos mostrados; SQLite em `data/aprendizado/`), `registrar_licao`, `/api/aprendizado`, "gostei"/"não gostei" e lista de lições na tela. Interruptores `ASSETFLOW_EXEMPLO`/`ASSETFLOW_LICOES` e o envio gravado no pedido e no asset. `sqlite_curto.py` dividido pela fila e pelas lições. | 1642 / 1 |
-| (este) | Ajuste da Fase B2 | `ASSETFLOW_EXEMPLO` passa a nascer desligado: no teste da maga do gelo, o único exemplo do porte para personagem vestido foi um corpo-base sem roupa, e atrapalhou. Volta com pacotes melhores, com a diferença medida. | 1644 / 1 |
+| `c48c920` | Ajuste da Fase B2 | `ASSETFLOW_EXEMPLO` passa a nascer desligado: no teste da maga do gelo, o único exemplo do porte para personagem vestido foi um corpo-base sem roupa, e atrapalhou. Volta com pacotes melhores, com a diferença medida. | 1644 / 1 |
+| (este) | Lote 1 — banca e conceito | Banca de teste (`assetflow/banca/`, `config/banca.yaml`, `/api/banca`, página "Banca e Comparar"): rodadas ligadas a uma versão da base, comparação cega com nota de 1 a 5, resumo com veredito; custo por pedido registrado pelo MCP. Etapa de conceito: três modos por pedido, `propor_conceitos`, situação `escolhendo`, conceito na medida da grade, pergunta do conceito no olhar. Ajustes de custo em settings (`ASSETFLOW_CONCEITO`, `ASSETFLOW_PEDIDOS_REMENDOS`, `ASSETFLOW_OLHAR_LISTA_CURTA`), documentados em `CUSTO.md`. Entram `PLANO_BASE_CONHECIMENTO.md` e `FUNDAMENTOS_E_FERRAMENTAS.md`, da autora. | 1693 / 1 |
 
 ¹ A contagem de cada commit está na mensagem dele; a Fase 0 registra 1254
 passando no fim da limpeza.
@@ -926,3 +927,33 @@ Só existe na máquina local:
 As receitas dos desenhos citados ficam gravadas no histórico local (campo
 `engine_options`), não no repositório; a do cavaleiro de 48 está transcrita na
 seção 5.
+
+
+## Sessão de lotes (2026-11-25): decisões e dúvidas
+
+A autora pediu para seguir sem esperar "sim" entre lotes, registrando aqui o
+que foi decidido sem consulta e o que ficou em dúvida. Cada lote tem o seu
+documento em `backend/docs/`.
+
+### Lote 1 — banca e conceito ([BANCA_E_CONCEITO.md](BANCA_E_CONCEITO.md))
+
+Decisões:
+
+1. O conceito escolhido vira a direção de arte como texto, depois da direção
+   escrita na criação; também fica estruturado, para a pergunta do olhar.
+2. Ajuste (remendo de um asset) é sempre sem conceito.
+3. A página da banca cria a rodada com "sem conceito" por padrão (a primeira
+   rodada de referência que a autora pediu); a segunda, "o Claude escolhe".
+4. Nota por imagem (duas por par), escolha por par.
+5. Par com lado sem desenho (falhou, cancelado) conta como derrota desse lado.
+6. A fila da tela mostra os projetos `principal` e `banca`; "Prontos", só o
+   `principal`.
+
+Dúvidas para a autora:
+
+1. **A rodada da banca é desenhada pela mesma conversa que vê a fila.** O
+   plano pede conversa nova; nada no servidor garante.
+2. **"Serve para qualquer personagem do mesmo tipo"** não é conferido por
+   código — só a diferença entre os três e contra os recusados.
+3. **O custo registrado é por caracteres**; o raciocínio do Claude, que na etapa
+   de conceito pode ser grande, não aparece.

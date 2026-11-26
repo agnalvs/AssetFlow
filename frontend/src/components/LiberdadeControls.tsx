@@ -1,4 +1,4 @@
-import type { Liberdade } from "../types";
+import type { Liberdade, ModoConceito } from "../types";
 
 interface LiberdadeControlsProps {
   liberdade: Liberdade;
@@ -6,7 +6,19 @@ interface LiberdadeControlsProps {
   disabled: boolean;
   onLiberdade: (value: Liberdade) => void;
   onDirecao: (value: string) => void;
+  modoConceito: ModoConceito;
+  onModoConceito: (value: ModoConceito) => void;
 }
+
+const MODOS: readonly { id: ModoConceito; rotulo: string; frase: string }[] = [
+  { id: "eu_escolho", rotulo: "Eu escolho", frase: "O Claude propõe três conceitos; você escolhe na fila." },
+  {
+    id: "claude_escolhe",
+    rotulo: "O Claude escolhe",
+    frase: "Ele propõe três, escolhe o mais forte e desenha; você vê os três.",
+  },
+  { id: "sem_conceito", rotulo: "Sem conceito", frase: "Direto ao desenho, para itens simples." },
+];
 
 const OPCOES: readonly { id: Liberdade; rotulo: string; frase: string }[] = [
   { id: "fiel", rotulo: "Fiel", frase: "Segue as medidas e as paletas da base." },
@@ -35,6 +47,8 @@ export function LiberdadeControls({
   disabled,
   onLiberdade,
   onDirecao,
+  modoConceito,
+  onModoConceito,
 }: LiberdadeControlsProps) {
   return (
     <fieldset className="liberdade" disabled={disabled}>
@@ -54,6 +68,24 @@ export function LiberdadeControls({
             />
             <span className="liberdade__rotulo">{opcao.rotulo}</span>
             <span className="liberdade__frase">{opcao.frase}</span>
+          </label>
+        ))}
+      </div>
+      <div className="liberdade__opcoes" role="radiogroup" aria-label="Conceito antes do desenho">
+        {MODOS.map((modo) => (
+          <label
+            key={modo.id}
+            className={`liberdade__opcao${modoConceito === modo.id ? " liberdade__opcao--ativa" : ""}`}
+          >
+            <input
+              type="radio"
+              name="modo_conceito"
+              value={modo.id}
+              checked={modoConceito === modo.id}
+              onChange={() => onModoConceito(modo.id)}
+            />
+            <span className="liberdade__rotulo">{modo.rotulo}</span>
+            <span className="liberdade__frase">{modo.frase}</span>
           </label>
         ))}
       </div>

@@ -1,0 +1,36 @@
+# A banca de teste (etapa K1 do PLANO_BASE_CONHECIMENTO.md, seções 7 e 8).
+#
+# Os mesmos seis pedidos, desenhados antes e depois de cada mudança na base,
+# com a nota da autora na tela "Comparar". Mudar esta lista muda a banca: as
+# rodadas já feitas continuam ligadas aos pedidos que tinham.
+#
+# `id` é curto e estável (é o que liga um par entre duas rodadas); `testa` é o
+# que o item mede (seção 7 do plano). backend/docs/BANCA_E_CONCEITO.md.
+
+liberdade: equilibrado
+
+itens:
+  - id: maga
+    texto: "maga do gelo 48x48, 12 cores, sem fundo"
+    perfil: pixel_character_48
+    testa: "personagem com roupa larga e acessório"
+  - id: anao
+    texto: "guerreiro anão 32x32, 8 cores, sem fundo"
+    perfil: pixel_character_32
+    testa: "proporção fora do padrão, tamanho pequeno"
+  - id: lobo
+    texto: "lobo cinzento 32x32, 8 cores, sem fundo"
+    perfil: pixel_character_32
+    testa: "quadrúpede"
+  - id: slime
+    texto: "slime verde 16x16, 4 cores, sem fundo"
+    perfil: pixel_character_32
+    testa: "criatura sem membros, tamanho mínimo"
+  - id: machado
+    texto: "machado de batalha 32x32, 8 cores, sem fundo"
+    perfil: pixel_prop_64
+    testa: "arma, metal e madeira"
+  - id: bau
+    texto: "baú de tesouro aberto 32x32, 10 cores, sem fundo"
+    perfil: pixel_prop_64
+    testa: "objeto com volume e brilho"

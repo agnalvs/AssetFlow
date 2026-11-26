@@ -55,6 +55,8 @@ class Pergunta:
 class ListasDoOlhar:
     abertura: str
     listas: Mapping[str, tuple[Pergunta, ...]] = field(default_factory=dict)
+    #: A pergunta do conceito (lote 1), que entra quando o pedido tem um.
+    conceito: Pergunta | None = None
 
 
 def ler_olhar(dados: Mapping[str, Any], origem: str) -> ListasDoOlhar:
@@ -85,7 +87,19 @@ def ler_olhar(dados: Mapping[str, Any], origem: str) -> ListasDoOlhar:
                 )
             perguntas.append(pergunta)
         listas[str(forma)] = tuple(perguntas)
-    return ListasDoOlhar(abertura=abertura, listas=listas)
+    conceito = None
+    bruta = dados.get("conceito")
+    if bruta is not None:
+        if not isinstance(bruta, Mapping) or "{traco}" not in str(bruta.get("texto", "")):
+            raise OlharInvalido(f"{origem}: 'conceito' é uma pergunta com {{traco}} no texto")
+        if not _SECAO.match(str(bruta.get("secao", ""))):
+            raise OlharInvalido(f"{origem}: 'conceito.secao' como \"§3\"")
+        conceito = Pergunta(
+            nome=str(bruta.get("nome") or "conceito"),
+            texto=str(bruta["texto"]),
+            secao=str(bruta["secao"]),
+        )
+    return ListasDoOlhar(abertura=abertura, listas=listas, conceito=conceito)
 
 
 def _forma_e_lista(resolved: Any, olhar: ListasDoOlhar) -> tuple[str, tuple[Pergunta, ...]]:
@@ -99,34 +113,59 @@ def _forma_e_lista(resolved: Any, olhar: ListasDoOlhar) -> tuple[str, tuple[Perg
 
 
 def lista_de_verificacao(
-    resolved: Any, olhar: ListasDoOlhar | None, *, ampliacao: int, luz_padrao: str | None
+    resolved: Any,
+    olhar: ListasDoOlhar | None,
+    *,
+    ampliacao: int,
+    luz_padrao: str | None,
+    traco: str | None = None,
+    curta: bool = False,
 ) -> str:
-    """A lista do primeiro olhar, pronta para o laudo; uma linha de "sem lista" se faltar."""
+    """A lista do primeiro olhar, pronta para o laudo; uma linha de "sem lista" se faltar.
+
+    ``traco`` (o traço marcante do conceito escolhido) acrescenta a pergunta
+    do conceito. ``curta`` (ajuste de custo) põe só os nomes, numa linha.
+    """
     if olhar is None:
         return "olhar — confira a imagem (a base não tem olhar.yaml: sem lista de verificação)"
     forma, perguntas = _forma_e_lista(resolved, olhar)
+    perguntas = _com_conceito(perguntas, olhar, traco)
     abertura = olhar.abertura.format(ampliacao=ampliacao)
     if not perguntas:
         return (
             abertura.rsplit(".", 1)[0]
             + f". A base não tem lista de verificação para {forma}: olhe a imagem e julgue."
         )
+    if curta:
+        nomes = ", ".join(p.nome for p in perguntas)
+        return abertura.rsplit(".", 1)[0] + f". Confira: {nomes}."
     luz = resolved.style.shading.light_direction or luz_padrao or "de um lado só"
     linhas = [abertura]
     for n, pergunta in enumerate(perguntas, start=1):
-        linhas.append(f"{n}. {pergunta.nome}: {pergunta.texto.format(luz=luz)}")
+        linhas.append(f"{n}. {pergunta.nome}: {pergunta.texto.format(luz=luz, traco=traco or '')}")
     return "\n".join(linhas)
 
 
-def lembrete_da_lista(resolved: Any, olhar: ListasDoOlhar | None) -> str:
+def lembrete_da_lista(
+    resolved: Any, olhar: ListasDoOlhar | None, *, traco: str | None = None
+) -> str:
     """A linha curta dos remendos: os nomes da lista do primeiro olhar."""
     if olhar is None:
         return "olhar — confira a imagem de novo."
     _, perguntas = _forma_e_lista(resolved, olhar)
+    perguntas = _com_conceito(perguntas, olhar, traco)
     if not perguntas:
         return "olhar — confira a imagem de novo."
     nomes = ", ".join(p.nome for p in perguntas)
     return f"olhar — confira de novo a lista do primeiro olhar ({nomes})."
+
+
+def _com_conceito(
+    perguntas: tuple[Pergunta, ...], olhar: ListasDoOlhar, traco: str | None
+) -> tuple[Pergunta, ...]:
+    if traco and olhar.conceito is not None and perguntas:
+        return (*perguntas, olhar.conceito)
+    return perguntas
 
 
 def _valor(valor: Any) -> str:

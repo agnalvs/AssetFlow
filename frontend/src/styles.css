@@ -1471,3 +1471,130 @@ input {
   flex: 1;
   min-width: 0;
 }
+
+/* Conceito e banca (lote 1) ------------------------------------------------- */
+.paginas {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.paginas__ativa {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.conceitos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding-top: 8px;
+}
+
+.conceitos__motivo {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.conceitos__lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conceito {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+}
+
+.conceito--escolhido {
+  border-color: var(--accent);
+}
+
+.conceito__campo {
+  display: flex;
+  flex-direction: column;
+}
+
+.conceito__rotulo {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.banca,
+.resumo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.banca__nova {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.par {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.par__titulo {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.par__lados {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.par__lado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.par__imagem {
+  width: 256px;
+  height: 256px;
+  background: #d6d6d6;
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+
+.par__imagem--vazia {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.par__real {
+  background: #d6d6d6;
+  image-rendering: pixelated;
+}
+
+.par__notas {
+  display: flex;
+  gap: 4px;
+}

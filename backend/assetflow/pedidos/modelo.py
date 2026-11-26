@@ -22,6 +22,17 @@ validador não é pronto; o pedido só conclui depois do olhar)::
 Um pendente com candidato, quando reservado, volta direto para
 ``em_revisao``: falta o olhar, não um desenho novo.
 
+**A etapa de conceito** (lote 1 do plano de fundamentos) vem antes do
+desenho, conforme o ``modo_conceito`` do pedido::
+
+    eu_escolho:     em_desenho ──propor_conceitos──▶ escolhendo
+                    escolhendo ──a autora escolhe──▶ pendente, com conceito
+                    escolhendo ──"outros três"─────▶ pendente, conceitos recusados
+    claude_escolhe: em_desenho ──propor_conceitos(escolhido)──▶ em_desenho, com conceito
+    sem_conceito:   o fluxo de sempre
+
+Enquanto o pedido precisa de conceito, ``desenhar`` é recusado.
+
 A **etapa** é o que a tela mostra, e é mais fina que a situação: um pedido
 ``em_desenho`` pode estar só reservado ("na vez do Claude"), sendo desenhado
 agora, ou esperando uma correção depois de um desenho não aprovado; um
@@ -39,7 +50,47 @@ from pydantic import BaseModel, ConfigDict
 from ..generation.schemas import FinalResolvedSpec, SemanticPrompt
 from ..pixel_knowledge import Liberdade
 
-__all__ = ["Etapa", "Evento", "Liberdade", "Pedido", "Situacao", "Tipo"]
+__all__ = [
+    "CAMPOS_DO_CONCEITO",
+    "Etapa",
+    "Evento",
+    "Liberdade",
+    "ModoConceito",
+    "Pedido",
+    "Situacao",
+    "Tipo",
+    "texto_do_conceito",
+]
+
+#: Os campos de um conceito, na ordem em que aparecem.
+CAMPOS_DO_CONCEITO = ("traco", "silhueta", "objeto", "pose", "simplificar")
+_ROTULOS = {
+    "traco": "traço",
+    "silhueta": "silhueta",
+    "objeto": "objeto",
+    "pose": "pose",
+    "simplificar": "se faltar espaço, simplifique",
+}
+
+
+def texto_do_conceito(conceito: dict[str, Any]) -> str:
+    """Um conceito em uma linha: ``traço: … · silhueta: … · …``."""
+    return " · ".join(
+        f"{_ROTULOS[campo]}: {conceito[campo]}"
+        for campo in CAMPOS_DO_CONCEITO
+        if conceito.get(campo)
+    )
+
+
+class ModoConceito(str, Enum):
+    """Quem escolhe o conceito antes do desenho (lote 1)."""
+
+    #: O Claude propõe três; a autora escolhe na tela, edita ou pede outros.
+    EU_ESCOLHO = "eu_escolho"
+    #: O Claude propõe três, escolhe o mais forte, grava o motivo e desenha.
+    CLAUDE_ESCOLHE = "claude_escolhe"
+    #: Sem etapa de conceito (itens simples).
+    SEM_CONCEITO = "sem_conceito"
 
 
 class Situacao(str, Enum):
@@ -47,14 +98,21 @@ class Situacao(str, Enum):
     EM_DESENHO = "em_desenho"
     #: Há desenho aprovado no validador; falta o olhar do Claude (Fase B2).
     EM_REVISAO = "em_revisao"
+    #: Há três conceitos propostos; falta a escolha da autora (lote 1).
+    ESCOLHENDO = "escolhendo"
     CONCLUIDO = "concluido"
     FALHOU = "falhou"
     CANCELADO = "cancelado"
 
     @property
     def ativa(self) -> bool:
-        """Ainda pode mudar: pendente, em desenho ou em revisão."""
-        return self in (Situacao.PENDENTE, Situacao.EM_DESENHO, Situacao.EM_REVISAO)
+        """Ainda pode mudar: pendente, em desenho, em revisão ou escolhendo conceito."""
+        return self in (
+            Situacao.PENDENTE,
+            Situacao.EM_DESENHO,
+            Situacao.EM_REVISAO,
+            Situacao.ESCOLHENDO,
+        )
 
 
 class Tipo(str, Enum):
@@ -76,6 +134,10 @@ class Etapa(str, Enum):
     CORRIGINDO = "corrigindo"
     #: Há desenho aprovado no validador; o Claude ainda vai olhá-lo (Fase B2).
     OLHANDO = "olhando"
+    #: Reservado, e o Claude ainda vai propor os conceitos (lote 1).
+    CONCEITUANDO = "conceituando"
+    #: Três conceitos esperando a escolha da autora (lote 1).
+    ESCOLHA_CONCEITO = "escolha_conceito"
     PRONTO = "pronto"
     NAO_APROVADO = "nao_aprovado"
     CANCELADO = "cancelado"
@@ -132,6 +194,18 @@ class Pedido(BaseModel):
     #: lições e os interruptores (para medir se ajudam). Gravado também no
     #: asset (``olhar.json``).
     envio: dict[str, Any] | None = None
+    #: A etapa de conceito: o modo, os três propostos, os recusados, o
+    #: escolhido (com os campos de :data:`CAMPOS_DO_CONCEITO`) e, no modo
+    #: ``claude_escolhe``, o motivo da escolha.
+    modo_conceito: ModoConceito = ModoConceito.SEM_CONCEITO
+    conceitos: tuple[dict[str, Any], ...] = ()
+    conceitos_recusados: tuple[dict[str, Any], ...] = ()
+    conceito: dict[str, Any] | None = None
+    motivo_conceito: str | None = None
+    #: Numa rodada da banca de teste: ``{"rodada", "item", "ordem", "total"}``.
+    banca: dict[str, Any] | None = None
+    #: O que passou pela conversa por este pedido, em caracteres e imagens.
+    custo: dict[str, Any] = {}
     ultimo_laudo: str | None = None
     #: A reserva: qual leva de ``pedidos_pendentes`` o pegou, e até quando.
     leva: str | None = None
@@ -153,6 +227,10 @@ class Pedido(BaseModel):
         bruta = self.leitura.get("semantic")
         return SemanticPrompt.model_validate(bruta) if bruta else None
 
+    @property
+    def precisa_conceito(self) -> bool:
+        return self.modo_conceito is not ModoConceito.SEM_CONCEITO and self.conceito is None
+
     def reserva_vencida(self, agora: datetime) -> bool:
         return self.reservado_ate is not None and self.reservado_ate < agora
 
@@ -163,6 +241,8 @@ class Pedido(BaseModel):
             return Etapa.NAO_APROVADO
         if self.situacao is Situacao.CANCELADO:
             return Etapa.CANCELADO
+        if self.situacao is Situacao.ESCOLHENDO:
+            return Etapa.ESCOLHA_CONCEITO
         if self.situacao is Situacao.PENDENTE:
             return Etapa.NA_FILA
         if self.desenhando_desde is not None:
@@ -172,4 +252,6 @@ class Pedido(BaseModel):
             return Etapa.NA_FILA
         if self.situacao is Situacao.EM_REVISAO:
             return Etapa.OLHANDO
+        if self.precisa_conceito:
+            return Etapa.CONCEITUANDO
         return Etapa.CORRIGINDO if self.tentativas else Etapa.NA_VEZ

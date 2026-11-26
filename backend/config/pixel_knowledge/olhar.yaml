@@ -25,6 +25,14 @@
 
 abertura: "olhar — na imagem: à esquerda ampliada {ampliacao}×, no meio a silhueta em preto, à direita o tamanho real (2× e 1×). Confira:"
 
+# Entra no fim de qualquer lista quando o pedido tem conceito escolhido (lote 1:
+# a etapa de conceito). {traco} vira o traço marcante do conceito. §3: "exagere
+# o que identifica" — o traço do conceito é o que identifica este personagem.
+conceito:
+  nome: conceito
+  texto: "o desenho entrega o traço marcante do conceito escolhido (\"{traco}\")?"
+  secao: "§3"
+
 listas:
   humanoid:
     - nome: silhueta

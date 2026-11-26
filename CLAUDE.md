@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1644 passed, 1 skipped)
+pytest -q                                # suíte completa (1693 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -264,6 +264,31 @@ Feito:
     referências**, e nenhuma gaveta o importa. A opinião "não gostei" com
     motivo fica pendente até o Claude convertê-la (`da_autora=true`), com o
     texto original ao lado; sem motivo, é só nota.
+
+### Sessão de lotes (2026-11-25)
+
+A autora pediu, só nesta sessão, para seguir sem esperar "sim" entre lotes: a
+proposta de cada lote vai para um arquivo em `backend/docs/`, as decisões e
+dúvidas para o [RELATORIO_ESTADO.md](backend/docs/RELATORIO_ESTADO.md), um
+commit por lote. A ordem está em
+[FUNDAMENTOS_E_FERRAMENTAS.md](backend/docs/FUNDAMENTOS_E_FERRAMENTAS.md) §8 e
+no [PLANO_BASE_CONHECIMENTO.md](backend/docs/PLANO_BASE_CONHECIMENTO.md). Toda
+ferramenta nova é opcional e nasce com interruptor; os ajustes que baixam o
+custo por desenho estão em [CUSTO.md](backend/docs/CUSTO.md).
+
+- **Lote 1** (banca e conceito) — `assetflow/banca/` (rodadas ligadas a uma
+  versão da base, comparação cega, votos), `config/banca.yaml`, `/api/banca`,
+  página "Banca e Comparar"; etapa de conceito com três modos por pedido
+  (`eu_escolho`, `claude_escolhe`, `sem_conceito`), ferramenta
+  `propor_conceitos`, situação `escolhendo`, pergunta do conceito no olhar.
+  Detalhes: [backend/docs/BANCA_E_CONCEITO.md](backend/docs/BANCA_E_CONCEITO.md).
+  Três regras:
+  - **pedido que precisa de conceito não desenha**: `iniciar` recusa enquanto
+    `modo_conceito != sem_conceito` e não há conceito escolhido. Os testes de
+    mecanismo criam pedidos `sem_conceito` explicitamente;
+  - **o lado de cada rodada nunca aparece no par**: só o resumo, com todos os
+    pares avaliados, revela os lados (hash estável de `a|b|item`);
+  - **`banca/` não importa API, MCP, gaveta nem jobs** (teste de fronteiras).
 
 ## Arquitetura
 

@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 
 from .aprendizado import CaixaDeAprendizado
+from .banca import CaixaDaBanca, ServicoDaBanca
 from .generation.kernel import (
     EngineCatalog,
     EngineRegistry,
@@ -105,6 +106,8 @@ class AppContainer:
     #: Lições, opiniões da autora e exemplos já mostrados (Fase B2), num
     #: SQLite de ``data/aprendizado/`` que a API e o servidor MCP dividem.
     aprendizado: CaixaDeAprendizado
+    #: A banca de teste (etapa K1): rodadas e votos em ``data/banca/``.
+    banca: ServicoDaBanca
     _worker_started: bool = field(default=False, init=False)
 
     async def startup(self) -> None:
@@ -274,9 +277,26 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         records,
         projeto=settings.pedidos.projeto_padrao,
         gerador=settings.gerador,
+        modo_conceito=settings.pedidos.conceito,
     )
     aprendizado = CaixaDeAprendizado(
         settings.aprendizado_path, espera_s=settings.aprendizado.espera_s
+    )
+    banca = ServicoDaBanca(
+        CaixaDaBanca(settings.banca_path, espera_s=settings.pedidos.espera_s),
+        pedidos,
+        config_path=settings.banca_config_path,
+        base_dir=settings.base_dir,
+        conhecimento_dir=settings.config_dir / "pixel_knowledge",
+        projeto=settings.banca.projeto,
+        aprendizado=aprendizado,
+        # O que muda o desenho sem mudar a base: entra na versão da rodada.
+        interruptores={
+            "exemplo": settings.aprendizado.exemplo,
+            "licoes": settings.aprendizado.licoes,
+            "lista_curta": settings.aprendizado.lista_curta,
+            "remendos": settings.pedidos.remendos,
+        },
     )
 
     _LOG.info(
@@ -319,6 +339,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         service=service,
         pedidos=pedidos,
         aprendizado=aprendizado,
+        banca=banca,
     )
 
 

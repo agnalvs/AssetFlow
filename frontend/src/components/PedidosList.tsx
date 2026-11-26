@@ -1,3 +1,4 @@
+import { ConceitosDoPedido } from "./ConceitosDoPedido";
 import { pedidoAtivo } from "../hooks/usePedidos";
 import { etapaLabel, liberdadeLabel } from "../labels";
 import type { Pedido } from "../types";
@@ -11,10 +12,12 @@ interface PedidosListProps {
   onSelect: (pedido: Pedido) => void;
   onCancelar: (pedido: Pedido) => void;
   onDevolver: (pedido: Pedido) => void;
+  /** Depois de escolher conceito ou pedir outros: relê a fila. */
+  onConceito: () => void;
 }
 
 /** As etapas em que o pedido está reservado por uma conversa. */
-const EM_DESENHO = new Set(["na_vez", "desenhando", "corrigindo", "olhando"]);
+const EM_DESENHO = new Set(["na_vez", "desenhando", "corrigindo", "olhando", "conceituando"]);
 
 /**
  * A fila de pedidos (Fase B do plano do app).
@@ -31,6 +34,7 @@ export function PedidosList({
   onSelect,
   onCancelar,
   onDevolver,
+  onConceito,
 }: PedidosListProps) {
   const fila = pedidos.filter((pedido) => pedido.etapa !== "pronto");
   const esperando = fila.some((pedido) => pedido.etapa === "na_fila");
@@ -53,6 +57,7 @@ export function PedidosList({
           const miniatura = pedido.asset?.variants?.[0];
           const ativo = pedidoAtivo(pedido);
           const meta = [
+            pedido.banca ? `banca ${pedido.banca.rodada} · ${pedido.banca.ordem}/${pedido.banca.total}` : null,
             pedido.resumo.grade,
             pedido.resumo.cores ? `${pedido.resumo.cores} cores` : null,
             liberdadeLabel(pedido.liberdade),
@@ -95,6 +100,10 @@ export function PedidosList({
                   </span>
                 </span>
               </button>
+              {pedido.etapa === "escolha_conceito" ||
+              (pedido.modo_conceito === "claude_escolhe" && pedido.conceitos.length > 0) ? (
+                <ConceitosDoPedido pedido={pedido} onMudou={onConceito} />
+              ) : null}
               {ativo ? (
                 <span className="pedido__acoes">
                   {EM_DESENHO.has(pedido.etapa) ? (

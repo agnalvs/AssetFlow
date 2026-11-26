@@ -46,6 +46,7 @@ from ..aprendizado import (
     SituacaoDaOpiniao,
     etiquetas_do_spec,
 )
+from ..aprendizado.modelo import palavras
 from ..bootstrap import AppContainer
 from ..generation.kernel.exceptions import GenerationError
 from ..generation.schemas import (
@@ -55,14 +56,17 @@ from ..generation.schemas import (
     EngineSelector,
 )
 from ..pedidos import (
+    CAMPOS_DO_CONCEITO,
     ErroDaFila,
     Liberdade,
+    ModoConceito,
     Pedido,
     Situacao,
     Tipo,
     agora_utc,
     nova_leva,
 )
+from ..pedidos.servico import direcao_com_conceito
 from ..pixel_knowledge import (
     lembrete_da_lista,
     lista_de_verificacao,
@@ -81,8 +85,12 @@ from ..referencias.olho import RelatorioDoOlho, olhar_desenho, repete_o_exemplo
 from ..storage.records import GenerationRecord
 from .imagem import imagem_do_olhar
 from .laudo import (
+    FORMATO_RECEITA,
+    MAX_CAMPO_CONCEITO,
     MAX_OLHAR,
+    MAX_SIMPLIFICAR,
     TETO_PENDENTES,
+    bloco_de_conceito,
     bloco_do_pedido,
     bloco_em_revisao,
     formatar_consulta,
@@ -115,6 +123,10 @@ PERFIL_PADRAO = "pixel_character_32"
 MAXIMO_PENDENTES = 10
 #: Quantos assets com "gostei" são lidos do disco para virar exemplo, no máximo.
 MAXIMO_GOSTEI = 3
+#: Fração de palavras em comum a partir da qual dois conceitos são o mesmo.
+CONCEITOS_PARECIDOS = 0.5
+#: Teto do motivo da escolha de um conceito (modo "o Claude escolhe").
+MAX_MOTIVO_CONCEITO = 200
 
 
 class ErroDoPedido(Exception):
@@ -214,13 +226,13 @@ class ServicoDesenhista:
         # opiniões) entra na conta antes dos pedidos; cada pedido entra
         # inteiro ou não entra.
         total = 400 + len(rampas) + 600 + len(opinioes)
-        escolhidos: list[tuple[str, str, dict[str, Any] | None, str | None]] = []
+        escolhidos: list[tuple[str, str, dict[str, Any] | None, str | None, bool]] = []
         usadas: set[str] = set()
         for candidato in candidatos:
-            bloco, envio, fonte = await self._bloco(candidato, agora, usadas)
+            bloco, envio, fonte, desenho = await self._bloco(candidato, agora, usadas)
             if escolhidos and total + len(bloco) + 2 > TETO_PENDENTES:
                 break
-            escolhidos.append((candidato.id, bloco, envio, fonte))
+            escolhidos.append((candidato.id, bloco, envio, fonte, desenho))
             if fonte:
                 usadas.add(fonte)
             total += len(bloco) + 2
@@ -230,7 +242,7 @@ class ServicoDesenhista:
                 pedido.id
                 for pedido in fila.reservar([pid for pid, *_ in escolhidos], nova_leva(), agora)
             }
-            for pid, _, envio, fonte in escolhidos:
+            for pid, _, envio, fonte, _desenho in escolhidos:
                 if pid not in reservados or envio is None:
                     continue
                 fila.gravar_envio(pid, envio)
@@ -239,14 +251,90 @@ class ServicoDesenhista:
             restantes = fila.contar_na_fila(agora)
         except ErroDaFila as exc:
             raise ErroDoPedido(str(exc)) from exc
-        blocos = [bloco for pid, bloco, *_ in escolhidos if pid in reservados]
-        return formatar_pendentes(
-            blocos,
+        entregues = [item for item in escolhidos if item[0] in reservados]
+        texto = formatar_pendentes(
+            [bloco for _, bloco, *_ in entregues],
             restantes=restantes,
             reserva_min=fila.reserva.total_seconds() / 60,
             rampas=rampas,
             opinioes=opinioes,
+            com_formato=any(desenho for *_, desenho in entregues),
         )
+        if entregues:
+            # O que é comum à resposta se divide entre os pedidos dela.
+            comum = (len(texto) - sum(len(bloco) for _, bloco, *_ in entregues)) // len(entregues)
+            for pid, bloco, *_ in entregues:
+                self._custo(pid, entrada=len(bloco) + comum)
+        return texto
+
+    # ------------------------------------------------------------------
+    async def propor_conceitos(
+        self,
+        pedido_id: str,
+        conceitos: list[dict[str, Any]],
+        escolhido: int | None = None,
+        motivo: str | None = None,
+    ) -> str:
+        """Os três conceitos de um pedido (lote 1), conferidos antes de gravar."""
+        fila = self._container.pedidos.fila
+        try:
+            pedido = fila.obter(pedido_id)
+        except ErroDaFila as exc:
+            raise ErroDoPedido(str(exc)) from exc
+        limpos = _conceitos_conferidos(conceitos, pedido.conceitos_recusados)
+        conceito = None
+        direcao = None
+        if escolhido is not None or motivo:
+            if escolhido is None or not 1 <= int(escolhido) <= 3:
+                raise ErroDoPedido("'escolhido' é o número do conceito mais forte, de 1 a 3")
+            motivo = (motivo or "").strip()
+            if not motivo:
+                raise ErroDoPedido("falta 'motivo': por que esse conceito é o mais forte")
+            if len(motivo) > MAX_MOTIVO_CONCEITO:
+                raise ErroDoPedido(
+                    f"'motivo' tem {len(motivo)} caracteres; o teto é {MAX_MOTIVO_CONCEITO}"
+                )
+            conceito = {**limpos[int(escolhido) - 1], "indice": int(escolhido), "editado": False}
+            direcao = direcao_com_conceito(pedido, conceito)
+        try:
+            depois = fila.gravar_conceitos(
+                pedido_id, limpos, escolhido=conceito, motivo=motivo, direcao=direcao
+            )
+        except ErroDaFila as exc:
+            raise ErroDoPedido(str(exc)) from exc
+
+        if conceito is None:
+            resposta = (
+                f"pedido {pedido_id}: três conceitos na tela, em \"escolha um conceito\". Não "
+                "desenhe agora: quando a autora escolher (e talvez editar), o pedido volta à "
+                "fila com o conceito como direção de arte."
+            )
+        else:
+            bloco, envio, fonte, _ = await self._bloco(depois, agora_utc(), set())
+            if envio is not None:
+                fila.gravar_envio(pedido_id, envio)
+                if fonte:
+                    self._exemplo_mostrado(fonte)
+            rampas = rampas_da_base(self._container.conhecimento)
+            resposta = "\n".join(
+                [
+                    (
+                        f"pedido {pedido_id}: conceito {escolhido} escolhido — {motivo}. Desenhe "
+                        f"agora com desenhar(pedido_id={pedido_id}, receita=...)."
+                    ),
+                    "",
+                    FORMATO_RECEITA,
+                    *(["", rampas] if rampas else []),
+                    "",
+                    bloco,
+                ]
+            )
+        self._custo(
+            pedido_id,
+            entrada=len(resposta),
+            saida_texto=len(json.dumps(limpos, ensure_ascii=False)) + len(motivo or ""),
+        )
+        return resposta
 
     # ------------------------------------------------------------------
     async def desenhar(
@@ -339,7 +427,9 @@ class ServicoDesenhista:
                 + ", ".join(sem_licao)
                 + " — se o olhar achou algo, registre com registrar_licao(asset_id=...)."
             )
-        return "\n".join(linhas)
+        resposta = "\n".join(linhas)
+        self._custo(pedido_id, entrada=len(resposta), saida_texto=len(olhar))
+        return resposta
 
     # ------------------------------------------------------------------
     async def registrar_licao(
@@ -394,9 +484,16 @@ class ServicoDesenhista:
         except ErroDoAprendizado as exc:
             raise ErroDoPedido(str(exc)) from exc
         etiquetas = f"{registrado.licao.tipo} · {registrado.licao.corpo} · {registrado.licao.porte}"
-        return f"{registrado.texto()} · {etiquetas}" + (
+        resposta = f"{registrado.texto()} · {etiquetas}" + (
             " · da autora, com o texto original guardado ao lado" if da_autora else ""
         )
+        if registrado.licao.pedido_id:
+            self._custo(
+                registrado.licao.pedido_id,
+                entrada=len(resposta),
+                saida_texto=len(errou) + len(porque) + len(regra),
+            )
+        return resposta
 
     # ------------------------------------------------------------------
     async def ver(self, asset_id: str) -> tuple[bytes, str]:
@@ -463,6 +560,7 @@ class ServicoDesenhista:
             raise ErroDoPedido("falta 'receita': a completa, ou, com base, só o que muda")
         servico = self._container.pedidos
         fila = servico.fila
+        receita_original = receita
         try:
             registro = fila.iniciar(pedido_id)
         except ErroDaFila as exc:
@@ -537,6 +635,7 @@ class ServicoDesenhista:
                 f"o remendo saiu sem lição registrada para {anterior}: se o olhar achou algo, "
                 f"registre com registrar_licao(asset_id={anterior}, ...)"
             )
+        traco = (registro.conceito or {}).get("traco")
         laudo = await self._laudo(
             job,
             registro.texto,
@@ -544,16 +643,25 @@ class ServicoDesenhista:
             falhas_extra=(motivo,) if motivo else (),
             olho=olhado.relatorio.linhas(),
             olhar=(
-                self._lista(registro.spec, olhado.ampliacao)
+                self._lista(registro.spec, olhado.ampliacao, traco=traco)
                 if primeiro_olhar
-                else lembrete_da_lista(registro.spec, self._container.conhecimento.olhar)
+                else lembrete_da_lista(
+                    registro.spec, self._container.conhecimento.olhar, traco=traco
+                )
             ),
             instrucao="\n".join([*aviso, instrucao]) if instrucao else ("\n".join(aviso) or None),
         )
         await self._gravar_olhar(
             job, olhado, registro.envio, primeiro_olhar=primeiro_olhar, pedido_id=pedido_id
         )
-        return Laudo.com_imagem(f"{situacao}\n{laudo}", olhado.png, olhado.ampliacao)
+        texto = f"{situacao}\n{laudo}"
+        self._custo(
+            pedido_id,
+            entrada=len(texto),
+            saida_receita=len(json.dumps(receita_original, ensure_ascii=False)),
+            imagens=1,
+        )
+        return Laudo.com_imagem(texto, olhado.png, olhado.ampliacao)
 
     def _situacao_do_pedido(
         self,
@@ -601,9 +709,39 @@ class ServicoDesenhista:
 
     async def _bloco(
         self, pedido: Pedido, agora, usadas: set[str]
-    ) -> tuple[str, dict[str, Any] | None, str | None]:
-        """Um pedido na resposta de ``pedidos_pendentes``, o envio e a fonte do exemplo."""
+    ) -> tuple[str, dict[str, Any] | None, str | None, bool]:
+        """Um pedido na resposta de ``pedidos_pendentes``.
+
+        Devolve o bloco, o envio, a fonte do exemplo e se é um bloco de
+        desenho (os de olhar e de conceito não pedem o formato da receita).
+        """
         esperando = max(0, int((agora - pedido.criado_em).total_seconds() // 60))
+        if not pedido.candidatos and pedido.precisa_conceito:
+            spec = pedido.spec
+            logica = spec.logical_resolution
+            tipo, corpo, _grade = etiquetas_do_spec(spec)
+            paleta = spec.palette
+            cores = (
+                f"até {paleta.max_colors} cores" if paleta is not None and paleta.max_colors else "cores livres"
+            )
+            resumo = (
+                f"pedido: {pedido.texto} · {tipo}"
+                + (f" · corpo {corpo}" if corpo != QUALQUER else "")
+                + f" · grade {logica.width}×{logica.height} · {cores}"
+            )
+            bloco = bloco_de_conceito(
+                pedido_id=pedido.id,
+                modo=pedido.modo_conceito.value,
+                liberdade=pedido.liberdade.value,
+                esperando_min=esperando,
+                resumo=resumo,
+                largura=logica.width,
+                altura=logica.height,
+                direcao_de_arte=pedido.direcao_de_arte,
+                recusados=pedido.conceitos_recusados,
+                banca=pedido.banca,
+            )
+            return bloco, None, None, False
         if pedido.candidatos:
             # Já há desenho aprovado: falta só o olhar. Nada de exemplo nem
             # lição — o envio do primeiro desenho continua valendo.
@@ -615,7 +753,7 @@ class ServicoDesenhista:
                 max_remendos=pedido.max_remendos,
                 esperando_min=esperando,
             )
-            return bloco, None, None
+            return bloco, None, None, False
         spec = pedido.spec
         texto = pedido.texto
         base_linha = None
@@ -657,8 +795,14 @@ class ServicoDesenhista:
             ultimo_asset=pedido.asset_id,
             ajuste=ajuste,
             base=base_linha,
+            conceito_por=(
+                None
+                if pedido.conceito is None
+                else ("pelo Claude" if pedido.modo_conceito is ModoConceito.CLAUDE_ESCOLHE else "pela autora")
+            ),
+            banca=pedido.banca,
         )
-        return bloco, envio, fonte
+        return bloco, envio, fonte, True
 
     async def _opinioes_pendentes(self) -> str:
         try:
@@ -856,10 +1000,24 @@ class ServicoDesenhista:
         imagem, ampliacao, _ = imagem_do_olhar(png)
         return _Olhado(png=imagem, ampliacao=ampliacao, relatorio=relatorio, iou=iou)
 
-    def _lista(self, spec: Any, ampliacao: int) -> str:
+    def _lista(self, spec: Any, ampliacao: int, *, traco: str | None = None) -> str:
         base = self._container.conhecimento
         luz = base.luz.padrao if base.luz is not None else None
-        return lista_de_verificacao(spec, base.olhar, ampliacao=ampliacao, luz_padrao=luz)
+        return lista_de_verificacao(
+            spec,
+            base.olhar,
+            ampliacao=ampliacao,
+            luz_padrao=luz,
+            traco=traco,
+            curta=bool(self._config.lista_curta),
+        )
+
+    def _custo(self, pedido_id: str, **partes: int) -> None:
+        """Soma ao pedido o que passou pela conversa (lote 1: custo da banca)."""
+        try:
+            self._container.pedidos.fila.somar_custo(pedido_id, **partes)
+        except ErroDaFila:
+            pass  # a conta é registro; o desenho não depende dela
 
     async def _gravar_olhar(
         self,
@@ -1049,6 +1207,57 @@ class _Olhado:
         self.ampliacao = ampliacao
         self.relatorio = relatorio
         self.iou = iou
+
+
+def _conceitos_conferidos(
+    conceitos: Any, recusados: tuple[dict[str, Any], ...]
+) -> list[dict[str, str]]:
+    """Os três conceitos limpos, ou o erro que diz o que corrigir.
+
+    Confere formato, tamanho, a diferença entre os três (menos da metade das
+    palavras de traço, silhueta e objeto em comum) e que nenhum repita um
+    recusado. Se um conceito "serve para qualquer personagem", só quem lê sabe:
+    isso fica com a autora e com a pergunta do olhar.
+    """
+    if not isinstance(conceitos, list) or len(conceitos) != 3:
+        raise ErroDoPedido("mande exatamente 3 conceitos")
+    limpos: list[dict[str, str]] = []
+    for n, bruto in enumerate(conceitos, start=1):
+        if not isinstance(bruto, dict):
+            raise ErroDoPedido(f"o conceito {n} não é um objeto com {', '.join(CAMPOS_DO_CONCEITO)}")
+        limpo = {}
+        for campo in CAMPOS_DO_CONCEITO:
+            valor = str(bruto.get(campo) or "").strip()
+            teto = MAX_SIMPLIFICAR if campo == "simplificar" else MAX_CAMPO_CONCEITO
+            if not valor:
+                raise ErroDoPedido(f"falta '{campo}' no conceito {n}")
+            if len(valor) > teto:
+                raise ErroDoPedido(
+                    f"'{campo}' do conceito {n} tem {len(valor)} caracteres; o teto é {teto}"
+                )
+            limpo[campo] = valor
+        limpos.append(limpo)
+
+    def nucleo(conceito: dict[str, Any]) -> frozenset[str]:
+        return palavras(" ".join(str(conceito.get(c, "")) for c in ("traco", "silhueta", "objeto")))
+
+    for i in range(3):
+        for j in range(i + 1, 3):
+            a, b = nucleo(limpos[i]), nucleo(limpos[j])
+            if a and b and len(a & b) / len(a | b) >= CONCEITOS_PARECIDOS:
+                raise ErroDoPedido(
+                    f"os conceitos {i + 1} e {j + 1} são parecidos demais: troque um por uma ideia "
+                    "de outra natureza"
+                )
+    for n, conceito in enumerate(limpos, start=1):
+        for velho in recusados:
+            a, b = nucleo(conceito), nucleo(velho)
+            if a and b and len(a & b) / len(a | b) >= CONCEITOS_PARECIDOS:
+                raise ErroDoPedido(
+                    f"o conceito {n} repete um que a autora recusou (\"{velho.get('traco')}\"): "
+                    "proponha outro"
+                )
+    return limpos
 
 
 def _virgula(valor: float | None) -> str:

@@ -6,8 +6,9 @@
 > [DESENHISTA.md](DESENHISTA.md). Para registrar no Claude Code, veja o
 > [SETUP.md](../../SETUP.md) §10.
 
-O servidor expõe sete ferramentas por stdio (as duas da Fase B2 —
-`concluir_pedido` e `registrar_licao` — e o olhar estão em [OLHAR.md](OLHAR.md)). Ele chama o `GenerationService`
+O servidor expõe oito ferramentas por stdio (as duas da Fase B2 —
+`concluir_pedido` e `registrar_licao` — e o olhar estão em [OLHAR.md](OLHAR.md);
+`propor_conceitos`, do lote 1, em [BANCA_E_CONCEITO.md](BANCA_E_CONCEITO.md)). Ele chama o `GenerationService`
 direto, sem HTTP, montado pelo mesmo `bootstrap.py` da API. E pede sempre a
 gaveta `desenhista-v1` **pelo nome, sem fallback**: motor escolhido é motor
 usado, e um desenho que não sai falha dizendo por quê, em vez de virar a
@@ -34,6 +35,7 @@ nelas.
 | `consultar_pedido` | `pedido`, `perfil?`, `molde?`, `liberdade?` | o que o spec resolveu + o formato da receita + o recorte de conhecimento |
 | `pedidos_pendentes` | `limite?` (padrão 5, máximo 10) | os pedidos da tela que esperam desenho, cada um com a consulta dele, já reservados ([PEDIDOS.md](PEDIDOS.md)) |
 | `desenhar` | `pedido?`, `receita?`, `base?`, `perfil?`, `pedido_id?` | o laudo em texto e a imagem do olhar (588×384, 294 tokens); com `pedido_id`, a primeira linha diz o que aconteceu com o pedido |
+| `propor_conceitos` | `pedido_id`, `conceitos` (3 × traço, silhueta, objeto, pose, simplificar), `escolhido?`, `motivo?` | grava os conceitos; no modo "o Claude escolhe", traz o recorte para desenhar ([BANCA_E_CONCEITO.md](BANCA_E_CONCEITO.md) §3) |
 | `concluir_pedido` | `pedido_id`, `olhar`, `asset_id?` | conclui o pedido depois do olhar, com o último desenho aprovado ou um anterior do mesmo pedido ([OLHAR.md](OLHAR.md) §1) |
 | `registrar_licao` | `asset_id`, `tema`, `errou`, `porque`, `regra`, `geral?`, `mesma_que?`, `da_autora?` | registra a lição de um olhar; repetida, soma no contador ([OLHAR.md](OLHAR.md) §4) |
 | `ver_asset` | `id` | uma legenda e a imagem do olhar (a mesma do `desenhar`) |

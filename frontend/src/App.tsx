@@ -11,6 +11,7 @@ import { GenerationResult } from "./components/GenerationResult";
 import { GeneratorHero } from "./components/GeneratorHero";
 import { Header } from "./components/Header";
 import { LiberdadeControls } from "./components/LiberdadeControls";
+import { BancaPage } from "./components/BancaPage";
 import { LicoesPanel } from "./components/LicoesPanel";
 import { PedidosList } from "./components/PedidosList";
 import { PromptInput } from "./components/PromptInput";
@@ -25,6 +26,7 @@ import {
   type HistoryEntry,
   type Liberdade,
   MODES,
+  type ModoConceito,
   type Pedido,
 } from "./types";
 
@@ -51,6 +53,8 @@ export function App() {
   // sobreviver ao painel fechado e acompanhar o pedido até a criação.
   const [edit, setEdit] = useState<PromptEdit | null>(null);
   const [liberdade, setLiberdade] = useState<Liberdade>("equilibrado");
+  const [modoConceito, setModoConceito] = useState<ModoConceito>("eu_escolho");
+  const [pagina, setPagina] = useState<"pedidos" | "banca">("pedidos");
   const [direcao, setDirecao] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
@@ -94,6 +98,7 @@ export function App() {
           semantic: edit?.semantic ?? null,
           liberdade,
           direcaoDeArte: direcao,
+          modoConceito,
         }),
       );
       // A descrição, a correção e a direção são deste pedido; os controles e a
@@ -111,7 +116,7 @@ export function App() {
     } finally {
       setEnviando(false);
     }
-  }, [direcao, edit, enviando, fila, liberdade, prompt, selection]);
+  }, [direcao, edit, enviando, fila, liberdade, modoConceito, prompt, selection]);
 
   const pedirDeNovo = useCallback(
     async (pedido: Pedido) => {
@@ -162,7 +167,7 @@ export function App() {
     (selecionadoId === null ? comDesenho.find((pedido) => pedido.etapa === "pronto") : undefined);
   const resultado = selecionado ? outcomeOf(selecionado) : null;
   const prontos: HistoryEntry[] = comDesenho
-    .filter((pedido) => pedido.etapa === "pronto")
+    .filter((pedido) => pedido.etapa === "pronto" && !pedido.banca)
     .flatMap((pedido) => {
       const outcome = outcomeOf(pedido);
       return outcome ? [{ ...outcome, createdAt: Date.parse(pedido.atualizado_em) }] : [];
@@ -172,6 +177,28 @@ export function App() {
     <div className="page">
       <Header />
 
+      <nav className="paginas" aria-label="Páginas">
+        <button
+          type="button"
+          className={`button button--ghost${pagina === "pedidos" ? " paginas__ativa" : ""}`}
+          onClick={() => setPagina("pedidos")}
+        >
+          Pedidos
+        </button>
+        <button
+          type="button"
+          className={`button button--ghost${pagina === "banca" ? " paginas__ativa" : ""}`}
+          onClick={() => setPagina("banca")}
+        >
+          Banca e Comparar
+        </button>
+      </nav>
+
+      {pagina === "banca" ? (
+        <main className="page__main">
+          <BancaPage />
+        </main>
+      ) : (
       <main className="page__main">
         <GeneratorHero />
 
@@ -199,6 +226,8 @@ export function App() {
             disabled={enviando}
             onLiberdade={setLiberdade}
             onDirecao={setDirecao}
+            modoConceito={modoConceito}
+            onModoConceito={setModoConceito}
           />
 
           <PromptInspector
@@ -243,6 +272,7 @@ export function App() {
           onSelect={(pedido) => setSelecionadoId(pedido.id)}
           onCancelar={(pedido) => void agir(pedido, fila.cancelar)}
           onDevolver={(pedido) => void agir(pedido, fila.devolver)}
+          onConceito={fila.atualizar}
         />
 
         <SessionHistory
@@ -253,6 +283,7 @@ export function App() {
 
         <LicoesPanel />
       </main>
+      )}
 
       <footer className="page__footer">
         <p>

@@ -38,9 +38,16 @@ from ..storage.asset_storage import AssetStorageService
 from ..storage.records import GenerationRecord
 from ..storage.repository import GenerationRecordRepository
 from .fila import FilaDePedidos
-from .modelo import Pedido, Tipo
+from .modelo import CAMPOS_DO_CONCEITO, ModoConceito, Pedido, Tipo, texto_do_conceito
 
-__all__ = ["CorpoDoPedido", "ServicoDePedidos"]
+__all__ = ["CorpoDoPedido", "ServicoDePedidos", "direcao_com_conceito"]
+
+
+def direcao_com_conceito(pedido: Pedido, conceito: dict[str, Any]) -> str:
+    """A direção de arte depois da escolha: a escrita na criação, e o conceito."""
+    original = (pedido.corpo or {}).get("direcao_de_arte")
+    texto = f"conceito — {texto_do_conceito(conceito)}"
+    return f"{original.strip()} · {texto}" if isinstance(original, str) and original.strip() else texto
 
 
 class CorpoDoPedido(AssetFlowModel):
@@ -62,6 +69,9 @@ class CorpoDoPedido(AssetFlowModel):
     texto: str | None = None
     liberdade: Liberdade = Liberdade.EQUILIBRADO
     direcao_de_arte: str | None = Field(default=None, max_length=2000)
+    #: Quem escolhe o conceito antes do desenho (lote 1). Sem valor, vale o
+    #: padrão da instalação (``ASSETFLOW_CONCEITO``). Um ajuste é sempre sem.
+    modo_conceito: ModoConceito | None = None
 
     @property
     def e_ajuste(self) -> bool:
@@ -80,8 +90,10 @@ class ServicoDePedidos:
         *,
         projeto: str,
         gerador: str | None,
+        modo_conceito: ModoConceito = ModoConceito.EU_ESCOLHO,
     ) -> None:
         self.fila = fila
+        self.modo_conceito = ModoConceito(modo_conceito)
         self._service = service
         self._storage = storage
         self._records = records
@@ -136,22 +148,63 @@ class ServicoDePedidos:
     # ------------------------------------------------------------------
     # Criação
     # ------------------------------------------------------------------
-    async def criar(self, corpo: CorpoDoPedido) -> Pedido:
+    async def criar(
+        self,
+        corpo: CorpoDoPedido,
+        *,
+        projeto: str | None = None,
+        banca: dict[str, Any] | None = None,
+    ) -> Pedido:
+        """Cria o pedido. ``projeto`` e ``banca`` são da banca de teste (lote 1)."""
         if corpo.e_ajuste:
             return await self._criar_ajuste(corpo)
         texto = corpo.prompt.strip()
         if not texto:
             raise InvalidGenerationRequest("o pedido precisa de uma descrição")
-        previa = self.previa(corpo)
+        destino = projeto or self.projeto
+        previa = self._service.preview_prompt(self.requisicao(corpo, projeto=destino))
         return self.fila.criar(
             tipo=Tipo.DESENHO,
-            projeto=self.projeto,
+            projeto=destino,
             texto=texto,
             liberdade=corpo.liberdade.value,
             direcao_de_arte=_texto_ou_nada(corpo.direcao_de_arte),
             corpo=corpo.model_dump(mode="json", exclude_none=True),
             leitura=previa.model_dump(mode="json"),
+            modo_conceito=corpo.modo_conceito or self.modo_conceito,
+            banca=banca,
         )
+
+    # ------------------------------------------------------------------
+    # Etapa de conceito: a escolha da autora (lote 1)
+    # ------------------------------------------------------------------
+    def escolher_conceito(
+        self, pedido_id: str, indice: int, editado: dict[str, Any] | None = None
+    ) -> Pedido:
+        """A autora escolhe o conceito ``indice`` (1 a 3), editado ou não.
+
+        O escolhido vira a direção de arte do pedido; uma direção escrita na
+        criação fica antes dele.
+        """
+        pedido = self.fila.obter(pedido_id)
+        if not 1 <= int(indice) <= len(pedido.conceitos):
+            raise InvalidGenerationRequest(
+                f"o pedido {pedido_id} tem {len(pedido.conceitos)} conceitos: escolha de 1 a "
+                f"{len(pedido.conceitos) or 3}"
+            )
+        conceito = dict(pedido.conceitos[int(indice) - 1])
+        for campo in CAMPOS_DO_CONCEITO:
+            valor = (editado or {}).get(campo)
+            if isinstance(valor, str) and valor.strip():
+                conceito[campo] = valor.strip()[:160]
+        conceito["indice"] = int(indice)
+        conceito["editado"] = bool(editado)
+        return self.fila.escolher_conceito(
+            pedido_id, conceito, direcao=direcao_com_conceito(pedido, conceito)
+        )
+
+    def outros_conceitos(self, pedido_id: str) -> Pedido:
+        return self.fila.outros_conceitos(pedido_id)
 
     async def _criar_ajuste(self, corpo: CorpoDoPedido) -> Pedido:
         texto = (corpo.texto or "").strip()
@@ -222,6 +275,16 @@ class ServicoDePedidos:
         except Exception:  # noqa: BLE001 - arquivo ausente não derruba a lista
             return None
         return GeneratedAsset.model_validate_json(bruto)
+
+    async def olhar_do_asset(self, projeto: str | None, job_id: str | None) -> dict[str, Any] | None:
+        """O ``000_olhar.json`` de um desenho (Fase B2); ``None`` se não houver."""
+        if not projeto or not job_id:
+            return None
+        try:
+            bruto = await self._storage.backend.get(f"projects/{projeto}/jobs/{job_id}/000_olhar.json")
+        except Exception:  # noqa: BLE001 - desenho anterior à Fase B2 não tem o arquivo
+            return None
+        return json.loads(bruto)
 
     async def spec_do_asset(self, registro: GenerationRecord) -> FinalResolvedSpec:
         """O spec com que um asset foi desenhado, do artefato gravado no job."""

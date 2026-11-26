@@ -10,6 +10,11 @@ pedidos com `pedidos_pendentes` e desenha cada um com
 `desenhar(pedido_id=...)`. A tela acompanha a fila e mostra o resultado sem
 recarregar a página.
 
+Desde o lote 1, um pedido pode ter **etapa de conceito** antes do desenho
+(`modo_conceito`: `eu_escolho`, `claude_escolhe`, `sem_conceito`), com a
+situação nova `escolhendo`; e a fila guarda pedidos da **banca de teste** no
+projeto `banca`. Ver [BANCA_E_CONCEITO.md](BANCA_E_CONCEITO.md).
+
 Desde a Fase B2, **aprovado no validador não é pronto**: o pedido espera o
 olhar do Claude (`em_revisao`, etapa `olhando`), pode receber até 2 remendos do
 olhar e só conclui com `concluir_pedido`. O olhar, o olho do app, o exemplo e

@@ -129,8 +129,14 @@ class PedidosSettings(AssetFlowModel):
     #: Remendos que o olhar pode pedir num pedido depois de um desenho
     #: aprovado (Fase B2). Um por olhar é da própria forma do fluxo: cada
     #: remendo devolve uma imagem nova, que é um olhar novo.
-    #: ``ASSETFLOW_PEDIDOS_REMENDOS``.
+    #: ``ASSETFLOW_PEDIDOS_REMENDOS``. **Ajuste de custo**: cada remendo a
+    #: menos economiza ~650 tokens no pior caso (docs/CUSTO.md).
     remendos: int = Field(default=2, ge=0, le=10)
+    #: O modo de conceito dos pedidos que não dizem o seu (lote 1):
+    #: ``eu_escolho``, ``claude_escolhe`` ou ``sem_conceito``.
+    #: ``ASSETFLOW_CONCEITO``. **Ajuste de custo**: ``sem_conceito`` economiza
+    #: ~900 tokens por pedido (docs/CUSTO.md).
+    conceito: str = Field(default="eu_escolho", pattern="^(eu_escolho|claude_escolhe|sem_conceito)$")
 
 
 class AprendizadoSettings(AssetFlowModel):
@@ -155,8 +161,22 @@ class AprendizadoSettings(AssetFlowModel):
     peso_autora: int = Field(default=3, ge=1, le=20)
     #: Quantas lições entram no recorte de um pedido, no máximo.
     max_licoes: int = Field(default=5, ge=0, le=20)
+    #: Lista de verificação curta: no primeiro olhar, só os nomes das
+    #: perguntas, numa linha, em vez das perguntas inteiras.
+    #: ``ASSETFLOW_OLHAR_LISTA_CURTA``. **Ajuste de custo**: ~170 tokens por
+    #: pedido (docs/CUSTO.md).
+    lista_curta: bool = False
     #: Como ``pedidos.espera_s``: ``busy_timeout`` do SQLite.
     espera_s: float = Field(default=5.0, ge=0)
+
+
+class BancaSettings(AssetFlowModel):
+    """A banca de teste (etapa K1 do plano da base de conhecimento)."""
+
+    #: As rodadas e os votos. ``ASSETFLOW_BANCA_DB``.
+    arquivo: str = "data/banca/banca.sqlite3"
+    #: O projeto dos desenhos da banca, para não misturar com a galeria.
+    projeto: str = Field(default="banca", min_length=1)
 
 
 class Settings(AssetFlowModel):
@@ -174,6 +194,7 @@ class Settings(AssetFlowModel):
     api: ApiSettings = Field(default_factory=ApiSettings)
     pedidos: PedidosSettings = Field(default_factory=PedidosSettings)
     aprendizado: AprendizadoSettings = Field(default_factory=AprendizadoSettings)
+    banca: BancaSettings = Field(default_factory=BancaSettings)
 
     #: Conteúdo bruto dos YAMLs (interpretado pelos respectivos registries).
     engines_config: dict[str, Any] = Field(default_factory=dict)
@@ -269,6 +290,16 @@ class Settings(AssetFlowModel):
         return self._resolve(Path(self.pedidos.arquivo))
 
     @property
+    def banca_path(self) -> Path:
+        """O SQLite das rodadas e votos da banca (``data/banca/banca.sqlite3``)."""
+        return self._resolve(Path(self.banca.arquivo))
+
+    @property
+    def banca_config_path(self) -> Path:
+        """Os pedidos da banca (``config/banca.yaml``), versionados."""
+        return self.config_dir / "banca.yaml"
+
+    @property
     def aprendizado_path(self) -> Path:
         """O SQLite das lições e opiniões (``data/aprendizado/aprendizado.sqlite3``)."""
         return self._resolve(Path(self.aprendizado.arquivo))
@@ -361,6 +392,7 @@ def load_settings(
         reserva_min=float(_env("PEDIDOS_RESERVA_MIN") or padrao_pedidos.reserva_min),
         espera_s=float(_env("PEDIDOS_ESPERA_S") or padrao_pedidos.espera_s),
         remendos=int(_env("PEDIDOS_REMENDOS") or padrao_pedidos.remendos),
+        conceito=_env("CONCEITO") or padrao_pedidos.conceito,
     )
 
     padrao_aprendizado = AprendizadoSettings()
@@ -369,6 +401,7 @@ def load_settings(
         exemplo=_env_bool("EXEMPLO", padrao_aprendizado.exemplo),
         licoes=_env_bool("LICOES", padrao_aprendizado.licoes),
         peso_autora=int(_env("LICOES_PESO_AUTORA") or padrao_aprendizado.peso_autora),
+        lista_curta=_env_bool("OLHAR_LISTA_CURTA", padrao_aprendizado.lista_curta),
         espera_s=float(_env("PEDIDOS_ESPERA_S") or padrao_aprendizado.espera_s),
     )
 
@@ -382,6 +415,9 @@ def load_settings(
         api=api,
         pedidos=pedidos,
         aprendizado=aprendizado,
+        banca=BancaSettings(
+            arquivo=_env("BANCA_DB") or str(data / "banca" / "banca.sqlite3"),
+        ),
         engines_config=engines_config,
         capabilities_config=capabilities_config,
         profiles_config=profiles_config,

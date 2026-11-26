@@ -521,6 +521,15 @@ class PedidoView(AssetFlowModel):
     candidatos: list[str] = Field(default_factory=list)
     #: A linha do olhar que concluiu o pedido.
     olhar: str | None = None
+    #: A etapa de conceito (lote 1): o modo, os três propostos, o escolhido,
+    #: o motivo (no modo "o Claude escolhe") e quantos já foram recusados.
+    modo_conceito: str = "sem_conceito"
+    conceitos: list[dict[str, Any]] = Field(default_factory=list)
+    conceito: dict[str, Any] | None = None
+    motivo_conceito: str | None = None
+    recusados: int = 0
+    #: Numa rodada da banca: rodada, item, ordem e total.
+    banca: dict[str, Any] | None = None
     reservado_ate: datetime | None = None
     motivo: str | None = None
     criado_em: datetime
@@ -543,6 +552,85 @@ class PedidoDetalhe(PedidoView):
     leitura: dict[str, Any] = Field(default_factory=dict)
     eventos: list[PedidoEventoView] = Field(default_factory=list)
     ultimo_laudo: str | None = None
+
+
+class ConceitoEscolha(AssetFlowModel):
+    """A escolha da autora: o número do conceito e, se quiser, os campos editados."""
+
+    indice: int = Field(ge=1, le=3)
+    traco: str | None = None
+    silhueta: str | None = None
+    objeto: str | None = None
+    pose: str | None = None
+    simplificar: str | None = None
+
+
+class RodadaItemView(AssetFlowModel):
+    item: str
+    pedido_id: str
+    ordem: int
+    etapa: str | None = None
+    asset_id: str | None = None
+
+
+class RodadaView(AssetFlowModel):
+    id: str
+    rotulo: str
+    modo_conceito: str
+    criada_em: datetime
+    versao_base: str
+    git_commit: str | None = None
+    interruptores: dict[str, Any] = Field(default_factory=dict)
+    licoes: list[dict[str, Any]] = Field(default_factory=list)
+    itens: list[RodadaItemView] = Field(default_factory=list)
+    pronta: bool = False
+    tokens_estimados: int = 0
+
+
+class BancaView(AssetFlowModel):
+    itens: list[dict[str, str]]
+    rodadas: list[RodadaView]
+
+
+class RodadaNova(AssetFlowModel):
+    rotulo: str = ""
+    modo_conceito: str = Field(default="sem_conceito", pattern="^(eu_escolho|claude_escolhe|sem_conceito)$")
+
+
+class LadoView(AssetFlowModel):
+    """Um lado de um par: só a imagem e a situação; nunca a rodada."""
+
+    asset: AssetView | None = None
+    etapa: str | None = None
+
+
+class ParView(AssetFlowModel):
+    item: str
+    texto: str
+    testa: str = ""
+    esquerda: LadoView
+    direita: LadoView
+    escolha: str | None = None
+    nota_esquerda: int | None = None
+    nota_direita: int | None = None
+
+
+class ComparacaoView(AssetFlowModel):
+    a: str
+    b: str
+    pares: list[ParView]
+    avaliados: int
+    #: Só com todos os pares avaliados; revela os lados.
+    resumo: dict[str, Any] | None = None
+
+
+class VotoCorpo(AssetFlowModel):
+    a: str
+    b: str
+    item: str
+    escolha: str = Field(pattern="^(esquerda|direita|empate)$")
+    nota_esquerda: int = Field(ge=1, le=5)
+    nota_direita: int = Field(ge=1, le=5)
 
 
 class LicaoView(AssetFlowModel):

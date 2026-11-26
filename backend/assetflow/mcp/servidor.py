@@ -132,6 +132,31 @@ def criar_servidor(
         return [str(laudo), Image(data=laudo.imagem, format="png")]
 
     @servidor.tool(structured_output=False)
+    async def propor_conceitos(
+        pedido_id: Annotated[str, Field(description="Id de um pedido de pedidos_pendentes.")],
+        conceitos: Annotated[
+            list[dict[str, str]],
+            Field(
+                description=(
+                    "Três conceitos, cada um com traco, silhueta, objeto, pose e simplificar "
+                    "(até 120 caracteres; simplificar, 80)."
+                )
+            ),
+        ],
+        escolhido: Annotated[
+            int | None, Field(description="Se você escolhe: o mais forte, de 1 a 3.")
+        ] = None,
+        motivo: Annotated[
+            str | None, Field(description="Se você escolhe: por que ele é o mais forte.")
+        ] = None,
+    ) -> str:
+        """Propõe 3 conceitos para um pedido da fila antes do desenho: traço marcante, silhueta, objeto, pose e o que simplificar, diferentes entre si e próprios deste personagem. Se você escolhe, passe escolhido e motivo e desenhe em seguida."""
+        try:
+            return await servico.propor_conceitos(pedido_id, conceitos, escolhido, motivo)
+        except ErroDoPedido as exc:
+            raise ToolError(str(exc)) from exc
+
+    @servidor.tool(structured_output=False)
     async def concluir_pedido(
         pedido_id: Annotated[str, Field(description="Id do pedido que você olhou.")],
         olhar: Annotated[

@@ -26,20 +26,29 @@ from typing import Any
 __all__ = [
     "FORMATO_RECEITA",
     "LIBERDADE_EQUILIBRADO",
+    "MAX_CAMPO_CONCEITO",
     "MAX_OLHAR",
+    "MAX_SIMPLIFICAR",
     "TETO_LICOES",
     "TETO_PENDENTES",
+    "bloco_de_conceito",
     "bloco_do_pedido",
     "bloco_em_revisao",
+    "conceito_na_medida",
     "formatar_consulta",
     "formatar_laudo",
     "formatar_pendentes",
     "instrucao_avulsa",
     "instrucao_do_pedido",
+    "linha_da_banca",
     "linha_de_liberdade",
     "secao_de_licoes",
     "secao_de_opinioes",
 ]
+
+#: Teto de cada campo de um conceito, e do "o que simplificar" (lote 1).
+MAX_CAMPO_CONCEITO = 120
+MAX_SIMPLIFICAR = 80
 
 #: Teto da seção de lições no recorte, em caracteres.
 TETO_LICOES = 900
@@ -223,8 +232,14 @@ def bloco_do_pedido(
     ultimo_asset: str | None = None,
     ajuste: tuple[str, str] | None = None,
     base: str | None = None,
+    conceito_por: str | None = None,
+    banca: dict[str, Any] | None = None,
 ) -> str:
-    """Um pedido na lista: cabeçalho, direção de arte, base do ajuste e consulta."""
+    """Um pedido na lista: cabeçalho, direção de arte, base do ajuste e consulta.
+
+    ``conceito_por`` ("pela autora" ou "pelo Claude") diz que a direção de
+    arte é o conceito escolhido (lote 1).
+    """
     if ajuste is not None:
         origem, texto = ajuste
         cabeca = f'== {pedido_id} · ajuste de {origem}: "{texto}"'
@@ -237,11 +252,99 @@ def bloco_do_pedido(
             f"já houve {tentativas} de {max_tentativas} desenho(s) não aprovado(s); o "
             f"último é {ultimo_asset}: corrija com base={ultimo_asset}"
         )
+    if banca:
+        linhas.append(linha_da_banca(banca))
     if direcao_de_arte:
-        linhas.append(f'direção de arte (como escrita no pedido): "{direcao_de_arte}"')
+        rotulo = f"conceito escolhido {conceito_por}" if conceito_por else "como escrita no pedido"
+        linhas.append(f'direção de arte ({rotulo}): "{direcao_de_arte}"')
     if base:
         linhas.append(base)
     linhas.append(consulta)
+    return "\n".join(linhas)
+
+
+def conceito_na_medida(largura: int, altura: int) -> str:
+    """O que cabe num conceito para esta grade (FUNDAMENTOS_E_FERRAMENTAS §2).
+
+    Em 16 px quase tudo vira uma decisão só, a silhueta; em 32 cabe um traço e
+    um objeto simples; de 48 em diante, o conceito completo.
+    """
+    maior = max(largura, altura)
+    grade = f"{largura}×{altura}"
+    if maior <= 16:
+        return (
+            f"conceito na medida da grade {grade}: um traço marcante só, de forma grande; "
+            "objeto e pose só se couberem nessa mesma forma."
+        )
+    if maior <= 32:
+        return (
+            f"conceito na medida da grade {grade}: um traço marcante e um objeto simples; "
+            "a pose, curta."
+        )
+    return (
+        f"conceito na medida da grade {grade}: o conceito completo — traço marcante, "
+        "silhueta, objeto e pose."
+    )
+
+
+def linha_da_banca(banca: dict[str, Any] | None) -> str:
+    """A etiqueta de um pedido da banca de teste, para o bloco."""
+    if not banca:
+        return ""
+    return (
+        f"banca {banca.get('rodada')} · {banca.get('item')} ({banca.get('ordem')} de "
+        f"{banca.get('total')}): desenhe do zero, sem olhar desenhos de outras rodadas"
+    )
+
+
+_MODO_LIDO = {"eu_escolho": "a autora escolhe", "claude_escolhe": "você escolhe"}
+
+
+def bloco_de_conceito(
+    *,
+    pedido_id: str,
+    modo: str,
+    liberdade: str,
+    esperando_min: int,
+    resumo: str,
+    largura: int,
+    altura: int,
+    direcao_de_arte: str | None = None,
+    recusados: tuple[dict[str, Any], ...] = (),
+    banca: dict[str, Any] | None = None,
+) -> str:
+    """Um pedido na fase de conceito (lote 1): curto, sem medidas nem rampas."""
+    linhas = [
+        (
+            f"== {pedido_id} · conceito ({_MODO_LIDO.get(modo, modo)}) · liberdade {liberdade} · "
+            f"na fila há {esperando_min} min"
+        )
+    ]
+    if banca:
+        linhas.append(linha_da_banca(banca))
+    linhas.append(resumo)
+    if direcao_de_arte:
+        linhas.append(f'direção de arte (como escrita no pedido): "{direcao_de_arte}"')
+    linhas.append(conceito_na_medida(largura, altura))
+    linhas.append(
+        f"proponha 3 conceitos com propor_conceitos(pedido_id={pedido_id}, conceitos=[{{traco, "
+        "silhueta, objeto, pose, simplificar}} × 3]): diferentes entre si e próprios deste "
+        "personagem — se um serviria para qualquer personagem do mesmo tipo, refaça. "
+        f"\"simplificar\" diz o que some se faltar espaço. Até {MAX_CAMPO_CONCEITO} caracteres "
+        f"por campo ({MAX_SIMPLIFICAR} no simplificar)."
+    )
+    if modo == "claude_escolhe":
+        linhas.append(
+            "você escolhe: mande também escolhido (1 a 3) e motivo; a resposta traz o recorte "
+            "para desenhar em seguida."
+        )
+    else:
+        linhas.append("a autora escolhe um na tela: não desenhe agora.")
+    if recusados:
+        ditos = " · ".join(
+            f"{n}) {c.get('traco', '?')}" for n, c in enumerate(recusados, start=1)
+        )
+        linhas.append(f"conceitos já recusados pela autora (não repita): {ditos}")
     return "\n".join(linhas)
 
 
@@ -351,8 +454,13 @@ def formatar_pendentes(
     reserva_min: float,
     rampas: str,
     opinioes: str = "",
+    com_formato: bool = True,
 ) -> str:
-    """A resposta de ``pedidos_pendentes``: as opiniões novas, o comum uma vez, depois cada pedido."""
+    """A resposta de ``pedidos_pendentes``: as opiniões novas, o comum uma vez, depois cada pedido.
+
+    Sem ``com_formato`` (só pedidos de conceito ou de olhar), o formato da
+    receita e as rampas ficam de fora: ninguém vai desenhar nesta resposta.
+    """
     if not blocos:
         vazio = (
             "nenhum pedido esperando desenho na fila do AssetFlow"
@@ -371,11 +479,11 @@ def formatar_pendentes(
             "Desenhe cada um com desenhar(pedido_id=..., receita=...): o texto, o perfil e "
             "os controles vêm do pedido. Cada desenhar renova a reserva dos outros."
         ),
-        "",
-        FORMATO_RECEITA,
     ]
-    if rampas:
-        linhas.extend(["", rampas])
+    if com_formato:
+        linhas.extend(["", FORMATO_RECEITA])
+        if rampas:
+            linhas.extend(["", rampas])
     for bloco in blocos:
         linhas.extend(["", bloco])
     return "\n".join(linhas)

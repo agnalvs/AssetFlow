@@ -31,6 +31,7 @@ const ATIVAS: ReadonlySet<PedidoEtapa> = new Set([
   "desenhando",
   "corrigindo",
   "olhando",
+  "conceituando",
 ]);
 
 export function pedidoAtivo(pedido: Pedido): boolean {

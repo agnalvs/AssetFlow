@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from ..sqlite_curto import BancoCurto
-from .modelo import Evento, Pedido, Situacao, Tipo
+from .modelo import Evento, ModoConceito, Pedido, Situacao, Tipo
 
 __all__ = [
     "ErroDaFila",
@@ -143,8 +143,19 @@ _COLUNAS_NOVAS = {
         ("olhar", "TEXT"),
         # O que foi entregue ao Claude com o pedido: exemplo, lições, interruptores.
         ("envio", "TEXT"),
+        # Lote 1: a etapa de conceito, a banca e o custo.
+        ("modo_conceito", "TEXT NOT NULL DEFAULT 'sem_conceito'"),
+        ("conceitos", "TEXT NOT NULL DEFAULT '[]'"),
+        ("conceitos_recusados", "TEXT NOT NULL DEFAULT '[]'"),
+        ("conceito", "TEXT"),
+        ("motivo_conceito", "TEXT"),
+        ("banca", "TEXT"),
+        ("custo", "TEXT NOT NULL DEFAULT '{}'"),
     ),
 }
+
+#: Pedido que precisa de conceito e ainda não tem: ``desenhar`` é recusado.
+_SEM_CONCEITO_PRONTO = "(modo_conceito != 'sem_conceito' AND conceito IS NULL)"
 
 #: Pedidos que um pedidos_pendentes pode pegar: pendentes e reservas vencidas.
 _LIVRE = (
@@ -248,6 +259,8 @@ class FilaDePedidos:
         corpo: dict[str, Any],
         leitura: dict[str, Any],
         origem_asset_id: str | None = None,
+        modo_conceito: ModoConceito | str = ModoConceito.SEM_CONCEITO,
+        banca: dict[str, Any] | None = None,
         agora: datetime | None = None,
     ) -> Pedido:
         momento = _carimbo(agora or agora_utc())
@@ -261,8 +274,8 @@ class FilaDePedidos:
                 INSERT INTO pedidos (
                     id, tipo, situacao, projeto, texto, liberdade, direcao_de_arte,
                     corpo, leitura, origem_asset_id, max_tentativas, max_remendos,
-                    eventos, criado_em, atualizado_em
-                ) VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    modo_conceito, banca, eventos, criado_em, atualizado_em
+                ) VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING *
                 """,
                 (
@@ -277,6 +290,8 @@ class FilaDePedidos:
                     origem_asset_id,
                     self._max_tentativas,
                     self._max_remendos,
+                    ModoConceito(modo_conceito).value,
+                    json.dumps(banca, ensure_ascii=False) if banca else None,
                     evento,
                     momento,
                     momento,
@@ -294,15 +309,16 @@ class FilaDePedidos:
     def listar(
         self,
         *,
-        projeto: str | None = None,
+        projeto: str | Sequence[str] | None = None,
         situacoes: Sequence[Situacao] = (),
         limite: int = 30,
     ) -> list[Pedido]:
-        """Do mais novo para o mais antigo."""
+        """Do mais novo para o mais antigo. ``projeto`` aceita um ou vários."""
         condicoes, valores = [], []
         if projeto is not None:
-            condicoes.append("projeto = ?")
-            valores.append(projeto)
+            projetos = [projeto] if isinstance(projeto, str) else list(projeto)
+            condicoes.append(f"projeto IN ({', '.join('?' * len(projetos))})")
+            valores.extend(projetos)
         if situacoes:
             condicoes.append(f"situacao IN ({', '.join('?' * len(situacoes))})")
             valores.extend(Situacao(s).value for s in situacoes)
@@ -407,6 +423,7 @@ class FilaDePedidos:
                     atualizado_em = :agora, {_evento("'em_desenho'")}
                 WHERE id = :id AND situacao IN ('pendente', 'em_desenho', 'em_revisao')
                   AND (candidatos = '[]' OR remendos < max_remendos)
+                  AND NOT {_SEM_CONCEITO_PRONTO}
                 RETURNING *
                 """,
                 valores,
@@ -588,7 +605,7 @@ class FilaDePedidos:
                 situacao = 'cancelado', motivo = 'cancelado na tela',
                 leva = NULL, reservado_ate = NULL, desenhando_desde = NULL,
                 remendando = 0, atualizado_em = :agora, {_evento("'cancelado'")}
-            WHERE id = :id AND situacao IN ('pendente', 'em_desenho', 'em_revisao')
+            WHERE id = :id AND situacao IN ('pendente', 'em_desenho', 'em_revisao', 'escolhendo')
             RETURNING *
             """,
             {"id": pedido_id, "agora": _carimbo(agora or agora_utc()), "nota": "cancelado na tela"},
@@ -626,6 +643,153 @@ class FilaDePedidos:
             )
         return linha
 
+    # ------------------------------------------------------------------
+    # Etapa de conceito (lote 1)
+    # ------------------------------------------------------------------
+    def gravar_conceitos(
+        self,
+        pedido_id: str,
+        conceitos: Sequence[dict[str, Any]],
+        *,
+        escolhido: dict[str, Any] | None = None,
+        motivo: str | None = None,
+        direcao: str | None = None,
+        agora: datetime | None = None,
+    ) -> Pedido:
+        """Os três conceitos do Claude.
+
+        Sem ``escolhido`` (modo ``eu_escolho``), o pedido vai para
+        ``escolhendo`` e sai da reserva: espera a autora. Com ele (modo
+        ``claude_escolhe``), o conceito fica escolhido, vira a direção de
+        arte, e o pedido segue em desenho, na mesma reserva.
+        """
+        momento = agora or agora_utc()
+        valores = {
+            "id": pedido_id,
+            "conceitos": json.dumps(list(conceitos), ensure_ascii=False),
+            "agora": _carimbo(momento),
+        }
+        if escolhido is None:
+            sql = f"""
+                UPDATE pedidos SET
+                    situacao = 'escolhendo', conceitos = :conceitos, leva = NULL,
+                    reservado_ate = NULL, desenhando_desde = NULL,
+                    atualizado_em = :agora, {_evento("'escolhendo'")}
+                WHERE id = :id AND situacao IN ('pendente', 'em_desenho')
+                  AND modo_conceito = 'eu_escolho' AND conceito IS NULL
+                RETURNING *
+            """
+            valores["nota"] = "três conceitos propostos; esperando a escolha"
+        else:
+            sql = f"""
+                UPDATE pedidos SET
+                    situacao = 'em_desenho', conceitos = :conceitos, conceito = :escolhido,
+                    motivo_conceito = :motivo, direcao_de_arte = :direcao,
+                    atualizado_em = :agora, {_evento("'em_desenho'")}
+                WHERE id = :id AND situacao IN ('pendente', 'em_desenho')
+                  AND modo_conceito = 'claude_escolhe' AND conceito IS NULL
+                RETURNING *
+            """
+            valores.update(
+                escolhido=json.dumps(escolhido, ensure_ascii=False),
+                motivo=motivo,
+                direcao=direcao,
+                nota=f"conceito escolhido pelo Claude: {motivo or ''}".strip(),
+            )
+        linha = self._uma(sql, valores)
+        if linha is None:
+            atual = self.obter(pedido_id)
+            raise TransicaoRecusada(_por_que_nao_conceitua(atual, escolhido is not None), atual)
+        return linha
+
+    def escolher_conceito(
+        self,
+        pedido_id: str,
+        conceito: dict[str, Any],
+        *,
+        direcao: str,
+        agora: datetime | None = None,
+    ) -> Pedido:
+        """A autora escolheu (e talvez editou) um conceito: o pedido volta à fila."""
+        linha = self._uma(
+            f"""
+            UPDATE pedidos SET
+                situacao = 'pendente', conceito = :conceito, direcao_de_arte = :direcao,
+                atualizado_em = :agora, {_evento("'pendente'")}
+            WHERE id = :id AND situacao = 'escolhendo'
+            RETURNING *
+            """,
+            {
+                "id": pedido_id,
+                "conceito": json.dumps(conceito, ensure_ascii=False),
+                "direcao": direcao,
+                "agora": _carimbo(agora or agora_utc()),
+                "nota": "conceito escolhido na tela",
+            },
+        )
+        if linha is None:
+            atual = self.obter(pedido_id)
+            raise TransicaoRecusada(
+                f"o pedido {pedido_id} está {_situacao_lida(atual)}: só se escolhe conceito "
+                "de um pedido com três conceitos propostos",
+                atual,
+            )
+        return linha
+
+    def outros_conceitos(self, pedido_id: str, agora: datetime | None = None) -> Pedido:
+        """A autora pediu outros três: os propostos vão para os recusados."""
+        linha = self._uma(
+            f"""
+            UPDATE pedidos SET
+                situacao = 'pendente',
+                conceitos_recusados = (
+                    SELECT json_group_array(json(value)) FROM (
+                        SELECT value FROM json_each(pedidos.conceitos_recusados)
+                        UNION ALL
+                        SELECT value FROM json_each(pedidos.conceitos))),
+                conceitos = '[]', atualizado_em = :agora, {_evento("'pendente'")}
+            WHERE id = :id AND situacao = 'escolhendo'
+            RETURNING *
+            """,
+            {"id": pedido_id, "agora": _carimbo(agora or agora_utc()), "nota": "outros três conceitos pedidos"},
+        )
+        if linha is None:
+            atual = self.obter(pedido_id)
+            raise TransicaoRecusada(
+                f"o pedido {pedido_id} está {_situacao_lida(atual)}: não há conceitos para trocar",
+                atual,
+            )
+        return linha
+
+    def somar_custo(
+        self,
+        pedido_id: str,
+        *,
+        entrada: int = 0,
+        saida_texto: int = 0,
+        saida_receita: int = 0,
+        imagens: int = 0,
+    ) -> None:
+        """Soma o que passou pela conversa por este pedido (caracteres e imagens)."""
+        with self._conexao() as conexao:
+            conexao.execute(
+                """
+                UPDATE pedidos SET custo = json_object(
+                    'entrada', COALESCE(json_extract(custo, '$.entrada'), 0) + :entrada,
+                    'saida_texto', COALESCE(json_extract(custo, '$.saida_texto'), 0) + :texto,
+                    'saida_receita', COALESCE(json_extract(custo, '$.saida_receita'), 0) + :receita,
+                    'imagens', COALESCE(json_extract(custo, '$.imagens'), 0) + :imagens)
+                WHERE id = :id
+                """,
+                {
+                    "id": pedido_id,
+                    "entrada": int(entrada),
+                    "texto": int(saida_texto),
+                    "receita": int(saida_receita),
+                    "imagens": int(imagens),
+                },
+            ).fetchall()
+
     def _uma(self, sql: str, valores: dict[str, Any]) -> Pedido | None:
         # fetchall: a instrução vai até o fim e confirma antes de a conexão fechar.
         with self._conexao() as conexao:
@@ -638,6 +802,7 @@ def _situacao_lida(pedido: Pedido) -> str:
         Situacao.PENDENTE: "na fila",
         Situacao.EM_DESENHO: "em desenho",
         Situacao.EM_REVISAO: "esperando o olhar",
+        Situacao.ESCOLHENDO: "esperando a escolha do conceito",
         Situacao.CONCLUIDO: "concluído",
         Situacao.FALHOU: "falho",
         Situacao.CANCELADO: "cancelado",
@@ -652,6 +817,16 @@ def _por_que_nao_desenha(pedido: Pedido) -> str:
             f"o pedido {pedido.id} já foi concluído com {pedido.asset_id}: para mudar o "
             f"desenho, use base={pedido.asset_id} sem pedido_id (vira um asset avulso) "
             "ou peça um ajuste na tela"
+        )
+    if pedido.precisa_conceito and pedido.situacao is Situacao.ESCOLHENDO:
+        return (
+            f"o pedido {pedido.id} espera a autora escolher um dos três conceitos na tela: "
+            "não desenhe agora"
+        )
+    if pedido.precisa_conceito:
+        return (
+            f"o pedido {pedido.id} precisa de conceito antes do desenho: proponha três com "
+            f"propor_conceitos(pedido_id={pedido.id}, conceitos=[...])"
         )
     if pedido.candidatos and pedido.remendos >= pedido.max_remendos:
         return (
@@ -684,6 +859,26 @@ def _por_que_nao_conclui(pedido: Pedido, asset_id: str | None) -> str:
     return f"o pedido {pedido.id} já está {_situacao_lida(pedido)}: não há o que concluir"
 
 
+def _por_que_nao_conceitua(pedido: Pedido, com_escolha: bool) -> str:
+    if pedido.modo_conceito is ModoConceito.SEM_CONCEITO:
+        return f"o pedido {pedido.id} é sem conceito: desenhe direto"
+    if pedido.conceito is not None:
+        return f"o pedido {pedido.id} já tem conceito escolhido: desenhe"
+    if pedido.situacao is Situacao.ESCOLHENDO:
+        return f"o pedido {pedido.id} já tem três conceitos esperando a escolha da autora"
+    if pedido.modo_conceito is ModoConceito.EU_ESCOLHO and com_escolha:
+        return (
+            f"no pedido {pedido.id} quem escolhe é a autora (modo eu_escolho): mande os três "
+            "sem 'escolhido' nem 'motivo'"
+        )
+    if pedido.modo_conceito is ModoConceito.CLAUDE_ESCOLHE and not com_escolha:
+        return (
+            f"no pedido {pedido.id} quem escolhe é você (modo claude_escolhe): mande "
+            "'escolhido' (1 a 3) e 'motivo'"
+        )
+    return f"o pedido {pedido.id} está {_situacao_lida(pedido)}: não recebe conceitos agora"
+
+
 def _momento(valor: str | None) -> datetime | None:
     return datetime.fromisoformat(valor) if valor else None
 
@@ -714,6 +909,13 @@ def _pedido(linha: sqlite3.Row) -> Pedido:
         ),
         olhar=dados.get("olhar"),
         envio=json.loads(dados["envio"]) if dados.get("envio") else None,
+        modo_conceito=ModoConceito(dados.get("modo_conceito") or "sem_conceito"),
+        conceitos=tuple(json.loads(dados.get("conceitos") or "[]")),
+        conceitos_recusados=tuple(json.loads(dados.get("conceitos_recusados") or "[]")),
+        conceito=json.loads(dados["conceito"]) if dados.get("conceito") else None,
+        motivo_conceito=dados.get("motivo_conceito"),
+        banca=json.loads(dados["banca"]) if dados.get("banca") else None,
+        custo=json.loads(dados.get("custo") or "{}"),
         ultimo_laudo=dados["ultimo_laudo"],
         leva=dados["leva"],
         reservado_ate=_momento(dados["reservado_ate"]),

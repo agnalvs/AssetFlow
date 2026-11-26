@@ -642,3 +642,43 @@ def test_engines_ignore_the_aprendizado(path: Path):
         if _imports_any(module, ("assetflow.aprendizado",))
     ]
     assert not violations, "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# Banca de teste (lote 1): rodadas e votos
+# ---------------------------------------------------------------------------
+# ``assetflow/banca/`` cria pedidos pelo serviço de pedidos e lê as lições;
+# quem a mostra é a API. Ela não importa API, MCP, gaveta nem jobs, e nenhuma
+# gaveta a importa.
+
+BANCA_FILES = _python_files(PACKAGE_ROOT / "banca")
+LAYERS_FORBIDDEN_TO_BANCA = (
+    "assetflow.api",
+    "assetflow.mcp",
+    "assetflow.generation.engines",
+    "assetflow.jobs",
+)
+
+
+def test_there_are_banca_files_to_inspect():
+    assert len(BANCA_FILES) >= 4
+
+
+@pytest.mark.parametrize("path", BANCA_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT)))
+def test_banca_does_not_import_api_mcp_engines_or_jobs(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, LAYERS_FORBIDDEN_TO_BANCA)
+    ]
+    assert not violations, "assetflow/banca/ é estante:\n" + "\n".join(violations)
+
+
+@pytest.mark.parametrize("path", ENGINE_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT)))
+def test_engines_ignore_the_banca(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, ("assetflow.banca",))
+    ]
+    assert not violations, "\n".join(violations)
