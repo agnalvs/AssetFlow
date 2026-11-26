@@ -153,26 +153,149 @@ def test_iniciar_recusa_pedido_encerrado(fila: FilaDePedidos, acao: str, trecho:
         fila.cancelar(pedido.id)
     else:
         fila.iniciar(pedido.id)
-        fila.concluir(pedido.id, **_desenho(fila, pedido.id))
+        fila.aprovar(pedido.id, **_desenho(fila, pedido.id))
+        fila.concluir(pedido.id, olhar="ficou bom")
 
     with pytest.raises(TransicaoRecusada, match=trecho):
         fila.iniciar(pedido.id)
 
 
-def test_concluir_so_vale_em_desenho(fila: FilaDePedidos):
+def test_aprovado_espera_o_olhar_e_so_o_concluir_fecha(fila: FilaDePedidos):
+    """Fase B2: aprovado no validador não é pronto."""
     pedido = _novo(fila)
+    fila.reservar([pedido.id], "lev_1", T0)
     fila.iniciar(pedido.id, agora=T0)
 
-    concluido = fila.concluir(pedido.id, **_desenho(fila, pedido.id), agora=T0)
+    aprovado = fila.aprovar(pedido.id, **_desenho(fila, pedido.id), agora=T0)
+    assert aprovado.situacao is Situacao.EM_REVISAO
+    assert aprovado.etapa(T0) is Etapa.OLHANDO
+    assert aprovado.candidatos == ("asset_1",) and aprovado.asset_id == "asset_1"
+    assert aprovado.reservado_ate is not None, "a reserva continua com quem vai olhar"
+    # Um segundo desenho que chegue sem ter começado não vira candidato.
+    assert fila.aprovar(pedido.id, **_desenho(fila, pedido.id, 2)) is None
 
+    concluido = fila.concluir(pedido.id, olhar="a silhueta lê bem", agora=T0)
     assert concluido.situacao is Situacao.CONCLUIDO
     assert concluido.etapa(T0) is Etapa.PRONTO
     assert (concluido.asset_id, concluido.job_id) == ("asset_1", "job_1")
+    assert concluido.olhar == "a silhueta lê bem"
     assert concluido.desenhando_desde is None and concluido.reservado_ate is None
     assert concluido.eventos[-1].situacao is Situacao.CONCLUIDO
-    # Dois desenhos para o mesmo pedido: o segundo não o tira de quem concluiu.
-    assert fila.concluir(pedido.id, **_desenho(fila, pedido.id, 2)) is None
-    assert fila.obter(pedido.id).asset_id == "asset_1"
+    with pytest.raises(TransicaoRecusada, match="não há o que concluir"):
+        fila.concluir(pedido.id, olhar="de novo")
+
+
+def test_concluir_sem_desenho_aprovado_diz_por_que(fila: FilaDePedidos):
+    pedido = _novo(fila)
+    with pytest.raises(TransicaoRecusada, match="na fila, sem reserva"):
+        fila.concluir(pedido.id, olhar="bom")
+    fila.iniciar(pedido.id)
+    with pytest.raises(TransicaoRecusada, match="ainda não tem desenho aprovado"):
+        fila.concluir(pedido.id, olhar="bom")
+
+
+def test_remendo_do_olhar_conta_e_tem_teto(fila: FilaDePedidos):
+    pedido = _novo(fila)
+    fila.iniciar(pedido.id)
+    fila.aprovar(pedido.id, **_desenho(fila, pedido.id, 1))
+
+    remendo = fila.iniciar(pedido.id)
+    assert remendo.remendando and remendo.situacao is Situacao.EM_DESENHO
+    primeiro = fila.aprovar(pedido.id, **_desenho(fila, pedido.id, 2))
+    assert (primeiro.situacao, primeiro.remendos) == (Situacao.EM_REVISAO, 1)
+    assert primeiro.candidatos == ("asset_1", "asset_2") and primeiro.asset_id == "asset_2"
+
+    fila.iniciar(pedido.id)
+    segundo = fila.aprovar(pedido.id, **_desenho(fila, pedido.id, 3))
+    assert segundo.remendos == 2 == segundo.max_remendos
+    assert segundo.tentativas == 0, "remendo do olhar não é tentativa do validador"
+
+    with pytest.raises(TransicaoRecusada, match="já usou os 2 remendos"):
+        fila.iniciar(pedido.id)
+    # Concluir com um desenho anterior do pedido vale; com um alheio, não.
+    with pytest.raises(TransicaoRecusada, match="não é um desenho aprovado"):
+        fila.concluir(pedido.id, olhar="bom", asset_id="asset_9")
+    concluido = fila.concluir(pedido.id, olhar="o primeiro lia melhor", asset_id="asset_1")
+    assert (concluido.asset_id, concluido.job_id) == ("asset_1", "job_1")
+
+
+def test_remendo_nao_aprovado_volta_com_o_candidato_de_antes(fila: FilaDePedidos):
+    pedido = _novo(fila)
+    fila.iniciar(pedido.id)
+    fila.aprovar(pedido.id, **_desenho(fila, pedido.id, 1))
+    fila.iniciar(pedido.id)
+
+    depois = fila.reprovar(pedido.id, **_desenho(fila, pedido.id, 2), motivo="repete o exemplo")
+
+    assert depois.situacao is Situacao.EM_REVISAO
+    assert depois.asset_id == "asset_1" and depois.candidatos == ("asset_1",)
+    assert (depois.remendos, depois.tentativas) == (1, 0)
+    assert depois.motivo == "repete o exemplo"
+
+
+def test_remendo_interrompido_nao_gasta_remendo(fila: FilaDePedidos):
+    pedido = _novo(fila)
+    fila.iniciar(pedido.id)
+    fila.aprovar(pedido.id, **_desenho(fila, pedido.id, 1))
+    fila.iniciar(pedido.id)
+
+    depois = fila.desenho_interrompido(pedido.id, nota="receita inválida")
+
+    assert depois.situacao is Situacao.EM_REVISAO and depois.remendos == 0
+
+
+def test_devolvido_em_revisao_volta_so_para_o_olhar(fila: FilaDePedidos):
+    pedido = _novo(fila)
+    fila.reservar([pedido.id], "lev_1", T0)
+    fila.iniciar(pedido.id, agora=T0)
+    fila.aprovar(pedido.id, **_desenho(fila, pedido.id, 1), agora=T0)
+
+    devolvido = fila.devolver(pedido.id, agora=T0)
+    assert devolvido.situacao is Situacao.PENDENTE and devolvido.candidatos == ("asset_1",)
+
+    (reservado,) = fila.reservar([pedido.id], "lev_2", T0)
+    assert reservado.situacao is Situacao.EM_REVISAO, "falta o olhar, não um desenho novo"
+    assert reservado.etapa(T0) is Etapa.OLHANDO
+
+
+def test_reserva_vencida_em_revisao_volta_para_a_fila(fila: FilaDePedidos):
+    pedido = _novo(fila)
+    fila.reservar([pedido.id], "lev_1", T0)
+    fila.iniciar(pedido.id, agora=T0)
+    fila.aprovar(pedido.id, **_desenho(fila, pedido.id, 1), agora=T0)
+
+    depois = T0 + timedelta(hours=2)
+    assert [p.id for p in fila.candidatos(5, depois)] == [pedido.id]
+    (de_novo,) = fila.reservar([pedido.id], "lev_2", depois)
+    assert de_novo.situacao is Situacao.EM_REVISAO and de_novo.leva == "lev_2"
+
+
+def test_envio_fica_gravado_no_pedido(fila: FilaDePedidos):
+    pedido = _novo(fila)
+    fila.gravar_envio(pedido.id, {"exemplo_ligado": False, "licoes": [{"id": "L1"}]})
+    assert fila.obter(pedido.id).envio == {"exemplo_ligado": False, "licoes": [{"id": "L1"}]}
+
+
+def test_arquivo_de_antes_da_fase_b2_ganha_as_colunas(tmp_path: Path):
+    """``ALTER TABLE`` ao abrir: os pedidos antigos continuam como estavam."""
+    from assetflow.pedidos import fila as modulo
+
+    caminho = tmp_path / "antigo.sqlite3"
+    conexao = sqlite3.connect(caminho)
+    conexao.executescript(modulo._ESQUEMA)
+    conexao.execute(
+        "INSERT INTO pedidos (id, tipo, situacao, projeto, texto, liberdade, corpo, leitura, "
+        "max_tentativas, eventos, criado_em, atualizado_em) VALUES ('ped_velho', 'desenho', "
+        "'concluido', 'principal', 'x', 'fiel', '{}', '{}', 3, '[]', "
+        "'2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')"
+    )
+    conexao.commit()
+    conexao.close()
+
+    velho = _fila(caminho).obter("ped_velho")
+
+    assert velho.situacao is Situacao.CONCLUIDO
+    assert (velho.remendos, velho.candidatos, velho.olhar, velho.envio) == (0, (), None, None)
 
 
 def test_cancelado_durante_o_desenho_nao_conclui(fila: FilaDePedidos):
@@ -180,7 +303,7 @@ def test_cancelado_durante_o_desenho_nao_conclui(fila: FilaDePedidos):
     fila.iniciar(pedido.id)
     fila.cancelar(pedido.id)
 
-    assert fila.concluir(pedido.id, **_desenho(fila, pedido.id)) is None
+    assert fila.aprovar(pedido.id, **_desenho(fila, pedido.id)) is None
     assert fila.reprovar(pedido.id, **_desenho(fila, pedido.id)) is None
     assert fila.obter(pedido.id).situacao is Situacao.CANCELADO
 

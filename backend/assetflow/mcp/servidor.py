@@ -114,16 +114,72 @@ def criar_servidor(
             Field(
                 description=(
                     "Id de um pedido de pedidos_pendentes. Texto, perfil e controles vêm "
-                    "dele: omita pedido e perfil. Aprovado, o pedido fica concluído e "
-                    "aparece na tela."
+                    "dele: omita pedido e perfil. Aprovado no validador, ele espera o seu "
+                    "olhar e concluir_pedido."
                 )
             ),
         ] = None,
-    ) -> str:
-        """Desenha um sprite a partir de uma receita e devolve o laudo: aprovação, nota, problemas, id do asset e caminho do PNG. Para corrigir, passe base=<id> e só o que mudou. Com pedido_id, atende um pedido da fila da tela."""
+    ) -> list:
+        """Desenha um sprite a partir de uma receita e devolve o laudo e a imagem para o seu olhar. Para corrigir, passe base=<id> e só o que mudou. Com pedido_id, atende um pedido da fila: aprovado, ele espera o olhar e concluir_pedido."""
         try:
-            return await servico.desenhar(
+            laudo = await servico.desenhar(
                 pedido=pedido, receita=receita, base=base, perfil=perfil, pedido_id=pedido_id
+            )
+        except ErroDoPedido as exc:
+            raise ToolError(str(exc)) from exc
+        if laudo.imagem is None:
+            return [str(laudo)]
+        return [str(laudo), Image(data=laudo.imagem, format="png")]
+
+    @servidor.tool(structured_output=False)
+    async def concluir_pedido(
+        pedido_id: Annotated[str, Field(description="Id do pedido que você olhou.")],
+        olhar: Annotated[
+            str, Field(description="A linha do que você viu no desenho (até 240 caracteres).")
+        ],
+        asset_id: Annotated[
+            str | None,
+            Field(description="Um desenho aprovado anterior do mesmo pedido, se estava melhor."),
+        ] = None,
+    ) -> str:
+        """Conclui um pedido depois do seu olhar: passe a linha do que viu. Sem asset_id, vale o último desenho aprovado do pedido; com ele, um anterior do mesmo pedido."""
+        try:
+            return await servico.concluir(pedido_id, olhar, asset_id)
+        except ErroDoPedido as exc:
+            raise ToolError(str(exc)) from exc
+
+    @servidor.tool(structured_output=False)
+    async def registrar_licao(
+        asset_id: Annotated[
+            str, Field(description="O asset olhado; tipo, corpo e porte vêm dele.")
+        ],
+        tema: Annotated[
+            str,
+            Field(
+                description=(
+                    "silhueta, proporcao, pose, rosto ou equipamento (forma); valor, luz, "
+                    "cor, contorno ou limpeza (técnica)."
+                )
+            ),
+        ],
+        errou: Annotated[str, Field(description="O que ficou feio ou estranho (até 120).")],
+        porque: Annotated[str, Field(description="Por que aconteceu (até 120).")],
+        regra: Annotated[str, Field(description="A regra para não repetir (até 140).")],
+        geral: Annotated[
+            bool, Field(description="true quando a regra vale para qualquer tipo, corpo e porte.")
+        ] = False,
+        mesma_que: Annotated[
+            str | None, Field(description="Id de uma lição do recorte que esta repete (L3).")
+        ] = None,
+        da_autora: Annotated[
+            bool,
+            Field(description="true ao converter uma opinião da autora sobre este asset."),
+        ] = False,
+    ) -> str:
+        """Registra a lição de um olhar que achou algo feio ou estranho: o que errou, por quê e a regra para não repetir. Lição igual a uma já registrada só soma no contador. As lições voltam no recorte dos próximos pedidos parecidos."""
+        try:
+            return await servico.registrar_licao(
+                asset_id, tema, errou, porque, regra, geral, mesma_que, da_autora
             )
         except ErroDoPedido as exc:
             raise ToolError(str(exc)) from exc
@@ -145,7 +201,7 @@ def criar_servidor(
     async def ver_asset(
         id: Annotated[str, Field(description="Id do asset.")],
     ) -> list:
-        """Mostra o PNG de um asset, ampliado, para revisão visual. Custa mais contexto que o laudo: use só quando precisar ver."""
+        """Mostra um asset como o olhar o vê: ampliado, silhueta em preto e tamanho real (cerca de 300 tokens). Use para olhar de novo um desenho, como um pedido que voltou à fila sem o olhar."""
         try:
             png, legenda = await servico.ver(id)
         except ErroDoPedido as exc:

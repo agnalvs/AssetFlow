@@ -287,6 +287,8 @@ export function etapaLabel(pedido: {
       return "O Claude está desenhando";
     case "corrigindo":
       return `Não aprovado na tentativa ${pedido.tentativas} de ${pedido.max_tentativas} — o Claude vai corrigir`;
+    case "olhando":
+      return "Aprovado no validador — o Claude está olhando o desenho";
     case "pronto":
       return "Pronto";
     case "nao_aprovado":

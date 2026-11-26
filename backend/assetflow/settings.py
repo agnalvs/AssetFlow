@@ -126,6 +126,35 @@ class PedidosSettings(AssetFlowModel):
     #: Quanto esperar por outro processo que esteja escrevendo na fila antes
     #: de desistir com erro (``busy_timeout``). ``ASSETFLOW_PEDIDOS_ESPERA_S``.
     espera_s: float = Field(default=5.0, ge=0)
+    #: Remendos que o olhar pode pedir num pedido depois de um desenho
+    #: aprovado (Fase B2). Um por olhar é da própria forma do fluxo: cada
+    #: remendo devolve uma imagem nova, que é um olhar novo.
+    #: ``ASSETFLOW_PEDIDOS_REMENDOS``.
+    remendos: int = Field(default=2, ge=0, le=10)
+
+
+class AprendizadoSettings(AssetFlowModel):
+    """O que o desenho aprende com o uso (Fase B2 do plano do app).
+
+    Lições, opiniões da autora e os exemplos já mostrados ficam num SQLite em
+    ``data/`` — são da instalação, não vão ao git —, dividido pela API e pelo
+    servidor MCP como a fila de pedidos.
+    """
+
+    #: O arquivo. ``ASSETFLOW_APRENDIZADO_DB``.
+    arquivo: str = "data/aprendizado/aprendizado.sqlite3"
+    #: Liga o exemplo convertido de um sprite CC0 no recorte.
+    #: ``ASSETFLOW_EXEMPLO`` (``0`` desliga) — para medir se ajuda.
+    exemplo: bool = True
+    #: Liga as lições no recorte. ``ASSETFLOW_LICOES`` (``0`` desliga).
+    licoes: bool = True
+    #: Quanto pesa uma lição da autora contra uma do Claude, na ordem do recorte.
+    #: ``ASSETFLOW_LICOES_PESO_AUTORA``.
+    peso_autora: int = Field(default=3, ge=1, le=20)
+    #: Quantas lições entram no recorte de um pedido, no máximo.
+    max_licoes: int = Field(default=5, ge=0, le=20)
+    #: Como ``pedidos.espera_s``: ``busy_timeout`` do SQLite.
+    espera_s: float = Field(default=5.0, ge=0)
 
 
 class Settings(AssetFlowModel):
@@ -142,6 +171,7 @@ class Settings(AssetFlowModel):
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
     api: ApiSettings = Field(default_factory=ApiSettings)
     pedidos: PedidosSettings = Field(default_factory=PedidosSettings)
+    aprendizado: AprendizadoSettings = Field(default_factory=AprendizadoSettings)
 
     #: Conteúdo bruto dos YAMLs (interpretado pelos respectivos registries).
     engines_config: dict[str, Any] = Field(default_factory=dict)
@@ -237,6 +267,11 @@ class Settings(AssetFlowModel):
         return self._resolve(Path(self.pedidos.arquivo))
 
     @property
+    def aprendizado_path(self) -> Path:
+        """O SQLite das lições e opiniões (``data/aprendizado/aprendizado.sqlite3``)."""
+        return self._resolve(Path(self.aprendizado.arquivo))
+
+    @property
     def storage_root(self) -> Path:
         return self._resolve(Path(self.storage.root))
 
@@ -323,6 +358,16 @@ def load_settings(
         tentativas=int(_env("PEDIDOS_TENTATIVAS") or padrao_pedidos.tentativas),
         reserva_min=float(_env("PEDIDOS_RESERVA_MIN") or padrao_pedidos.reserva_min),
         espera_s=float(_env("PEDIDOS_ESPERA_S") or padrao_pedidos.espera_s),
+        remendos=int(_env("PEDIDOS_REMENDOS") or padrao_pedidos.remendos),
+    )
+
+    padrao_aprendizado = AprendizadoSettings()
+    aprendizado = AprendizadoSettings(
+        arquivo=_env("APRENDIZADO_DB") or str(data / "aprendizado" / "aprendizado.sqlite3"),
+        exemplo=_env_bool("EXEMPLO", padrao_aprendizado.exemplo),
+        licoes=_env_bool("LICOES", padrao_aprendizado.licoes),
+        peso_autora=int(_env("LICOES_PESO_AUTORA") or padrao_aprendizado.peso_autora),
+        espera_s=float(_env("PEDIDOS_ESPERA_S") or padrao_aprendizado.espera_s),
     )
 
     return Settings(
@@ -334,6 +379,7 @@ def load_settings(
         worker=worker,
         api=api,
         pedidos=pedidos,
+        aprendizado=aprendizado,
         engines_config=engines_config,
         capabilities_config=capabilities_config,
         profiles_config=profiles_config,

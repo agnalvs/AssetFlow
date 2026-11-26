@@ -12,7 +12,7 @@ Mantenha esse padrão — inclusive nas mensagens de erro voltadas ao usuário.
 Backend (a partir de `backend/`, com a venv ativa):
 
 ```bash
-pytest -q                                # suíte completa (1540 passed, 1 skipped)
+pytest -q                                # suíte completa (1642 passed, 1 skipped)
 pytest tests/test_kernel.py -q           # um arquivo
 pytest tests/test_kernel.py::test_fallback_when_preferred_engine_fails -q   # um teste
 ruff check .                             # lint (sem config própria: defaults do ruff)
@@ -162,8 +162,11 @@ entrega ao Claude uma linha `referências:` no recorte e a ferramenta
 Cinco regras ao mexer ali:
   - **só CC0 entra direto**; outra licença exige `aceitar_atribuicao: true`
     na lista de ativos;
-  - **referência mede estilo, não vira receita**: o recorte só traz números
-    somados, com **peso igual por pacote**, e `ver_referencia` só imagem;
+  - **referência mede estilo; só CC0 vira exemplo**: o recorte traz números
+    somados, com **peso igual por pacote**, e `ver_referencia` só imagem.
+    Desde a Fase B2, um sprite **CC0** pode ser convertido para receita e
+    mostrado como **exemplo de construção** — nunca base de um asset nem
+    remendo; o desenho que repete a silhueta dele é não aprovado;
   - **peso igual exige amostra**: pacote com menos de `minimo_por_pacote`
     quadros numa parte (estilo ou porte) sai dela, e a parte com menos de
     `minimo_de_pacotes` some da linha e do `ver_referencia` (que cai para o
@@ -228,6 +231,37 @@ Feito:
     a cada `desenhar` da leva); a tela pode devolver à fila sem cancelar;
   - **`pedidos/` não importa API, MCP, gaveta nem jobs** (teste de
     fronteiras), e nenhuma gaveta o importa.
+- **Fase B2** (ver, corrigir e aprender) — o `desenhar` devolve a **imagem do
+  olhar** (ampliada, silhueta, tamanho real; 294 tokens) e o **olho do app**
+  (`referencias/olho.py`: desvios contra as referências do mesmo porte e
+  contraste entre camadas da receita, cujo mapa a gaveta grava); o laudo pede
+  o olhar, com a lista de `config/pixel_knowledge/olhar.yaml` no primeiro olhar
+  de cada pedido. O recorte traz **um exemplo de construção** CC0
+  (`referencias/exemplo.py`) e **as lições** (`assetflow/aprendizado/`,
+  SQLite em `data/aprendizado/`). Ferramentas novas: `concluir_pedido` e
+  `registrar_licao`. Na tela: "gostei"/"não gostei" e a lista de lições.
+  Detalhes: [backend/docs/OLHAR.md](backend/docs/OLHAR.md). Cinco regras:
+  - **aprovado no validador não é pronto**: o pedido vai para `em_revisao`
+    (etapa `olhando`) e só `concluir_pedido` o conclui; até
+    `settings.pedidos.remendos` (2) remendos do olhar, que não são tentativas
+    do validador. Revisão devolvida ou vencida volta como "falta o olhar";
+  - **o olho do app só informa**: nenhum desvio reprova nem muda a nota. A
+    única exceção é a guarda "repete o exemplo" (IoU da silhueta com o
+    exemplo mostrado ≥ `olho.iou_copia`). Limiares em `referencias.yaml`,
+    seção `olho:`, todos `a_calibrar`;
+  - **nenhuma pergunta da lista é inventada**: cada uma cita a seção do
+    PIXEL_KNOWLEDGE.md e a regra de origem; `tests/test_olhar_lista.py`
+    confere. O que a base não tem fica de fora, dito no cabeçalho do YAML;
+  - **exemplo e lições têm interruptor e ficam gravados**: `ASSETFLOW_EXEMPLO`
+    e `ASSETFLOW_LICOES`; o que foi entregue vai para o pedido (`envio`) e para
+    o asset (`000_olhar.json`). O exemplo: porte (estilo em ousado), rotação
+    entre pacotes, quadro parado primeiro, teto 1.500; as lições: ligadas, do
+    tipo e corpo, contador × peso (autora 3), 5 e 900 caracteres, só técnica
+    em ousado;
+  - **`aprendizado/` não importa API, MCP, gaveta, jobs, pedidos nem
+    referências**, e nenhuma gaveta o importa. A opinião "não gostei" com
+    motivo fica pendente até o Claude convertê-la (`da_autora=true`), com o
+    texto original ao lado; sem motivo, é só nota.
 
 ## Arquitetura
 
@@ -487,7 +521,8 @@ peça que conhece as duas pontas. Detalhes em
   emudece e o tipo do profile volta a prevalecer.
 - `pixel_knowledge/` — a base de conhecimento do desenhista (plano
   desenhista, Fase 3): paletas e rampas, direção de luz, proporções por forma
-  e tamanho, moldes-base em `silhuetas/`. Só YAML; só a porta MCP a lê.
+  e tamanho, moldes-base em `silhuetas/`, e a lista de verificação do olhar
+  (`olhar.yaml`, Fase B2). Só YAML; só a porta MCP a lê.
   Diretório ausente não quebra o boot: o recorte sai vazio.
   `referencias.yaml` diz quais pacotes de `data/referencias/` estão ativos.
 
@@ -518,7 +553,10 @@ vira uma capacidade em `src/types.ts`. Desde a Fase A do plano do app ela não
 pergunta nada de tecnologia: saíram o seletor e o crédito de motor e o modo 2D
 Normal. Desde a Fase B, **"Gerar" cria um pedido** na fila (`usePedidos`,
 `PedidosList`, `LiberdadeControls`), e o desenho acontece pela conversa com o
-Claude, pelo MCP; o resultado aparece sem recarregar a página. A prévia do painel é a dos pedidos (`/api/pedidos/previa`),
+Claude, pelo MCP; o resultado aparece sem recarregar a página. Desde a Fase
+B2, o pedido aprovado aparece como "olhando" até o Claude concluí-lo; o
+resultado pronto mostra a linha do olhar e "gostei"/"não gostei"
+(`OpiniaoControls`), e `LicoesPanel` lista as lições. A prévia do painel é a dos pedidos (`/api/pedidos/previa`),
 para o spec mostrado ser o gravado. Nenhum id de motor está escrito no frontend.
 
 A tela mostra o `FinalResolvedSpec` que o backend devolve: o painel "O que o AssetFlow

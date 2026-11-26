@@ -146,6 +146,12 @@ líquido na camada seguinte, sem espelho.
   antes de a gaveta rodar.
 - No metadado do artefato: os nomes das camadas, o número de cores usadas e o
   `receita_sha256` (identidade da receita, estável à ordem das chaves).
+- No relatório do motor (`engine_output.json`, `engine_metadata`), desde a Fase
+  B2: os avisos da receita e o **mapa de camadas** (`mapa_de_camadas`: os
+  nomes e uma linha por y, com o símbolo da camada dona de cada pixel — `0` a
+  `9`, `a` a `z`, `A` a `Z`; `.` no transparente). É por ele que o olho do app
+  mede o contraste de valor entre partes vizinhas
+  ([OLHAR.md](OLHAR.md) §2).
 
 ## 4. Erros e avisos
 

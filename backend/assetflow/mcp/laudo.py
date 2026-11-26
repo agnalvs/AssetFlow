@@ -10,6 +10,12 @@ que o validador expõe: pixels isolados (``orphan_positions``) e o lado em que o
 conteúdo encosta na borda (pela caixa do conteúdo e o tamanho da grade). O
 contorno fragmentado o validador só conta — não diz onde —, e o laudo não
 inventa.
+
+Desde a Fase B2, o laudo tem uma segunda fonte de posições: o **olho do app**
+(:mod:`assetflow.referencias.olho`), gravado em ``olhar.json`` ao lado do PNG.
+Ele só informa: nenhum desvio dele reprova. E o laudo termina pedindo o
+**olhar** — a lista de verificação da base no primeiro olhar de cada pedido,
+uma linha lembrando dela nos remendos, e o que fazer depois.
 """
 
 from __future__ import annotations
@@ -20,13 +26,25 @@ from typing import Any
 __all__ = [
     "FORMATO_RECEITA",
     "LIBERDADE_EQUILIBRADO",
+    "MAX_OLHAR",
+    "TETO_LICOES",
     "TETO_PENDENTES",
     "bloco_do_pedido",
+    "bloco_em_revisao",
     "formatar_consulta",
     "formatar_laudo",
     "formatar_pendentes",
+    "instrucao_avulsa",
+    "instrucao_do_pedido",
     "linha_de_liberdade",
+    "secao_de_licoes",
+    "secao_de_opinioes",
 ]
+
+#: Teto da seção de lições no recorte, em caracteres.
+TETO_LICOES = 900
+#: Teto da linha do olhar que conclui um pedido.
+MAX_OLHAR = 240
 
 #: A abertura do recorte em ``equilibrado``. Não cita números: os limites
 #: duros estão nas linhas ``grade``/``paleta``/``fundo`` logo acima.
@@ -68,6 +86,7 @@ _STATUS = {
     "approved": "APROVADO",
     "quality_warning": "NÃO APROVADO (qualidade abaixo do mínimo)",
     "rejected": "REPROVADO (falhou requisito técnico)",
+    "nao_aprovado_fora": "NÃO APROVADO (repete o exemplo de construção)",
 }
 
 #: Os tipos de problema do revisor do Optimizer (``pixel/optimizer/reviewer.py``)
@@ -92,8 +111,12 @@ def formatar_consulta(
     conhecimento: str = "",
     liberdade: str | None = None,
     com_formato: bool = True,
+    extras: str = "",
 ) -> str:
     """O que o AssetFlow entendeu do pedido, o formato da receita e o recorte.
+
+    ``extras`` (o exemplo de construção e as lições, Fase B2) entram depois do
+    recorte, cada um com o seu teto.
 
     ``liberdade`` abre o recorte com a linha dela (nada em ``fiel``). Sem
     ``com_formato``, o formato da receita fica de fora — quem lista vários
@@ -150,6 +173,8 @@ def formatar_consulta(
         linhas.append("conhecimento: (nada da base para este pedido)")
         if abertura:
             linhas.append(abertura)
+    if extras:
+        linhas.append(extras)
     return "\n".join(linhas)
 
 
@@ -220,19 +245,124 @@ def bloco_do_pedido(
     return "\n".join(linhas)
 
 
-def formatar_pendentes(
-    blocos: list[str], *, restantes: int, reserva_min: float, rampas: str
+def bloco_em_revisao(
+    *,
+    pedido_id: str,
+    texto: str,
+    candidato: str,
+    remendos: int,
+    max_remendos: int,
+    esperando_min: int,
 ) -> str:
-    """A resposta de ``pedidos_pendentes``: o comum uma vez, depois cada pedido."""
-    if not blocos:
+    """Um pedido que já tem desenho aprovado e só espera o olhar."""
+    linhas = [
+        f"== {pedido_id} · falta o olhar · na fila há {esperando_min} min",
+        f"pedido: {texto}",
+        (
+            f"já desenhado e aprovado no validador: {candidato}. Veja com ver_asset({candidato}) "
+            f"e conclua com concluir_pedido(pedido_id={pedido_id}, olhar=\"<a linha>\")"
+            + (
+                f", ou remende com desenhar(pedido_id={pedido_id}, base={candidato}, "
+                f"receita=<só o que muda>) (remendos: {remendos} de {max_remendos})"
+                if remendos < max_remendos
+                else f" (os {max_remendos} remendos já foram usados)"
+            )
+        ),
+    ]
+    return "\n".join(linhas)
+
+
+def secao_de_licoes(licoes: list[tuple[str, int, str, str]], *, so_tecnica: bool) -> str:
+    """As lições do recorte: ``(id, contador, origem, regra)``, até :data:`TETO_LICOES`."""
+    if not licoes:
+        return ""
+    cabeca = (
+        "lições de técnica (a forma é livre em ousado; as mais repetidas primeiro):"
+        if so_tecnica
+        else "lições (de desenhos anteriores; as mais repetidas primeiro):"
+    )
+    linhas = [cabeca]
+    total = len(cabeca)
+    for licao_id, contador, origem, regra in licoes:
+        linha = f"- {licao_id} ×{contador}" + (" (autora)" if origem == "autora" else "") + f": {regra}"
+        if total + len(linha) + 1 > TETO_LICOES:
+            break
+        linhas.append(linha)
+        total += len(linha) + 1
+    return "\n".join(linhas) if len(linhas) > 1 else ""
+
+
+def secao_de_opinioes(opinioes: list[tuple[str, str, str]]) -> str:
+    """As opiniões novas da autora: ``(asset_id, pedido do asset, motivo)``."""
+    if not opinioes:
+        return ""
+    linhas = [
+        (
+            f"opiniões novas da autora ({len(opinioes)}): converta cada uma em lição com "
+            "registrar_licao(asset_id=..., da_autora=true, tema=..., errou=..., porque=..., "
+            "regra=...), sem mudar o sentido do texto dela; o texto original fica guardado ao lado."
+        )
+    ]
+    for asset_id, pedido, motivo in opinioes:
+        linhas.append(f"- {asset_id} ({pedido}): \"{motivo}\"")
+    return "\n".join(linhas)
+
+
+def instrucao_do_pedido(
+    pedido_id: str,
+    candidato: str,
+    *,
+    remendos: int,
+    max_remendos: int,
+    candidatos: tuple[str, ...] = (),
+) -> str:
+    """O que fazer depois de olhar um desenho aprovado de um pedido."""
+    if remendos < max_remendos:
         return (
+            "Diga em uma linha o que está feio ou estranho. Se houver algo, corrija com UM "
+            f"remendo — desenhar(pedido_id={pedido_id}, base={candidato}, receita=<só o que "
+            "muda>) — e registre a lição com registrar_licao. Se estiver bom, diga que está e "
+            f"conclua: concluir_pedido(pedido_id={pedido_id}, olhar=\"<a linha>\")."
+        )
+    escolha = (
+        f", com asset_id entre {', '.join(candidatos)} se um anterior estava melhor"
+        if len(candidatos) > 1
+        else ""
+    )
+    return (
+        f"Os {max_remendos} remendos do pedido acabaram: diga em uma linha como ficou e "
+        f"conclua com concluir_pedido(pedido_id={pedido_id}, olhar=\"<a linha>\"){escolha}."
+    )
+
+
+def instrucao_avulsa(asset_id: str) -> str:
+    """O que fazer depois de olhar um desenho avulso (sem pedido da fila)."""
+    return (
+        "Diga em uma linha o que está feio ou estranho. Se houver algo, corrija com um "
+        f"remendo — desenhar(base={asset_id}, receita=<só o que muda>) — e registre a lição "
+        "com registrar_licao. Se estiver bom, diga que está e pare."
+    )
+
+
+def formatar_pendentes(
+    blocos: list[str],
+    *,
+    restantes: int,
+    reserva_min: float,
+    rampas: str,
+    opinioes: str = "",
+) -> str:
+    """A resposta de ``pedidos_pendentes``: as opiniões novas, o comum uma vez, depois cada pedido."""
+    if not blocos:
+        vazio = (
             "nenhum pedido esperando desenho na fila do AssetFlow"
             + (f" (há {restantes} que não couberam nesta resposta)" if restantes else "")
             + "."
         )
+        return f"{opinioes}\n\n{vazio}" if opinioes else vazio
     quantos = len(blocos)
     plural = "s" if quantos > 1 else ""
-    linhas = [
+    linhas = [*([opinioes, ""] if opinioes else []),
         (
             f"{quantos} pedido{plural} da tela, reservado{plural} para você por "
             f"{reserva_min:g} min (mais {restantes} na fila)."
@@ -265,8 +395,17 @@ def formatar_laudo(
     avisos_receita: list[str],
     caminho: Path,
     remendo: str | None = None,
+    falhas_extra: tuple[str, ...] = (),
+    olho: list[str] | None = None,
+    olhar: str | None = None,
+    instrucao: str | None = None,
 ) -> str:
-    """O laudo de um desenho: o veredito primeiro, depois o que fazer com ele."""
+    """O laudo de um desenho: o veredito primeiro, depois o que fazer com ele.
+
+    ``falhas_extra`` são reprovações de fora do validador (a guarda "repete o
+    exemplo"); ``olho``, as linhas do olho do app; ``olhar``, a lista de
+    verificação (ou o lembrete dela); ``instrucao``, o que fazer depois.
+    """
     aceite = validacao.get("acceptance") or {}
     status = aceite.get("status") or variante.status or "desconhecido"
     nota = aceite.get("quality_score", variante.quality_score)
@@ -276,6 +415,8 @@ def formatar_laudo(
     linhas: list[str] = []
     if remendo:
         linhas.append(remendo)
+    if falhas_extra and status == "approved":
+        status = "nao_aprovado_fora"
     linhas.append(f"{_STATUS.get(status, status.upper())} · {asset_id} · {pedido}")
     linhas.append(
         f"Pixel Exact {'✓' if exato else '✗'} · qualidade {nota}/100"
@@ -290,7 +431,7 @@ def formatar_laudo(
         + f" · fundo {_fundo(spec.background.mode)}"
     )
 
-    falhas = [_mensagem(item) for item in aceite.get("failures") or []]
+    falhas = [_mensagem(item) for item in aceite.get("failures") or []] + list(falhas_extra)
     if falhas:
         linhas.append("falhas:")
         linhas.extend(f"- {falha}" for falha in falhas)
@@ -306,6 +447,12 @@ def formatar_laudo(
 
     if otimizacao is not None:
         linhas.append(f"Optimizer: {_otimizacao(otimizacao)}")
+    if olho:
+        linhas.extend(olho)
+    if olhar:
+        linhas.append(olhar)
+    if instrucao:
+        linhas.append(instrucao)
     linhas.append(f"arquivo: {caminho}")
     return "\n".join(linhas)
 

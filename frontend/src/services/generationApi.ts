@@ -17,7 +17,10 @@ import {
 import {
   type GenerationMode,
   type Liberdade,
+  type Licao,
+  type LicaoLista,
   MODES,
+  type Opiniao,
   type Pedido,
   type PedidoCorpo,
   type PedidoDetalhe,
@@ -131,6 +134,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     throw new GenerationApiError(messageForCode(code, reason), code, fields);
   }
 
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
@@ -179,6 +183,48 @@ export function devolverPedido(id: string): Promise<Pedido> {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Aprendizado: lições e opiniões (Fase B2 do plano do app)
+// ---------------------------------------------------------------------------
+const APRENDIZADO_URL = "/api/aprendizado";
+
+/** As lições, as de maior contador primeiro, e os temas aceitos. */
+export function listarLicoes(signal?: AbortSignal): Promise<LicaoLista> {
+  return request<LicaoLista>(`${APRENDIZADO_URL}/licoes`, { signal });
+}
+
+/** Muda o texto da regra, o tema, ou liga e desliga a lição. */
+export function editarLicao(
+  id: string,
+  edicao: { regra?: string; tema?: string; ligada?: boolean },
+): Promise<Licao> {
+  return request<Licao>(`${APRENDIZADO_URL}/licoes/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(edicao),
+  });
+}
+
+export function apagarLicao(id: string): Promise<void> {
+  return request<void>(`${APRENDIZADO_URL}/licoes/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+/** "Gostei" ou "não gostei"; um "não gostei" com motivo vira lição pelo Claude. */
+export function opinar(assetId: string, gostei: boolean, motivo?: string): Promise<Opiniao> {
+  return request<Opiniao>(`${APRENDIZADO_URL}/opinioes/${encodeURIComponent(assetId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ gostei, motivo: motivo?.trim() || null }),
+  });
+}
+
+export async function lerOpiniao(assetId: string): Promise<Opiniao | null> {
+  const resposta = await request<{ items: Record<string, Opiniao> }>(
+    `${APRENDIZADO_URL}/opinioes?assets=${encodeURIComponent(assetId)}`,
+  );
+  return resposta.items[assetId] ?? null;
+}
+
 /**
  * Traduz o código de erro do backend para uma frase útil.
  *
@@ -196,6 +242,9 @@ function messageForCode(code: string, reason?: string): string {
     "fila_corrompida",
     "pedido_nao_encontrado",
     "pedido_em_outra_situacao",
+    "licao_nao_encontrada",
+    "licao_invalida",
+    "aprendizado_indisponivel",
   ]);
   if (legiveis.has(code) && reason) return reason;
 

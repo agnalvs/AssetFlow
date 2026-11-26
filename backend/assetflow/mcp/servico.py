@@ -10,6 +10,21 @@ container montado em ``bootstrap.py``, sem HTTP. E pede a gaveta
 ``desenhista-v1`` **de forma explícita, sem fallback** (plano desenhista §5):
 motor escolhido é motor usado, e um desenho que falhe falha dizendo por quê,
 em vez de virar a saída de um mock.
+
+Fase B2 — ver, corrigir e aprender:
+
+* o ``desenhar`` devolve, junto do laudo, a **imagem do olhar** (ampliada,
+  silhueta em preto e tamanho real) e o **olho do app** (os desvios em relação
+  às referências do mesmo porte, que só informam);
+* num pedido da fila, **aprovado no validador não é pronto**: o pedido espera
+  o olhar e só conclui com ``concluir_pedido``. O olhar pode pedir até
+  ``settings.pedidos.remendos`` remendos;
+* o recorte traz **um exemplo de construção** (um sprite CC0, ou um asset
+  com "gostei", convertido para receita) e **as lições** mais repetidas, cada
+  um com o seu interruptor; o que foi entregue fica gravado no pedido e no
+  asset (``olhar.json``), para medir se ajuda;
+* ``registrar_licao`` guarda o que o olhar aprendeu; as opiniões da autora
+  ("não gostei" com motivo) chegam no ``pedidos_pendentes`` para virar lição.
 """
 
 from __future__ import annotations
@@ -20,8 +35,17 @@ import time
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from PIL import Image
 
+from ..aprendizado import (
+    QUALQUER,
+    ErroDoAprendizado,
+    Opiniao,
+    Origem,
+    SituacaoDaOpiniao,
+    etiquetas_do_spec,
+)
 from ..bootstrap import AppContainer
 from ..generation.kernel.exceptions import GenerationError
 from ..generation.schemas import (
@@ -39,14 +63,35 @@ from ..pedidos import (
     agora_utc,
     nova_leva,
 )
-from ..pixel_knowledge import montar_recorte, porte, rampas_da_base
+from ..pixel_knowledge import (
+    lembrete_da_lista,
+    lista_de_verificacao,
+    montar_recorte,
+    porte,
+    rampas_da_base,
+)
+from ..referencias.exemplo import (
+    FONTE_GOSTEI,
+    CandidatoDeGostei,
+    ExemploConvertido,
+    escolher_exemplo,
+    fontes_do_exemplo,
+)
+from ..referencias.olho import RelatorioDoOlho, olhar_desenho, repete_o_exemplo
 from ..storage.records import GenerationRecord
+from .imagem import imagem_do_olhar
 from .laudo import (
+    MAX_OLHAR,
     TETO_PENDENTES,
     bloco_do_pedido,
+    bloco_em_revisao,
     formatar_consulta,
     formatar_laudo,
     formatar_pendentes,
+    instrucao_avulsa,
+    instrucao_do_pedido,
+    secao_de_licoes,
+    secao_de_opinioes,
 )
 from .remendo import RemendoInvalido, aplicar_remendo
 
@@ -55,6 +100,7 @@ __all__ = [
     "PERFIL_PADRAO",
     "PROJETO",
     "ErroDoPedido",
+    "Laudo",
     "ServicoDesenhista",
 ]
 
@@ -65,14 +111,31 @@ PROJETO = "mcp"
 #: Profile de partida quando o Claude não diz qual. Ele só vale no que o texto
 #: não disser — é a camada mais fraca da precedência depois do padrão global.
 PERFIL_PADRAO = "pixel_character_32"
-#: Lado aproximado, em pixels, da imagem que ``ver_asset`` devolve.
-LADO_DA_AMPLIACAO = 256
 #: Quantos pedidos ``pedidos_pendentes`` traz, no máximo, de uma vez.
 MAXIMO_PENDENTES = 10
+#: Quantos assets com "gostei" são lidos do disco para virar exemplo, no máximo.
+MAXIMO_GOSTEI = 3
 
 
 class ErroDoPedido(Exception):
     """Algo que o Claude precisa corrigir; a mensagem diz o quê, em português."""
+
+
+class Laudo(str):
+    """O laudo em texto, com a imagem do olhar pendurada (``imagem``).
+
+    É um ``str`` para quem só lê o texto; o servidor devolve as duas partes.
+    """
+
+    imagem: bytes | None = None
+    ampliacao: int | None = None
+
+    @classmethod
+    def com_imagem(cls, texto: str, imagem: bytes | None, ampliacao: int | None) -> Laudo:
+        laudo = cls(texto)
+        laudo.imagem = imagem
+        laudo.ampliacao = ampliacao
+        return laudo
 
 
 class ServicoDesenhista:
@@ -81,9 +144,14 @@ class ServicoDesenhista:
     def __init__(self, container: AppContainer, *, timeout_s: float | None = None) -> None:
         self._container = container
         self._service = container.service
+        self._caixa = container.aprendizado
+        self._config = container.settings.aprendizado
         # O teto do worker já envolve o pipeline inteiro; esperar além dele
         # não faria um job terminar.
         self._timeout_s = timeout_s or (container.settings.worker.job_timeout_s + 30.0)
+        # O que o último consultar_pedido avulso entregou, por (texto, perfil):
+        # o desenho avulso não tem pedido na fila para guardar o envio.
+        self._envios: dict[tuple[str, str], dict[str, Any]] = {}
 
     # ------------------------------------------------------------------
     def perfis(self) -> list[str]:
@@ -116,14 +184,21 @@ class ServicoDesenhista:
             referencias=self._container.referencias,
             liberdade=livre,
         )
-        return formatar_consulta(texto, perfil, spec, conhecimento=recorte, liberdade=livre.value)
+        extras, envio, fonte = self._extras(spec, livre, set())
+        if fonte:
+            self._exemplo_mostrado(fonte)
+        self._envios[(texto, perfil)] = envio
+        return formatar_consulta(
+            texto, perfil, spec, conhecimento=recorte, liberdade=livre.value, extras=extras
+        )
 
     # ------------------------------------------------------------------
     async def pedidos_pendentes(self, limite: int = 5) -> str:
-        """Os pedidos da tela que esperam desenho, já com a consulta de cada um.
+        """Os pedidos da tela que esperam desenho (ou olhar), já com a consulta de cada um.
 
         Reserva só os que entram na resposta: o pedido que não couber no teto
-        fica na fila, sem reserva, para a próxima chamada.
+        fica na fila, sem reserva, para a próxima chamada. As opiniões novas
+        da autora vêm primeiro, para virarem lição.
         """
         limite = max(1, min(int(limite), MAXIMO_PENDENTES))
         fila = self._container.pedidos.fila
@@ -133,32 +208,44 @@ class ServicoDesenhista:
         except ErroDaFila as exc:
             raise ErroDoPedido(str(exc)) from exc
 
+        opinioes = await self._opinioes_pendentes()
         rampas = rampas_da_base(self._container.conhecimento)
-        # O que vem uma vez só (cabeçalho, formato da receita, rampas) entra na
-        # conta antes dos pedidos; cada pedido entra inteiro ou não entra.
-        total = 400 + len(rampas) + 600
-        escolhidos: list[tuple[str, str]] = []
+        # O que vem uma vez só (cabeçalho, formato da receita, rampas,
+        # opiniões) entra na conta antes dos pedidos; cada pedido entra
+        # inteiro ou não entra.
+        total = 400 + len(rampas) + 600 + len(opinioes)
+        escolhidos: list[tuple[str, str, dict[str, Any] | None, str | None]] = []
+        usadas: set[str] = set()
         for candidato in candidatos:
-            bloco = await self._bloco(candidato, agora)
+            bloco, envio, fonte = await self._bloco(candidato, agora, usadas)
             if escolhidos and total + len(bloco) + 2 > TETO_PENDENTES:
                 break
-            escolhidos.append((candidato.id, bloco))
+            escolhidos.append((candidato.id, bloco, envio, fonte))
+            if fonte:
+                usadas.add(fonte)
             total += len(bloco) + 2
 
         try:
             reservados = {
                 pedido.id
-                for pedido in fila.reservar([pid for pid, _ in escolhidos], nova_leva(), agora)
+                for pedido in fila.reservar([pid for pid, *_ in escolhidos], nova_leva(), agora)
             }
+            for pid, _, envio, fonte in escolhidos:
+                if pid not in reservados or envio is None:
+                    continue
+                fila.gravar_envio(pid, envio)
+                if fonte:
+                    self._exemplo_mostrado(fonte)
             restantes = fila.contar_na_fila(agora)
         except ErroDaFila as exc:
             raise ErroDoPedido(str(exc)) from exc
-        blocos = [bloco for pid, bloco in escolhidos if pid in reservados]
+        blocos = [bloco for pid, bloco, *_ in escolhidos if pid in reservados]
         return formatar_pendentes(
             blocos,
             restantes=restantes,
             reserva_min=fila.reserva.total_seconds() / 60,
             rampas=rampas,
+            opinioes=opinioes,
         )
 
     # ------------------------------------------------------------------
@@ -169,7 +256,7 @@ class ServicoDesenhista:
         base: str | None = None,
         perfil: str | None = None,
         pedido_id: str | None = None,
-    ) -> str:
+    ) -> Laudo:
         if pedido_id:
             return await self._desenhar_pedido(
                 pedido_id, receita=receita, base=base, pedido=pedido, perfil=perfil
@@ -195,28 +282,137 @@ class ServicoDesenhista:
         if job.status.value != "completed":
             mensagem = job.error.message if job.error else f"o job terminou como {job.status.value}"
             raise ErroDoPedido(mensagem)
-        return await self._laudo(job, texto, primeira_linha)
+
+        envio = self._envios.get((texto, perfil))
+        olhado = await self._olhar(job, envio)
+        falhas = (
+            (
+                (
+                    f"repete o exemplo de construção (silhueta com IoU {_virgula(olhado.iou)}): "
+                    "este desenho não vale; desenhe outro do zero"
+                ),
+            )
+            if olhado.iou is not None
+            else ()
+        )
+        aprovado = job.asset.variants[0].status == "approved" and not falhas
+        laudo = await self._laudo(
+            job,
+            texto,
+            primeira_linha,
+            falhas_extra=falhas,
+            olho=olhado.relatorio.linhas(),
+            olhar=(
+                self._lista(job.resolved_spec, olhado.ampliacao)
+                if not base
+                else lembrete_da_lista(job.resolved_spec, self._container.conhecimento.olhar)
+            ),
+            instrucao=instrucao_avulsa(job.asset.id) if aprovado else None,
+        )
+        await self._gravar_olhar(job, olhado, envio, primeiro_olhar=not base)
+        return Laudo.com_imagem(laudo, olhado.png, olhado.ampliacao)
+
+    # ------------------------------------------------------------------
+    async def concluir(self, pedido_id: str, olhar: str, asset_id: str | None = None) -> str:
+        """O olhar terminou: o pedido conclui com um dos desenhos aprovados dele."""
+        olhar = (olhar or "").strip()
+        if not olhar:
+            raise ErroDoPedido("falta 'olhar': a linha do que você viu no desenho")
+        if len(olhar) > MAX_OLHAR:
+            raise ErroDoPedido(f"'olhar' tem {len(olhar)} caracteres; o teto é {MAX_OLHAR}")
+        try:
+            concluido = self._container.pedidos.fila.concluir(
+                pedido_id, olhar=olhar, asset_id=asset_id or None
+            )
+        except ErroDaFila as exc:
+            raise ErroDoPedido(str(exc)) from exc
+        linhas = [
+            (
+                f"pedido {pedido_id}: concluído com {concluido.asset_id} depois do olhar; ele já "
+                "aparece na tela."
+            )
+        ]
+        sem_licao = self._remendos_sem_licao(concluido)
+        if sem_licao:
+            linhas.append(
+                "remendo sem lição registrada: "
+                + ", ".join(sem_licao)
+                + " — se o olhar achou algo, registre com registrar_licao(asset_id=...)."
+            )
+        return "\n".join(linhas)
+
+    # ------------------------------------------------------------------
+    async def registrar_licao(
+        self,
+        asset_id: str,
+        tema: str,
+        errou: str,
+        porque: str,
+        regra: str,
+        geral: bool = False,
+        mesma_que: str | None = None,
+        da_autora: bool = False,
+    ) -> str:
+        """Guarda a lição de um olhar; as etiquetas vêm do spec do asset."""
+        registro = await self._registro(asset_id)
+        try:
+            spec = await self._container.pedidos.spec_do_asset(registro)
+        except GenerationError as exc:
+            raise ErroDoPedido(exc.message) from exc
+        tipo, corpo, grade = etiquetas_do_spec(spec)
+        if geral:
+            tipo = corpo = grade = QUALQUER
+        opiniao: Opiniao | None = None
+        try:
+            if da_autora:
+                opiniao = self._caixa.opiniao(asset_id)
+                if opiniao is None or opiniao.situacao is SituacaoDaOpiniao.NOTA:
+                    raise ErroDoPedido(
+                        f"não há opinião pendente da autora sobre {asset_id}: da_autora=true "
+                        "só converte um \"não gostei\" com motivo"
+                    )
+                if opiniao.situacao is SituacaoDaOpiniao.CONVERTIDA:
+                    raise ErroDoPedido(
+                        f"a opinião sobre {asset_id} já virou a lição L{opiniao.licao}"
+                    )
+            registrado = self._caixa.registrar(
+                errou=errou,
+                porque=porque,
+                regra=regra,
+                tema=tema,
+                tipo=tipo,
+                corpo=corpo,
+                porte=grade,
+                origem=Origem.AUTORA if da_autora else Origem.CLAUDE,
+                texto_da_autora=opiniao.motivo if opiniao else None,
+                asset_id=asset_id,
+                pedido_id=self._pedido_do_asset(asset_id),
+                mesma_que=mesma_que,
+            )
+            if opiniao is not None:
+                self._caixa.converter(asset_id, registrado.licao.numero)
+        except ErroDoAprendizado as exc:
+            raise ErroDoPedido(str(exc)) from exc
+        etiquetas = f"{registrado.licao.tipo} · {registrado.licao.corpo} · {registrado.licao.porte}"
+        return f"{registrado.texto()} · {etiquetas}" + (
+            " · da autora, com o texto original guardado ao lado" if da_autora else ""
+        )
 
     # ------------------------------------------------------------------
     async def ver(self, asset_id: str) -> tuple[bytes, str]:
-        """O PNG do asset ampliado por vizinho mais próximo, e uma legenda."""
+        """A imagem do olhar de um asset (ampliada, silhueta e tamanho real), e uma legenda."""
         registro = await self._registro(asset_id)
         if not registro.outputs:
             raise ErroDoPedido(f"o asset '{asset_id}' não tem arquivo gravado")
         saida = registro.outputs[0]
-        original = Image.open(io.BytesIO(await self._container.storage.read(saida.uri)))
-        maior = max(original.width, original.height)
-        escala = max(1, LADO_DA_AMPLIACAO // maior)
-        ampliada = original.convert("RGBA").resize(
-            (original.width * escala, original.height * escala), Image.NEAREST
-        )
-        buffer = io.BytesIO()
-        ampliada.save(buffer, format="PNG")
+        png = await self._container.storage.read(saida.uri)
+        imagem, ampliacao, _ = imagem_do_olhar(png)
         legenda = (
-            f"{asset_id} · {original.width}×{original.height} ampliado {escala}× · "
+            f"{asset_id} · {saida.logical_width or saida.width}×{saida.logical_height or saida.height}"
+            f" · ampliado {ampliacao}×, silhueta em preto e tamanho real (2× e 1×) · "
             f"{saida.status or 'sem veredito'}"
         )
-        return buffer.getvalue(), legenda
+        return imagem, legenda
 
     # ------------------------------------------------------------------
     def ver_referencia(
@@ -257,7 +453,7 @@ class ServicoDesenhista:
         base: str | None,
         pedido: str | None,
         perfil: str | None,
-    ) -> str:
+    ) -> Laudo:
         """Desenha um pedido da fila com o spec gravado nele, sem resolver de novo."""
         if pedido or perfil:
             raise ErroDoPedido(
@@ -272,6 +468,9 @@ class ServicoDesenhista:
         except ErroDaFila as exc:
             raise ErroDoPedido(str(exc)) from exc
 
+        remendo_do_olhar = registro.remendando
+        primeiro_olhar = not registro.candidatos and registro.tentativas == 0
+        anterior = registro.asset_id if remendo_do_olhar else None
         base = base or (registro.origem_asset_id if registro.tipo is Tipo.AJUSTE else None)
         primeira_linha: str | None = None
         try:
@@ -294,24 +493,77 @@ class ServicoDesenhista:
                 f"desenhar(pedido_id={pedido_id}) de novo)"
             ) from exc
 
-        laudo = await self._laudo(job, registro.texto, primeira_linha)
+        olhado = await self._olhar(job, registro.envio)
+        motivo = (
+            f"repete o exemplo de construção (IoU {_virgula(olhado.iou)})"
+            if olhado.iou is not None
+            else None
+        )
         asset_id = job.asset.id
-        aprovado = job.asset.variants[0].status == "approved"
+        aprovado = job.asset.variants[0].status == "approved" and motivo is None
+        laudo_curto = await self._laudo(job, registro.texto, primeira_linha)
         dados = {
             "asset_id": asset_id,
             "job_id": job.id,
             "asset_projeto": registro.projeto,
-            "laudo": laudo,
+            "laudo": laudo_curto,
         }
         try:
-            depois = fila.concluir(pedido_id, **dados) if aprovado else fila.reprovar(pedido_id, **dados)
-            situacao = self._situacao_do_pedido(pedido_id, asset_id, depois, aprovado)
+            depois = (
+                fila.aprovar(pedido_id, **dados)
+                if aprovado
+                else fila.reprovar(pedido_id, **dados, motivo=motivo)
+            )
         except ErroDaFila as exc:
+            depois = None
             situacao = f"pedido {pedido_id}: o desenho saiu, mas a fila não respondeu — {exc}"
-        return f"{situacao}\n{laudo}"
+        else:
+            situacao = self._situacao_do_pedido(
+                pedido_id, asset_id, depois, aprovado, remendo=remendo_do_olhar, anterior=anterior
+            )
+
+        instrucao = None
+        if depois is not None and depois.situacao is Situacao.EM_REVISAO:
+            instrucao = instrucao_do_pedido(
+                pedido_id,
+                depois.asset_id or asset_id,
+                remendos=depois.remendos,
+                max_remendos=depois.max_remendos,
+                candidatos=depois.candidatos,
+            )
+        aviso = []
+        if remendo_do_olhar and anterior and not self._tem_licao(anterior):
+            aviso.append(
+                f"o remendo saiu sem lição registrada para {anterior}: se o olhar achou algo, "
+                f"registre com registrar_licao(asset_id={anterior}, ...)"
+            )
+        laudo = await self._laudo(
+            job,
+            registro.texto,
+            primeira_linha,
+            falhas_extra=(motivo,) if motivo else (),
+            olho=olhado.relatorio.linhas(),
+            olhar=(
+                self._lista(registro.spec, olhado.ampliacao)
+                if primeiro_olhar
+                else lembrete_da_lista(registro.spec, self._container.conhecimento.olhar)
+            ),
+            instrucao="\n".join([*aviso, instrucao]) if instrucao else ("\n".join(aviso) or None),
+        )
+        await self._gravar_olhar(
+            job, olhado, registro.envio, primeiro_olhar=primeiro_olhar, pedido_id=pedido_id
+        )
+        return Laudo.com_imagem(f"{situacao}\n{laudo}", olhado.png, olhado.ampliacao)
 
     def _situacao_do_pedido(
-        self, pedido_id: str, asset_id: str, depois: Pedido | None, aprovado: bool
+        self,
+        pedido_id: str,
+        asset_id: str,
+        depois: Pedido | None,
+        aprovado: bool,
+        *,
+        remendo: bool = False,
+        anterior: str | None = None,
     ) -> str:
         """A primeira linha do laudo de um pedido: o que aconteceu com ele."""
         if depois is None:
@@ -323,8 +575,19 @@ class ServicoDesenhista:
                 Situacao.FALHOU: "já tinha terminado sem aprovação",
             }.get(atual.situacao, "mudou de situação durante o desenho")
             return f"pedido {pedido_id}: {motivo}; {asset_id} ficou avulso, fora do pedido"
+        remendos = f"remendos: {depois.remendos} de {depois.max_remendos}"
         if aprovado:
-            return f"pedido {pedido_id}: concluído com {asset_id}; ele já aparece na tela"
+            quem = "remendo aprovado" if remendo else "aprovado"
+            return (
+                f"pedido {pedido_id}: {quem} no validador com {asset_id}; falta o seu olhar "
+                f"({remendos})"
+            )
+        if remendo and depois.situacao is Situacao.EM_REVISAO:
+            return (
+                f"pedido {pedido_id}: o remendo {asset_id} não foi aprovado"
+                + (f" ({depois.motivo})" if depois.motivo else "")
+                + f"; o candidato continua {depois.asset_id or anterior} ({remendos})"
+            )
         if depois.situacao is Situacao.FALHOU:
             return (
                 f"pedido {pedido_id}: falhou — {depois.max_tentativas} desenhos sem "
@@ -336,8 +599,23 @@ class ServicoDesenhista:
             f"base={asset_id}, receita=<só o que muda>)"
         )
 
-    async def _bloco(self, pedido: Pedido, agora) -> str:
-        """Um pedido na resposta de ``pedidos_pendentes``."""
+    async def _bloco(
+        self, pedido: Pedido, agora, usadas: set[str]
+    ) -> tuple[str, dict[str, Any] | None, str | None]:
+        """Um pedido na resposta de ``pedidos_pendentes``, o envio e a fonte do exemplo."""
+        esperando = max(0, int((agora - pedido.criado_em).total_seconds() // 60))
+        if pedido.candidatos:
+            # Já há desenho aprovado: falta só o olhar. Nada de exemplo nem
+            # lição — o envio do primeiro desenho continua valendo.
+            bloco = bloco_em_revisao(
+                pedido_id=pedido.id,
+                texto=pedido.texto,
+                candidato=pedido.asset_id or pedido.candidatos[-1],
+                remendos=pedido.remendos,
+                max_remendos=pedido.max_remendos,
+                esperando_min=esperando,
+            )
+            return bloco, None, None
         spec = pedido.spec
         texto = pedido.texto
         base_linha = None
@@ -357,6 +635,7 @@ class ServicoDesenhista:
             liberdade=pedido.liberdade,
             rampas=False,
         )
+        extras, envio, fonte = self._extras(spec, pedido.liberdade, usadas)
         consulta = formatar_consulta(
             texto,
             spec.profile_id,
@@ -364,12 +643,13 @@ class ServicoDesenhista:
             conhecimento=recorte,
             liberdade=pedido.liberdade.value,
             com_formato=False,
+            extras=extras,
         )
-        return bloco_do_pedido(
+        bloco = bloco_do_pedido(
             pedido_id=pedido.id,
             tipo=pedido.tipo.value,
             liberdade=pedido.liberdade.value,
-            esperando_min=max(0, int((agora - pedido.criado_em).total_seconds() // 60)),
+            esperando_min=esperando,
             consulta=consulta,
             direcao_de_arte=pedido.direcao_de_arte,
             tentativas=pedido.tentativas,
@@ -377,6 +657,232 @@ class ServicoDesenhista:
             ultimo_asset=pedido.asset_id,
             ajuste=ajuste,
             base=base_linha,
+        )
+        return bloco, envio, fonte
+
+    async def _opinioes_pendentes(self) -> str:
+        try:
+            pendentes = self._caixa.pendentes()
+        except ErroDoAprendizado as exc:
+            return f"opiniões da autora: indisponíveis ({exc})"
+        itens = []
+        for opiniao in pendentes:
+            try:
+                prompt = (await self._registro(opiniao.asset_id)).user_prompt
+            except ErroDoPedido:
+                prompt = "fora do histórico"
+            itens.append((opiniao.asset_id, prompt, opiniao.motivo or ""))
+        return secao_de_opinioes(itens)
+
+    # ------------------------------------------------------------------
+    # Exemplo de construção e lições (Fase B2)
+    # ------------------------------------------------------------------
+    def _extras(
+        self, spec: Any, liberdade: Liberdade, usadas: set[str]
+    ) -> tuple[str, dict[str, Any], str | None]:
+        """O exemplo e as lições do recorte, o envio para gravar e a fonte do exemplo."""
+        ligado_exemplo = bool(self._config.exemplo)
+        ligado_licoes = bool(self._config.licoes)
+        envio: dict[str, Any] = {
+            "liberdade": liberdade.value,
+            "exemplo_ligado": ligado_exemplo,
+            "licoes_ligadas": ligado_licoes,
+            "exemplo": None,
+            "licoes": [],
+        }
+        alvo = porte(spec, self._container.conhecimento)
+        if alvo is None:
+            return "", envio, None
+        ousado = liberdade is Liberdade.OUSADO
+        logica = spec.logical_resolution
+        grade = f"{logica.width}x{logica.height}"
+        partes: list[str] = []
+        fonte = None
+
+        if ligado_exemplo:
+            exemplo = self._exemplo(alvo, grade, ousado, usadas)
+            if exemplo is not None:
+                partes.append(exemplo.texto)
+                envio["exemplo"] = exemplo.como_dict()
+                fonte = exemplo.fonte
+
+        if ligado_licoes:
+            try:
+                licoes = self._caixa.escolher(
+                    tipo=alvo.tipo,
+                    corpo=alvo.corpo,
+                    porte=grade,
+                    so_tecnica=ousado,
+                    peso_autora=self._config.peso_autora,
+                    maximo=self._config.max_licoes,
+                )
+            except ErroDoAprendizado as exc:
+                partes.append(f"lições: indisponíveis ({exc})")
+                licoes = []
+            secao = secao_de_licoes(
+                [(l.id, l.contador, l.origem.value, l.regra) for l in licoes], so_tecnica=ousado
+            )
+            if secao:
+                partes.append(secao)
+                mostradas = {linha.split(" ", 2)[1] for linha in secao.splitlines()[1:]}
+                envio["licoes"] = [
+                    {"id": l.id, "contador": l.contador, "origem": l.origem.value}
+                    for l in licoes
+                    if l.id in mostradas
+                ]
+        return "\n".join(partes), envio, fonte
+
+    def _exemplo(
+        self, alvo: Any, grade: str, ousado: bool, usadas: set[str]
+    ) -> ExemploConvertido | None:
+        referencias = self._container.referencias
+        fontes = fontes_do_exemplo(
+            referencias, alvo.tipo, alvo.corpo, alvo.altura, por_estilo=ousado
+        )
+        gostei = self._gostei(alvo, grade)
+        nomes = list(fontes) + ([FONTE_GOSTEI] if gostei else [])
+        if not nomes:
+            return None
+        try:
+            ordem = self._caixa.ordem_das_fontes(nomes)
+        except ErroDoAprendizado:
+            ordem = sorted(nomes)
+        # Na mesma resposta, uma fonte já usada vai para o fim: pedidos
+        # seguidos recebem exemplos de pacotes diferentes.
+        ordem = [f for f in ordem if f not in usadas] + [f for f in ordem if f in usadas]
+        return escolher_exemplo(referencias, fontes, ordem, gostei=gostei)
+
+    def _gostei(self, alvo: Any, grade: str) -> list[CandidatoDeGostei]:
+        """Os assets com "gostei" do mesmo tipo, corpo e grade, lidos do disco local."""
+        try:
+            opinioes = self._caixa.gostei(tipo=alvo.tipo, corpo=alvo.corpo, porte=grade)
+        except ErroDoAprendizado:
+            return []
+        storage = self._container.storage
+        raiz = getattr(storage.backend, "root", None)
+        por_asset = {opiniao.asset_id for opiniao in opinioes[:MAXIMO_GOSTEI]}
+        if raiz is None or not por_asset:
+            return []
+        candidatos = []
+        # O consultar é síncrono e o repositório do histórico é assíncrono:
+        # o histórico é lido direto do arquivo, como o repositório o lê.
+        for registro in self._registros_sincronos():
+            if registro.asset_id in por_asset and registro.outputs:
+                chave = storage.backend.key_from_uri(registro.outputs[0].uri)
+                if not chave:
+                    continue
+                try:
+                    with Image.open(Path(raiz) / chave) as imagem:
+                        rgba = np.asarray(imagem.convert("RGBA")).copy()
+                except OSError:
+                    continue
+                rgba[rgba[..., 3] < 128] = 0
+                candidatos.append(CandidatoDeGostei(asset_id=registro.asset_id, rgba=rgba))
+        return candidatos
+
+    def _registros_sincronos(self) -> list[GenerationRecord]:
+        """O histórico lido direto do arquivo (o ``consultar`` é síncrono)."""
+        caminho = self._container.settings.history_path
+        if not caminho.is_file():
+            return []
+        registros = []
+        for linha in caminho.read_text(encoding="utf-8").splitlines():
+            if not linha.strip():
+                continue
+            try:
+                registros.append(GenerationRecord.do_historico(json.loads(linha)))
+            except (ValueError, TypeError):
+                continue
+        return registros
+
+    def _exemplo_mostrado(self, fonte: str) -> None:
+        try:
+            self._caixa.exemplo_mostrado(fonte)
+        except ErroDoAprendizado:
+            pass  # a rotação é conforto; o exemplo já foi entregue
+
+    def _tem_licao(self, asset_id: str) -> bool:
+        try:
+            return any(
+                licao.asset_id == asset_id or asset_id in licao.assets
+                for licao in self._caixa.listar()
+            )
+        except ErroDoAprendizado:
+            return True  # sem como saber, não acusa
+
+    def _remendos_sem_licao(self, pedido: Pedido) -> list[str]:
+        """Os candidatos que foram remendados (todos menos o último) e não têm lição."""
+        remendados = list(pedido.candidatos[:-1]) if len(pedido.candidatos) > 1 else []
+        return [asset for asset in remendados if not self._tem_licao(asset)]
+
+    def _pedido_do_asset(self, asset_id: str) -> str | None:
+        try:
+            for pedido in self._container.pedidos.fila.listar(limite=300):
+                if asset_id in pedido.candidatos or pedido.asset_id == asset_id:
+                    return pedido.id
+        except ErroDaFila:
+            return None
+        return None
+
+    # ------------------------------------------------------------------
+    # O olhar: imagem, olho do app, guarda do exemplo
+    # ------------------------------------------------------------------
+    async def _olhar(self, job, envio: dict[str, Any] | None) -> _Olhado:
+        variante = job.asset.variants[0]
+        png = await self._container.storage.read(variante.uri)
+        with Image.open(io.BytesIO(png)) as aberta:
+            rgba = np.asarray(aberta.convert("RGBA")).copy()
+        rgba[rgba[..., 3] < 128] = 0
+        saida_motor = await self._json(variante.artifacts.get("engine_output.json"))
+        mapa_bruto = ((saida_motor or {}).get("engine_metadata") or {}).get("mapa_de_camadas")
+        mapa = (
+            (mapa_bruto.get("nomes") or [], mapa_bruto.get("linhas") or [])
+            if isinstance(mapa_bruto, dict)
+            else None
+        )
+        spec = job.resolved_spec
+        alvo = porte(spec, self._container.conhecimento)
+        referencias = self._container.referencias
+        relatorio = olhar_desenho(
+            rgba,
+            referencias,
+            tipo=alvo.tipo if alvo else str(getattr(spec.asset.type, "value", spec.asset.type)),
+            corpo=alvo.corpo if alvo else None,
+            altura_do_corpo=alvo.altura if alvo else None,
+            mapa_de_camadas=mapa,
+        )
+        exemplo = (envio or {}).get("exemplo") or {}
+        iou = repete_o_exemplo(rgba, exemplo.get("px") or (), referencias.configuracao.olho.iou_copia)
+        imagem, ampliacao, _ = imagem_do_olhar(png)
+        return _Olhado(png=imagem, ampliacao=ampliacao, relatorio=relatorio, iou=iou)
+
+    def _lista(self, spec: Any, ampliacao: int) -> str:
+        base = self._container.conhecimento
+        luz = base.luz.padrao if base.luz is not None else None
+        return lista_de_verificacao(spec, base.olhar, ampliacao=ampliacao, luz_padrao=luz)
+
+    async def _gravar_olhar(
+        self,
+        job,
+        olhado: _Olhado,
+        envio: dict[str, Any] | None,
+        *,
+        primeiro_olhar: bool,
+        pedido_id: str | None = None,
+    ) -> None:
+        """``olhar.json`` ao lado do PNG: o olho, o que foi entregue e a guarda."""
+        documento = {
+            "pedido_id": pedido_id,
+            "primeiro_olhar": primeiro_olhar,
+            "olho": olhado.relatorio.como_dict(),
+            "repete_o_exemplo": olhado.iou,
+            "envio": envio,
+        }
+        await self._container.storage.persist_artifacts(
+            project_id=job.asset.project_id,
+            job_id=job.id,
+            index=0,
+            artifacts={"olhar.json": json.dumps(documento, ensure_ascii=False, indent=2).encode("utf-8")},
         )
 
     async def _remendar(
@@ -448,7 +954,17 @@ class ServicoDesenhista:
             job = await self._service.get_job(job.id)
         return job
 
-    async def _laudo(self, job, texto: str, primeira_linha: str | None) -> str:
+    async def _laudo(
+        self,
+        job,
+        texto: str,
+        primeira_linha: str | None,
+        *,
+        falhas_extra: tuple[str, ...] = (),
+        olho: list[str] | None = None,
+        olhar: str | None = None,
+        instrucao: str | None = None,
+    ) -> str:
         asset = job.asset
         variante = asset.variants[0]
         storage = self._container.storage
@@ -472,6 +988,10 @@ class ServicoDesenhista:
             avisos_receita=avisos,
             caminho=caminho,
             remendo=primeira_linha,
+            falhas_extra=falhas_extra,
+            olho=olho,
+            olhar=olhar,
+            instrucao=instrucao,
         )
 
     async def _json(self, uri: str | None) -> dict[str, Any] | None:
@@ -515,6 +1035,24 @@ class ServicoDesenhista:
         if not texto:
             raise ErroDoPedido("o pedido está vazio: descreva o que desenhar")
         return texto
+
+
+class _Olhado:
+    """O que ``_olhar`` produz: a imagem, a ampliação, o olho e a guarda."""
+
+    __slots__ = ("ampliacao", "iou", "png", "relatorio")
+
+    def __init__(
+        self, *, png: bytes, ampliacao: int, relatorio: RelatorioDoOlho, iou: float | None
+    ) -> None:
+        self.png = png
+        self.ampliacao = ampliacao
+        self.relatorio = relatorio
+        self.iou = iou
+
+
+def _virgula(valor: float | None) -> str:
+    return f"{valor:.2f}".replace(".", ",") if valor is not None else "?"
 
 
 def _linha_da_base(registro: GenerationRecord) -> str:

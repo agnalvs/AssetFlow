@@ -162,10 +162,28 @@ São seis fases, e a partir da segunda o app já é usável do jeito novo. Cada 
 
 **Marco**: montar três pedidos na tela, pedir na conversa, e ver os três resultados aparecerem na tela.
 
+### Fase B2: ver, corrigir e aprender
+
+Acrescentada depois da B, a pedido da autora: o desenho era feito às cegas, e o
+laudo dava 96 a 100 para qualquer coisa. Detalhes em [OLHAR.md](OLHAR.md).
+
+- **Ver e corrigir**: o `desenhar` devolve a imagem do olhar (ampliada,
+  silhueta, tamanho real) e o laudo pede um olhar com a lista de verificação da
+  base; aprovado no validador não é pronto — o pedido conclui com
+  `concluir_pedido`, com até 2 remendos do olhar.
+- **O olho do app**: o desenho medido contra as referências do mesmo porte;
+  só desvios, que só informam.
+- **Exemplos reais**: um sprite CC0 convertido para receita no recorte (nunca
+  base nem remendo), em rotação entre os pacotes.
+- **Aprendizado**: `registrar_licao`, lições no recorte, "gostei" e "não
+  gostei" na tela, lista de lições editável.
+
 ### Fase C: galeria e detalhe
 
 - Galeria lendo o histórico do backend, com todos os projetos.
-- Filtros, favoritos, descarte e agrupamento por família de remendos.
+- Filtros, favoritos, descarte e agrupamento por família de remendos. Os
+  favoritos reaproveitam o "gostei" da Fase B2 (`data/aprendizado/`): um
+  sistema só.
 - Tela de detalhe com laudo, receita em camadas, paleta e versões.
 - Campo "pedir ajuste", que cria um pedido de remendo na fila.
 - Download do PNG e das versões ampliadas.

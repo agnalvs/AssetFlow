@@ -4,26 +4,24 @@ São dois processos — o uvicorn e o ``python -m assetflow.mcp`` que o Claude
 Code sobe —, cada um com a sua fila de jobs em memória. A fila de pedidos é o
 que os dois precisam ver, e por isso mora em disco (``data/pedidos/``).
 
-Quatro regras de acesso, todas por causa de haver dois processos:
+As regras de acesso — conexão curta, WAL com o ``-wal`` mantido entre
+conexões, ``busy_timeout``, ``synchronous=NORMAL`` — estão em
+:mod:`assetflow.sqlite_curto`, que a fila divide com as lições. Duas são da
+fila:
 
-* **conexão curta**: cada operação abre, faz e fecha. Nenhum processo segura
-  o arquivo entre uma chamada e outra;
-* **WAL e ``busy_timeout``**: leitores não esperam escritores, e um escritor
-  espera o outro por ``espera_s`` antes de desistir com erro. Com conexão
-  curta, cada fechamento seria o último, e o SQLite faria checkpoint e
-  apagaria o ``-wal`` a cada operação — 130 ms por escrita no Windows, contra
-  7 ms mantendo-o (``SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE``). O checkpoint segue
-  automático, a cada 1000 páginas. Por isso a fila são três arquivos
-  (``.sqlite3``, ``-wal``, ``-shm``), e uma cópia de segurança leva os três.
-  ``synchronous=NORMAL``, o par recomendado do WAL: o banco não corrompe se um
-  processo cair; uma queda de energia perde no máximo a última transação;
 * **uma transição, uma instrução**: toda mudança de situação é um ``UPDATE``
   condicional só (``WHERE situacao = ...``), com o evento anexado na mesma
   instrução e o resultado lido pelo ``RETURNING``. Não há "ler, decidir,
   escrever" em que outro processo possa entrar no meio;
 * **o arquivo nunca é apagado nem recriado**: banco travado vira
   :class:`FilaIndisponivel`; banco danificado vira :class:`FilaCorrompida`,
-  com o caminho, e fica como está.
+  com o caminho, e fica como está. Colunas novas (as da Fase B2) entram por
+  ``ALTER TABLE`` ao abrir, e os pedidos antigos ficam como estavam.
+
+Desde a Fase B2, **aprovado no validador não é pronto**: o desenho aprovado
+vira candidato e o pedido vai para ``em_revisao``, à espera do olhar do Claude.
+Só :meth:`FilaDePedidos.concluir` (a ferramenta ``concluir_pedido``) o leva a
+``concluido``. O desenho das transições está em :mod:`.modelo`.
 """
 
 from __future__ import annotations
@@ -37,6 +35,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from ..sqlite_curto import BancoCurto
 from .modelo import Evento, Pedido, Situacao, Tipo
 
 __all__ = [
@@ -96,7 +95,7 @@ def _carimbo(momento: datetime) -> str:
     return momento.astimezone(UTC).isoformat(timespec="microseconds")
 
 
-_ATIVAS = ("pendente", "em_desenho")
+_ATIVAS = ("pendente", "em_desenho", "em_revisao")
 
 _ESQUEMA = """
 CREATE TABLE IF NOT EXISTS pedidos (
@@ -130,6 +129,30 @@ CREATE INDEX IF NOT EXISTS pedidos_por_leva ON pedidos (leva);
 """
 
 
+#: Colunas da Fase B2, acrescentadas a um arquivo de antes dela ao abrir.
+_COLUNAS_NOVAS = {
+    "pedidos": (
+        # Remendos pedidos pelo olhar depois de um desenho aprovado, e o teto.
+        ("remendos", "INTEGER NOT NULL DEFAULT 0"),
+        ("max_remendos", "INTEGER NOT NULL DEFAULT 2"),
+        # 1 enquanto um desenho começado com candidato (um remendo) roda.
+        ("remendando", "INTEGER NOT NULL DEFAULT 0"),
+        # Os desenhos aprovados do pedido: [{asset_id, job_id, asset_projeto}].
+        ("candidatos", "TEXT NOT NULL DEFAULT '[]'"),
+        # A linha do olhar que concluiu o pedido.
+        ("olhar", "TEXT"),
+        # O que foi entregue ao Claude com o pedido: exemplo, lições, interruptores.
+        ("envio", "TEXT"),
+    ),
+}
+
+#: Pedidos que um pedidos_pendentes pode pegar: pendentes e reservas vencidas.
+_LIVRE = (
+    "situacao = 'pendente' OR (situacao IN ('em_desenho', 'em_revisao') "
+    "AND reservado_ate < :agora)"
+)
+
+
 def _evento(situacao_sql: str) -> str:
     """O trecho que anexa um evento, na mesma instrução da transição.
 
@@ -152,13 +175,21 @@ class FilaDePedidos:
         *,
         espera_s: float = 5.0,
         max_tentativas: int = 3,
+        max_remendos: int = 2,
         reserva: timedelta = timedelta(minutes=30),
     ) -> None:
         self._caminho = Path(caminho)
         self._espera_s = float(espera_s)
         self._max_tentativas = int(max_tentativas)
+        self._max_remendos = int(max_remendos)
         self._reserva = reserva
-        self._preparada = False
+        self._banco = BancoCurto(
+            self._caminho,
+            esquema=_ESQUEMA,
+            traduzir=self._traduzir,
+            espera_s=self._espera_s,
+            colunas_novas=_COLUNAS_NOVAS,
+        )
 
     @property
     def caminho(self) -> Path:
@@ -172,37 +203,17 @@ class FilaDePedidos:
     def max_tentativas(self) -> int:
         return self._max_tentativas
 
+    @property
+    def max_remendos(self) -> int:
+        return self._max_remendos
+
     # ------------------------------------------------------------------
     # Conexão
     # ------------------------------------------------------------------
     @contextmanager
     def _conexao(self) -> Iterator[sqlite3.Connection]:
-        try:
-            self._caminho.parent.mkdir(parents=True, exist_ok=True)
-            conexao = sqlite3.connect(
-                self._caminho, timeout=self._espera_s, isolation_level=None
-            )
-        except (OSError, sqlite3.Error) as exc:
-            raise self._traduzir(exc) from exc
-        try:
-            conexao.row_factory = sqlite3.Row
-            # O -wal fica entre conexões (ver o topo do módulo).
-            conexao.setconfig(sqlite3.SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, True)
-            conexao.execute(f"PRAGMA busy_timeout = {int(self._espera_s * 1000)}")
-            conexao.execute("PRAGMA synchronous = NORMAL")
-            if not self._preparada:
-                self._preparar(conexao)
+        with self._banco.conexao() as conexao:
             yield conexao
-        except sqlite3.Error as exc:
-            raise self._traduzir(exc) from exc
-        finally:
-            conexao.close()
-
-    def _preparar(self, conexao: sqlite3.Connection) -> None:
-        # WAL é persistente no arquivo; pedir de novo é barato e idempotente.
-        conexao.execute("PRAGMA journal_mode = WAL")
-        conexao.executescript(_ESQUEMA)
-        self._preparada = True
 
     def _traduzir(self, exc: Exception) -> ErroDaFila:
         texto = str(exc).lower()
@@ -249,9 +260,9 @@ class FilaDePedidos:
                 """
                 INSERT INTO pedidos (
                     id, tipo, situacao, projeto, texto, liberdade, direcao_de_arte,
-                    corpo, leitura, origem_asset_id, max_tentativas, eventos,
-                    criado_em, atualizado_em
-                ) VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    corpo, leitura, origem_asset_id, max_tentativas, max_remendos,
+                    eventos, criado_em, atualizado_em
+                ) VALUES (?, ?, 'pendente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING *
                 """,
                 (
@@ -265,6 +276,7 @@ class FilaDePedidos:
                     json.dumps(leitura, ensure_ascii=False),
                     origem_asset_id,
                     self._max_tentativas,
+                    self._max_remendos,
                     evento,
                     momento,
                     momento,
@@ -303,13 +315,12 @@ class FilaDePedidos:
         return [_pedido(linha) for linha in linhas]
 
     def candidatos(self, limite: int, agora: datetime | None = None) -> list[Pedido]:
-        """Os que esperam desenho, dos mais antigos: pendentes e reservas vencidas."""
+        """Os que esperam desenho ou olhar, dos mais antigos: pendentes e reservas vencidas."""
         with self._conexao() as conexao:
             linhas = conexao.execute(
-                """
+                f"""
                 SELECT * FROM pedidos
-                WHERE situacao = 'pendente'
-                   OR (situacao = 'em_desenho' AND reservado_ate < :agora)
+                WHERE {_LIVRE}
                 ORDER BY criado_em ASC LIMIT :limite
                 """,
                 {"agora": _carimbo(agora or agora_utc()), "limite": max(1, int(limite))},
@@ -319,11 +330,7 @@ class FilaDePedidos:
     def contar_na_fila(self, agora: datetime | None = None) -> int:
         with self._conexao() as conexao:
             (quantos,) = conexao.execute(
-                """
-                SELECT count(*) FROM pedidos
-                WHERE situacao = 'pendente'
-                   OR (situacao = 'em_desenho' AND reservado_ate < :agora)
-                """,
+                f"SELECT count(*) FROM pedidos WHERE {_LIVRE}",
                 {"agora": _carimbo(agora or agora_utc())},
             ).fetchone()
         return int(quantos)
@@ -334,7 +341,11 @@ class FilaDePedidos:
     def reservar(
         self, ids: Sequence[str], leva: str, agora: datetime | None = None
     ) -> list[Pedido]:
-        """Reserva os que ainda estiverem livres; devolve só os reservados agora."""
+        """Reserva os que ainda estiverem livres; devolve só os reservados agora.
+
+        Um pedido que já tem desenho aprovado (candidato) volta reservado em
+        ``em_revisao``: falta o olhar, não um desenho novo.
+        """
         if not ids:
             return []
         momento = agora or agora_utc()
@@ -346,16 +357,15 @@ class FilaDePedidos:
             leva=leva,
             nota="reservado por pedidos_pendentes",
         )
+        nova = "CASE WHEN candidatos != '[]' THEN 'em_revisao' ELSE 'em_desenho' END"
         with self._conexao() as conexao:
             linhas = conexao.execute(
                 f"""
                 UPDATE pedidos SET
-                    situacao = 'em_desenho', leva = :leva, reservado_ate = :ate,
-                    desenhando_desde = NULL, atualizado_em = :agora,
-                    {_evento("'em_desenho'")}
-                WHERE id IN ({marcadores})
-                  AND (situacao = 'pendente'
-                       OR (situacao = 'em_desenho' AND reservado_ate < :agora))
+                    situacao = {nova}, leva = :leva, reservado_ate = :ate,
+                    desenhando_desde = NULL, remendando = 0, atualizado_em = :agora,
+                    {_evento(nova)}
+                WHERE id IN ({marcadores}) AND ({_LIVRE})
                 RETURNING *
                 """,
                 valores,
@@ -363,11 +373,21 @@ class FilaDePedidos:
         reservados = [_pedido(linha) for linha in linhas]
         return sorted(reservados, key=lambda pedido: pedido.criado_em)
 
+    def gravar_envio(self, pedido_id: str, envio: dict[str, Any]) -> None:
+        """Guarda o que foi entregue ao Claude com o pedido (exemplo, lições)."""
+        with self._conexao() as conexao:
+            conexao.execute(
+                "UPDATE pedidos SET envio = :envio WHERE id = :id",
+                {"id": pedido_id, "envio": json.dumps(envio, ensure_ascii=False)},
+            ).fetchall()
+
     def iniciar(self, pedido_id: str, agora: datetime | None = None) -> Pedido:
         """Um ``desenhar(pedido_id)`` começou: marca e renova a leva inteira.
 
-        Aceita pedido pendente (por exemplo, devolvido à fila) ou em desenho;
-        recusa concluído, falho e cancelado.
+        Aceita pedido pendente (por exemplo, devolvido à fila), em desenho ou
+        em revisão; recusa concluído, falho e cancelado. Com candidato, o
+        desenho é um **remendo do olhar** — e é recusado quando os remendos do
+        pedido acabaram.
         """
         momento = agora or agora_utc()
         valores = {
@@ -382,9 +402,11 @@ class FilaDePedidos:
                 f"""
                 UPDATE pedidos SET
                     situacao = 'em_desenho', desenhando_desde = :agora,
+                    remendando = CASE WHEN candidatos != '[]' THEN 1 ELSE 0 END,
                     reservado_ate = :ate, leva = COALESCE(leva, :leva),
                     atualizado_em = :agora, {_evento("'em_desenho'")}
-                WHERE id = :id AND situacao IN ('pendente', 'em_desenho')
+                WHERE id = :id AND situacao IN ('pendente', 'em_desenho', 'em_revisao')
+                  AND (candidatos = '[]' OR remendos < max_remendos)
                 RETURNING *
                 """,
                 valores,
@@ -396,7 +418,8 @@ class FilaDePedidos:
                 conexao.execute(
                     """
                     UPDATE pedidos SET reservado_ate = :ate
-                    WHERE leva = :leva AND situacao = 'em_desenho' AND id != :id
+                    WHERE leva = :leva AND situacao IN ('em_desenho', 'em_revisao')
+                      AND id != :id
                     """,
                     {"ate": valores["ate"], "leva": linha["leva"], "id": pedido_id},
                 )
@@ -405,7 +428,7 @@ class FilaDePedidos:
             raise TransicaoRecusada(_por_que_nao_desenha(atual), atual)
         return _pedido(linha)
 
-    def concluir(
+    def aprovar(
         self,
         pedido_id: str,
         *,
@@ -415,14 +438,21 @@ class FilaDePedidos:
         laudo: str,
         agora: datetime | None = None,
     ) -> Pedido | None:
-        """Aprovado: conclui, se o pedido ainda estiver em desenho. ``None`` se não."""
+        """Aprovado no validador: vira candidato, e o pedido espera o olhar.
+
+        Não conclui (Fase B2). Um remendo aprovado conta um remendo. ``None``
+        se o pedido não estiver mais em desenho (cancelado ou devolvido).
+        """
         return self._uma(
             f"""
             UPDATE pedidos SET
-                situacao = 'concluido', asset_id = :asset, job_id = :job,
+                situacao = 'em_revisao', asset_id = :asset, job_id = :job,
                 asset_projeto = :projeto, ultimo_laudo = :laudo, motivo = NULL,
-                desenhando_desde = NULL, reservado_ate = NULL,
-                atualizado_em = :agora, {_evento("'concluido'")}
+                candidatos = json_insert(candidatos, '$[#]', json_object(
+                    'asset_id', :asset, 'job_id', :job, 'asset_projeto', :projeto)),
+                remendos = remendos + remendando, remendando = 0,
+                desenhando_desde = NULL,
+                atualizado_em = :agora, {_evento("'em_revisao'")}
             WHERE id = :id AND situacao = 'em_desenho'
             RETURNING *
             """,
@@ -433,9 +463,52 @@ class FilaDePedidos:
                 "projeto": asset_projeto,
                 "laudo": laudo,
                 "agora": _carimbo(agora or agora_utc()),
-                "nota": f"aprovado: {asset_id}",
+                "nota": f"aprovado no validador, esperando o olhar: {asset_id}",
             },
         )
+
+    def concluir(
+        self,
+        pedido_id: str,
+        *,
+        olhar: str,
+        asset_id: str | None = None,
+        agora: datetime | None = None,
+    ) -> Pedido:
+        """O olhar terminou: conclui com um dos desenhos aprovados do pedido.
+
+        Sem ``asset_id``, vale o último aprovado. Com ele, só um candidato do
+        próprio pedido — um remendo que piorou o desenho não obriga a ficar
+        com ele.
+        """
+        escolhido = (
+            "(SELECT value FROM json_each(pedidos.candidatos) "
+            "WHERE json_extract(value, '$.asset_id') = COALESCE(:asset, pedidos.asset_id))"
+        )
+        linha = self._uma(
+            f"""
+            UPDATE pedidos SET
+                situacao = 'concluido', olhar = :olhar, motivo = NULL,
+                asset_id = json_extract({escolhido}, '$.asset_id'),
+                job_id = json_extract({escolhido}, '$.job_id'),
+                asset_projeto = json_extract({escolhido}, '$.asset_projeto'),
+                leva = NULL, desenhando_desde = NULL, reservado_ate = NULL,
+                atualizado_em = :agora, {_evento("'concluido'")}
+            WHERE id = :id AND situacao = 'em_revisao' AND {escolhido} IS NOT NULL
+            RETURNING *
+            """,
+            {
+                "id": pedido_id,
+                "asset": asset_id,
+                "olhar": olhar,
+                "agora": _carimbo(agora or agora_utc()),
+                "nota": f"concluído depois do olhar: {olhar}",
+            },
+        )
+        if linha is None:
+            atual = self.obter(pedido_id)
+            raise TransicaoRecusada(_por_que_nao_conclui(atual, asset_id), atual)
+        return linha
 
     def reprovar(
         self,
@@ -446,23 +519,33 @@ class FilaDePedidos:
         asset_projeto: str,
         laudo: str,
         agora: datetime | None = None,
+        motivo: str | None = None,
     ) -> Pedido | None:
-        """Não aprovado: conta a tentativa; no teto, o pedido vai para ``falhou``."""
+        """Não aprovado: conta a tentativa; no teto, o pedido vai para ``falhou``.
+
+        Um **remendo** não aprovado é diferente: conta um remendo e o pedido
+        volta para ``em_revisao`` com o candidato de antes, que continua
+        valendo. ``motivo`` (como "repete o exemplo") vai para o pedido.
+        """
         nova = (
-            "CASE WHEN tentativas + 1 >= max_tentativas "
-            "THEN 'falhou' ELSE 'em_desenho' END"
+            "CASE WHEN remendando = 1 THEN 'em_revisao' "
+            "WHEN tentativas + 1 >= max_tentativas THEN 'falhou' ELSE 'em_desenho' END"
         )
+        no_teto = "remendando = 0 AND tentativas + 1 >= max_tentativas"
         return self._uma(
             f"""
             UPDATE pedidos SET
-                tentativas = tentativas + 1, situacao = {nova},
-                asset_id = :asset, job_id = :job, asset_projeto = :projeto,
-                ultimo_laudo = :laudo, desenhando_desde = NULL,
-                motivo = CASE WHEN tentativas + 1 >= max_tentativas
+                tentativas = tentativas + (1 - remendando),
+                remendos = remendos + remendando,
+                situacao = {nova},
+                asset_id = CASE WHEN remendando = 1 THEN asset_id ELSE :asset END,
+                job_id = CASE WHEN remendando = 1 THEN job_id ELSE :job END,
+                asset_projeto = CASE WHEN remendando = 1 THEN asset_projeto ELSE :projeto END,
+                ultimo_laudo = :laudo, desenhando_desde = NULL, remendando = 0,
+                motivo = CASE WHEN {no_teto}
                     THEN 'não aprovado em ' || max_tentativas || ' tentativas'
-                    ELSE motivo END,
-                reservado_ate = CASE WHEN tentativas + 1 >= max_tentativas
-                    THEN NULL ELSE reservado_ate END,
+                    ELSE COALESCE(:motivo, motivo) END,
+                reservado_ate = CASE WHEN {no_teto} THEN NULL ELSE reservado_ate END,
                 atualizado_em = :agora, {_evento(nova)}
             WHERE id = :id AND situacao = 'em_desenho'
             RETURNING *
@@ -473,20 +556,25 @@ class FilaDePedidos:
                 "job": job_id,
                 "projeto": asset_projeto,
                 "laudo": laudo,
+                "motivo": motivo,
                 "agora": _carimbo(agora or agora_utc()),
-                "nota": f"não aprovado: {asset_id}",
+                "nota": f"não aprovado: {asset_id}" + (f" ({motivo})" if motivo else ""),
             },
         )
 
     def desenho_interrompido(
         self, pedido_id: str, *, nota: str, agora: datetime | None = None
     ) -> Pedido | None:
-        """O desenho não produziu asset (receita recusada, erro): só limpa a marca."""
+        """O desenho não produziu asset (receita recusada, erro): só limpa a marca.
+
+        Um remendo interrompido volta para ``em_revisao`` sem gastar remendo.
+        """
+        volta = "CASE WHEN remendando = 1 THEN 'em_revisao' ELSE situacao END"
         return self._uma(
             f"""
             UPDATE pedidos SET
-                desenhando_desde = NULL, atualizado_em = :agora,
-                {_evento("situacao")}
+                situacao = {volta}, desenhando_desde = NULL, remendando = 0,
+                atualizado_em = :agora, {_evento(volta)}
             WHERE id = :id AND situacao = 'em_desenho'
             RETURNING *
             """,
@@ -499,8 +587,8 @@ class FilaDePedidos:
             UPDATE pedidos SET
                 situacao = 'cancelado', motivo = 'cancelado na tela',
                 leva = NULL, reservado_ate = NULL, desenhando_desde = NULL,
-                atualizado_em = :agora, {_evento("'cancelado'")}
-            WHERE id = :id AND situacao IN ('pendente', 'em_desenho')
+                remendando = 0, atualizado_em = :agora, {_evento("'cancelado'")}
+            WHERE id = :id AND situacao IN ('pendente', 'em_desenho', 'em_revisao')
             RETURNING *
             """,
             {"id": pedido_id, "agora": _carimbo(agora or agora_utc()), "nota": "cancelado na tela"},
@@ -514,14 +602,17 @@ class FilaDePedidos:
         return linha
 
     def devolver(self, pedido_id: str, agora: datetime | None = None) -> Pedido:
-        """Tira a reserva e volta para ``pendente``, sem cancelar nem zerar tentativas."""
+        """Tira a reserva e volta para ``pendente``, sem cancelar nem zerar tentativas.
+
+        Os candidatos ficam: quem pegar o pedido de novo só precisa olhar.
+        """
         linha = self._uma(
             f"""
             UPDATE pedidos SET
                 situacao = 'pendente', leva = NULL, reservado_ate = NULL,
-                desenhando_desde = NULL, atualizado_em = :agora,
+                desenhando_desde = NULL, remendando = 0, atualizado_em = :agora,
                 {_evento("'pendente'")}
-            WHERE id = :id AND situacao = 'em_desenho'
+            WHERE id = :id AND situacao IN ('em_desenho', 'em_revisao')
             RETURNING *
             """,
             {"id": pedido_id, "agora": _carimbo(agora or agora_utc()), "nota": "devolvido à fila na tela"},
@@ -530,7 +621,7 @@ class FilaDePedidos:
             atual = self.obter(pedido_id)
             raise TransicaoRecusada(
                 f"o pedido {pedido_id} está {_situacao_lida(atual)}: só um pedido em "
-                "desenho volta para a fila",
+                "desenho ou em revisão volta para a fila",
                 atual,
             )
         return linha
@@ -546,6 +637,7 @@ def _situacao_lida(pedido: Pedido) -> str:
     return {
         Situacao.PENDENTE: "na fila",
         Situacao.EM_DESENHO: "em desenho",
+        Situacao.EM_REVISAO: "esperando o olhar",
         Situacao.CONCLUIDO: "concluído",
         Situacao.FALHOU: "falho",
         Situacao.CANCELADO: "cancelado",
@@ -561,10 +653,35 @@ def _por_que_nao_desenha(pedido: Pedido) -> str:
             f"desenho, use base={pedido.asset_id} sem pedido_id (vira um asset avulso) "
             "ou peça um ajuste na tela"
         )
+    if pedido.candidatos and pedido.remendos >= pedido.max_remendos:
+        return (
+            f"o pedido {pedido.id} já usou os {pedido.max_remendos} remendos do olhar: "
+            f"conclua com concluir_pedido(pedido_id={pedido.id}, olhar=\"<a linha>\")"
+            + (", escolhendo asset_id entre " + ", ".join(pedido.candidatos) if len(pedido.candidatos) > 1 else "")
+        )
     return (
         f"o pedido {pedido.id} terminou sem aprovação ({pedido.motivo or 'falhou'}): "
         "faça outro pedido na tela para tentar de novo"
     )
+
+
+def _por_que_nao_conclui(pedido: Pedido, asset_id: str | None) -> str:
+    if pedido.situacao is Situacao.EM_REVISAO and asset_id:
+        return (
+            f"{asset_id} não é um desenho aprovado do pedido {pedido.id}: escolha entre "
+            + ", ".join(pedido.candidatos)
+        )
+    if pedido.situacao is Situacao.EM_DESENHO:
+        return (
+            f"o pedido {pedido.id} ainda não tem desenho aprovado esperando o olhar: "
+            f"desenhe com desenhar(pedido_id={pedido.id}, ...)"
+        )
+    if pedido.situacao is Situacao.PENDENTE:
+        return (
+            f"o pedido {pedido.id} está na fila, sem reserva: pegue-o com pedidos_pendentes "
+            "antes de concluir"
+        )
+    return f"o pedido {pedido.id} já está {_situacao_lida(pedido)}: não há o que concluir"
 
 
 def _momento(valor: str | None) -> datetime | None:
@@ -589,6 +706,14 @@ def _pedido(linha: sqlite3.Row) -> Pedido:
         asset_projeto=dados["asset_projeto"],
         tentativas=int(dados["tentativas"]),
         max_tentativas=int(dados["max_tentativas"]),
+        remendos=int(dados.get("remendos") or 0),
+        max_remendos=int(dados.get("max_remendos") or 0),
+        remendando=bool(dados.get("remendando")),
+        candidatos=tuple(
+            str(c["asset_id"]) for c in json.loads(dados.get("candidatos") or "[]")
+        ),
+        olhar=dados.get("olhar"),
+        envio=json.loads(dados["envio"]) if dados.get("envio") else None,
         ultimo_laudo=dados["ultimo_laudo"],
         leva=dados["leva"],
         reservado_ate=_momento(dados["reservado_ate"]),

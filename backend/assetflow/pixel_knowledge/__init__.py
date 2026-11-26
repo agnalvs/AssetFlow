@@ -19,6 +19,7 @@ from .base import (
     Regra,
     luminancia,
 )
+from .olhar import ListasDoOlhar, Pergunta, lembrete_da_lista, lista_de_verificacao
 from .recorte import (
     CONVITE_OUSADO,
     SEM_CORPO,
@@ -44,12 +45,16 @@ __all__ = [
     "FonteDeReferencias",
     "Forma",
     "Liberdade",
+    "ListasDoOlhar",
     "Luz",
     "Medida",
     "Molde",
     "Paleta",
+    "Pergunta",
     "Porte",
     "Regra",
+    "lembrete_da_lista",
+    "lista_de_verificacao",
     "luminancia",
     "montar_recorte",
     "porte",

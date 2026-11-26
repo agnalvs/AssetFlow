@@ -14,6 +14,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import timedelta
 
+from .aprendizado import CaixaDeAprendizado
 from .generation.kernel import (
     EngineCatalog,
     EngineRegistry,
@@ -101,6 +102,9 @@ class AppContainer:
     #: A fila de pedidos da tela (Fase B do plano do app), num SQLite que a API
     #: e o servidor MCP dividem. ``pedidos.fila`` é o arquivo.
     pedidos: ServicoDePedidos
+    #: Lições, opiniões da autora e exemplos já mostrados (Fase B2), num
+    #: SQLite de ``data/aprendizado/`` que a API e o servidor MCP dividem.
+    aprendizado: CaixaDeAprendizado
     _worker_started: bool = field(default=False, init=False)
 
     async def startup(self) -> None:
@@ -260,6 +264,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         settings.pedidos_path,
         espera_s=settings.pedidos.espera_s,
         max_tentativas=settings.pedidos.tentativas,
+        max_remendos=settings.pedidos.remendos,
         reserva=timedelta(minutes=settings.pedidos.reserva_min),
     )
     pedidos = ServicoDePedidos(
@@ -269,6 +274,9 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         records,
         projeto=settings.pedidos.projeto_padrao,
         gerador=settings.gerador,
+    )
+    aprendizado = CaixaDeAprendizado(
+        settings.aprendizado_path, espera_s=settings.aprendizado.espera_s
     )
 
     _LOG.info(
@@ -310,6 +318,7 @@ def build_container(settings: Settings | None = None) -> AppContainer:
         worker=worker,
         service=service,
         pedidos=pedidos,
+        aprendizado=aprendizado,
     )
 
 

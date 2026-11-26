@@ -203,6 +203,12 @@ class DesenhistaEngine(ImageGenerationEngine):
                 # (recurso não suportado, fallback): é daqui que o laudo do
                 # MCP lê o que a receita teve de recortado.
                 "avisos_receita": list(desenho.avisos),
+                # De qual camada é cada pixel (Fase B2): o olho do app mede
+                # por ele o contraste de valor entre partes vizinhas.
+                "mapa_de_camadas": {
+                    "nomes": [camada.nome for camada in receita.camadas],
+                    "linhas": list(desenho.mapa_de_camadas),
+                },
             },
         )
 

@@ -27,6 +27,7 @@ __all__ = [
     "LICENCA_PRINCIPAL",
     "Ativo",
     "ConfiguracaoDeReferencias",
+    "ConfiguracaoDoOlho",
     "Manifesto",
     "Parte",
     "ReferenciaInvalida",
@@ -287,6 +288,23 @@ class Ativo:
 
 
 @dataclass(frozen=True, slots=True)
+class ConfiguracaoDoOlho:
+    """Os limiares do olho do app (Fase B2). Todos ``a_calibrar``.
+
+    ``None`` em um campo desliga só aquela verificação: sem configuração, o
+    olho não inventa número.
+    """
+
+    #: Fora de [p_baixo, p_alto] das referências é desvio.
+    p_baixo: float | None = None
+    p_alto: float | None = None
+    #: Partes vizinhas (camadas da receita) com ΔL* abaixo disto têm o mesmo valor.
+    contraste_minimo: float | None = None
+    #: IoU da silhueta com a do exemplo mostrado, a partir do qual o desenho o repete.
+    iou_copia: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ConfiguracaoDeReferencias:
     ativos: tuple[Ativo, ...] = ()
     #: Referências de "porte parecido": altura do conteúdo dentro de
@@ -300,6 +318,7 @@ class ConfiguracaoDeReferencias:
     #: Menos pacotes que isto numa parte (depois do filtro acima), e ela some
     #: da linha e do ``ver_referencia``; o ``calibrar`` a mostra marcada.
     minimo_de_pacotes: int | None = None
+    olho: ConfiguracaoDoOlho = field(default_factory=ConfiguracaoDoOlho)
     problemas: tuple[str, ...] = field(default=())
 
 
@@ -315,7 +334,7 @@ def ler_configuracao(caminho: Path) -> ConfiguracaoDeReferencias:
         return ConfiguracaoDeReferencias(problemas=(f"{caminho.name}: a raiz não é um mapeamento",))
 
     problemas: list[str] = []
-    estranhas = sorted(str(chave) for chave in dados if chave not in {"ativos", "porte"})
+    estranhas = sorted(str(chave) for chave in dados if chave not in {"ativos", "porte", "olho"})
     if estranhas:
         problemas.append(f"{caminho.name}: chave desconhecida ({', '.join(estranhas)})")
 
@@ -338,14 +357,35 @@ def ler_configuracao(caminho: Path) -> ConfiguracaoDeReferencias:
     if faixa is not None and not 0 < faixa < 1:
         problemas.append("porte.faixa_altura: fração entre 0 e 1, como 0.2")
         faixa = None
+    olho = _olho(dados.get("olho") or {}, problemas)
     return ConfiguracaoDeReferencias(
         ativos=tuple(ativos),
         faixa_altura=faixa,
         minimo_de_quadros=int(minimo) if minimo is not None else None,
         minimo_por_pacote=por_pacote,
         minimo_de_pacotes=de_pacotes,
+        olho=olho,
         problemas=tuple(problemas),
     )
+
+
+def _olho(bruto: Any, problemas: list[str]) -> ConfiguracaoDoOlho:
+    if not isinstance(bruto, Mapping):
+        problemas.append("olho: a seção é um mapeamento")
+        return ConfiguracaoDoOlho()
+    valores: dict[str, float | None] = {}
+    for chave, minimo, maximo in (
+        ("p_baixo", 0.0, 0.5),
+        ("p_alto", 0.5, 1.0),
+        ("contraste_minimo", 0.0, 100.0),
+        ("iou_copia", 0.0, 1.0),
+    ):
+        valor = _numero_a_calibrar(bruto.get(chave), f"olho.{chave}", problemas)
+        if valor is not None and not minimo <= valor <= maximo:
+            problemas.append(f"olho.{chave}: entre {minimo:g} e {maximo:g}")
+            valor = None
+        valores[chave] = valor
+    return ConfiguracaoDoOlho(**valores)
 
 
 def _inteiro_positivo(porte: Mapping[str, Any], chave: str, problemas: list[str]) -> int | None:

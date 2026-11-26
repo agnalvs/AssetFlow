@@ -2,6 +2,7 @@ import { optimizationLabel } from "../labels";
 import { type GenerationOutcome, MODES, type PixelOptimization } from "../types";
 import { AssetPreview } from "./AssetPreview";
 import { GenerationNotices } from "./GenerationNotices";
+import { OpiniaoControls } from "./OpiniaoControls";
 import { ResultActions } from "./ResultActions";
 
 interface GenerationResultProps {
@@ -32,6 +33,12 @@ export function GenerationResult({
       </p>
       <GenerationNotices warnings={outcome.warnings} />
       <OptimizationLine optimization={outcome.variant.optimization} />
+      {outcome.olhar ? (
+        <p className="result__olhar">
+          <span className="result__optimization-key">Olhar do Claude</span> {outcome.olhar}
+        </p>
+      ) : null}
+      {outcome.assetId ? <OpiniaoControls assetId={outcome.assetId} /> : null}
       <ResultActions
         variant={outcome.variant}
         fileName={`assetflow-${outcome.jobId}.png`}

@@ -7,7 +7,7 @@
  * recarregar a página.
  *
  * A atualização é por consulta: a cada 2 s enquanto houver pedido ativo (na
- * fila, na vez do Claude, sendo desenhado ou corrigido). Sem nenhum ativo, a
+ * fila, na vez do Claude, sendo desenhado, corrigido ou olhado). Sem nenhum ativo, a
  * consulta para — não há o que mudar — e volta quando a tela cria, cancela ou
  * devolve um pedido, ou quando a janela volta a ter foco.
  */
@@ -25,7 +25,13 @@ import type { Pedido, PedidoCorpo, PedidoDetalhe, PedidoEtapa } from "../types";
 
 const INTERVALO_MS = 2000;
 
-const ATIVAS: ReadonlySet<PedidoEtapa> = new Set(["na_fila", "na_vez", "desenhando", "corrigindo"]);
+const ATIVAS: ReadonlySet<PedidoEtapa> = new Set([
+  "na_fila",
+  "na_vez",
+  "desenhando",
+  "corrigindo",
+  "olhando",
+]);
 
 export function pedidoAtivo(pedido: Pedido): boolean {
   return ATIVAS.has(pedido.etapa);

@@ -497,7 +497,8 @@ def test_engines_ignore_the_knowledge_base(path: Path):
 # de conhecimento. Se dependesse de gaveta, job, API ou da porta MCP, deixaria
 # de ser utilizável pela linha de comando sozinha — e se uma gaveta a
 # importasse, um sprite de terceiro poderia virar desenho sem passar pelo
-# Claude, que só vê números e uma imagem.
+# Claude. Desde a Fase B2, um sprite CC0 chega ao Claude como exemplo de
+# construção (em formato de receita), mas nunca como base de um asset.
 
 REFERENCIAS_ROOT = PACKAGE_ROOT / "referencias"
 REFERENCIAS_FILES = _python_files(REFERENCIAS_ROOT)
@@ -588,5 +589,56 @@ def test_engines_ignore_the_pedidos(path: Path):
         f"{path.name}:{line} importa '{module}'"
         for module, line in _resolved_imports(path)
         if _imports_any(module, ("assetflow.pedidos",))
+    ]
+    assert not violations, "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# Aprendizado: lições, opiniões e exemplos mostrados (Fase B2 do plano do app)
+# ---------------------------------------------------------------------------
+# ``assetflow/aprendizado/`` é dividido por API e MCP, como a fila: não importa
+# nenhum dos dois, nem gaveta, nem jobs, nem a biblioteca de referências (quem
+# escolhe o exemplo é o MCP; o aprendizado só guarda a rotação). E nenhuma
+# gaveta o importa: um motor não aprende.
+
+APRENDIZADO_ROOT = PACKAGE_ROOT / "aprendizado"
+APRENDIZADO_FILES = _python_files(APRENDIZADO_ROOT)
+
+LAYERS_FORBIDDEN_TO_APRENDIZADO = (
+    "assetflow.api",
+    "assetflow.mcp",
+    "assetflow.generation.engines",
+    "assetflow.jobs",
+    "assetflow.referencias",
+    "assetflow.pedidos",
+)
+
+
+def test_there_are_aprendizado_files_to_inspect():
+    assert len(APRENDIZADO_FILES) >= 3
+
+
+@pytest.mark.parametrize(
+    "path", APRENDIZADO_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT))
+)
+def test_aprendizado_does_not_import_api_mcp_engines_jobs_or_referencias(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, LAYERS_FORBIDDEN_TO_APRENDIZADO)
+    ]
+    assert not violations, "assetflow/aprendizado/ é dividido por API e MCP:\n" + "\n".join(
+        violations
+    )
+
+
+@pytest.mark.parametrize(
+    "path", ENGINE_FILES, ids=lambda p: str(p.relative_to(PACKAGE_ROOT))
+)
+def test_engines_ignore_the_aprendizado(path: Path):
+    violations = [
+        f"{path.name}:{line} importa '{module}'"
+        for module, line in _resolved_imports(path)
+        if _imports_any(module, ("assetflow.aprendizado",))
     ]
     assert not violations, "\n".join(violations)

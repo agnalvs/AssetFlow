@@ -5,13 +5,19 @@
 
 O app importa pacotes de pixel art de licença livre **baixados à mão**, mede
 cada quadro com código comum — numpy e Pillow, sem IA — e soma o que os
-pacotes ativos dizem. O Claude só consulta o resultado:
+pacotes ativos dizem. O Claude consulta o resultado:
 
 - uma linha `referências:` no recorte de `consultar_pedido` ([MCP.md](MCP.md) §4);
-- a ferramenta `ver_referencia`, que devolve **uma** imagem de exemplo.
+- a ferramenta `ver_referencia`, que devolve **uma** imagem de exemplo;
+- desde a Fase B2, **um exemplo de construção** no recorte e o **olho do app**
+  no laudo ([OLHAR.md](OLHAR.md) §2 e §3).
 
-Nada é baixado da internet, e nenhum sprite de terceiro vira receita: o recorte
-traz números somados, e `ver_referencia` traz uma imagem.
+Nada é baixado da internet. **A regra dos sprites de terceiros** (mudada na
+Fase B2, com autorização da autora): sprites **CC0** da biblioteca podem ser
+convertidos para o formato de receita e mostrados como exemplo de construção.
+O exemplo **nunca é a base de um asset e não entra em remendo**, e um desenho
+que repita a silhueta dele é não aprovado. Pacote aceito com atribuição serve
+de estilo, mas não vira exemplo.
 
 Código em `assetflow/referencias/`. Ele não importa gaveta, kernel, pipeline,
 job, API, storage nem MCP; a base de conhecimento não o importa; e nenhuma
@@ -151,6 +157,12 @@ devolve o quadro mais típico (mais perto das medianas), ampliado para uns
 256 px, com pacote, autor, licença e arquivo na legenda. O conjunto segue a
 regra da linha: o porte, se ele bastar; senão o estilo, de qualquer tamanho;
 senão nenhum, e o erro diz como importar.
+
+**O exemplo de construção** (Fase B2, `exemplo.py`): um quadro CC0 do porte
+(do estilo em ousado), em rotação entre os pacotes, quadro parado primeiro,
+até 1.500 caracteres. **O olho do app** (`olho.py`): o desenho medido pelo
+mesmo medidor e comparado com o porte e o estilo, com os limiares da seção
+`olho:` do `referencias.yaml`. Detalhes: [OLHAR.md](OLHAR.md).
 
 ## 6. Calibrar
 

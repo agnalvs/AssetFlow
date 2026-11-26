@@ -427,7 +427,7 @@ def test_remendo_gera_asset_novo_e_mantem_a_base(servico: ServicoDesenhista):
     assert verde.getpixel((7, 11)) == (0x2E, 0x8B, 0x57, 255)
     png_base, _ = run(servico.ver(base))
     vermelha = Image.open(io.BytesIO(png_base)).convert("RGBA")
-    assert vermelha.getpixel((7 * 16, 11 * 16)) == (0xB0, 0x3A, 0x2E, 255), "a base ficou como era"
+    assert vermelha.getpixel((7 * 24, 11 * 24)) == (0xB0, 0x3A, 0x2E, 255), "a base ficou como era"
 
 
 def test_remendo_de_remendo(servico: ServicoDesenhista):
@@ -459,16 +459,23 @@ def test_remendo_sem_receita(servico: ServicoDesenhista):
 # ---------------------------------------------------------------------------
 # ver_asset
 # ---------------------------------------------------------------------------
-def test_ver_amplia_por_inteiro_ate_cerca_de_256(servico: ServicoDesenhista):
+def test_ver_mostra_ampliada_silhueta_e_tamanho_real(servico: ServicoDesenhista):
+    """Fase B2: o ``ver_asset`` devolve a mesma imagem do olhar que o ``desenhar``."""
     asset = _id(run(servico.desenhar(pedido="poção vermelha 16x16", receita=_pocao())))
     png, legenda = run(servico.ver(asset))
 
-    imagem = Image.open(io.BytesIO(png))
-    assert imagem.size == (256, 256)
-    assert legenda == f"{asset} · 16×16 ampliado 16× · approved"
-    # Vizinho mais próximo: a rolha (6, 1) vira um bloco 16×16 da mesma cor.
-    cores = {imagem.getpixel((6 * 16 + dx, 1 * 16 + dy)) for dx in range(16) for dy in range(16)}
-    assert cores == {(0x8B, 0x5A, 0x2B, 255)}
+    imagem = Image.open(io.BytesIO(png)).convert("RGB")
+    assert imagem.size == (588, 384)
+    assert legenda == (
+        f"{asset} · 16×16 · ampliado 24×, silhueta em preto e tamanho real (2× e 1×) · approved"
+    )
+    # Vizinho mais próximo: a rolha (6, 1) vira um bloco 24×24 da mesma cor.
+    cores = {imagem.getpixel((6 * 24 + dx, 1 * 24 + dy)) for dx in range(24) for dy in range(24)}
+    assert cores == {(0x8B, 0x5A, 0x2B)}
+    # A silhueta (12×) começa depois do painel grande e do vão de 12 px: preta
+    # onde há pixel, branca onde não há.
+    assert imagem.getpixel((384 + 12 + 6 * 12 + 5, 1 * 12 + 5)) == (0, 0, 0)
+    assert imagem.getpixel((384 + 12 + 5, 5)) == (255, 255, 255)
 
 
 def test_ver_asset_inexistente(servico: ServicoDesenhista):

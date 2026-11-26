@@ -11,6 +11,7 @@ import { GenerationResult } from "./components/GenerationResult";
 import { GeneratorHero } from "./components/GeneratorHero";
 import { Header } from "./components/Header";
 import { LiberdadeControls } from "./components/LiberdadeControls";
+import { LicoesPanel } from "./components/LicoesPanel";
 import { PedidosList } from "./components/PedidosList";
 import { PromptInput } from "./components/PromptInput";
 import { PromptInspector } from "./components/PromptInspector";
@@ -31,8 +32,8 @@ import {
 const MODE: GenerationMode = "pixel";
 
 const DICA_DO_PEDIDO =
-  "O pedido vai para a fila. Na conversa com o Claude, diga: " +
-  "“desenhe os pedidos pendentes do AssetFlow”.";
+  "O pedido vai para a fila. Depois, no chat do Claude Code (não neste campo), " +
+  "diga: “desenhe os pedidos pendentes do AssetFlow”.";
 
 /**
  * Página do gerador (plano da tela §28 e §29; Fase B do plano do app).
@@ -249,6 +250,8 @@ export function App() {
           activeJobId={selecionado?.id ?? null}
           onSelect={(entry) => setSelecionadoId(entry.jobId)}
         />
+
+        <LicoesPanel />
       </main>
 
       <footer className="page__footer">
@@ -275,7 +278,10 @@ function outcomeOf(pedido: Pedido): GenerationOutcome | null {
   const warnings =
     pedido.etapa === "nao_aprovado"
       ? [`Não aprovado${pedido.motivo ? ` — ${pedido.motivo}` : ""}. Este é o último desenho.`]
-      : [];
+      : pedido.etapa === "olhando"
+        ? ["Aprovado no validador; o Claude ainda vai olhar e pode remendar."]
+        : [];
+  const pronto = pedido.etapa === "pronto";
   return {
     jobId: pedido.id,
     mode: MODE,
@@ -283,5 +289,7 @@ function outcomeOf(pedido: Pedido): GenerationOutcome | null {
     variant,
     preview: null,
     warnings,
+    assetId: pronto ? (pedido.asset?.id ?? null) : null,
+    olhar: pronto ? pedido.olhar : null,
   };
 }

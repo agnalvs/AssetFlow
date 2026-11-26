@@ -504,8 +504,8 @@ class PedidoView(AssetFlowModel):
     id: str
     tipo: str
     situacao: str
-    #: O que a tela diz: na_fila, na_vez, desenhando, corrigindo, pronto,
-    #: nao_aprovado ou cancelado.
+    #: O que a tela diz: na_fila, na_vez, desenhando, corrigindo, olhando,
+    #: pronto, nao_aprovado ou cancelado.
     etapa: str
     texto: str
     projeto: str
@@ -514,12 +514,19 @@ class PedidoView(AssetFlowModel):
     origem_asset_id: str | None = None
     tentativas: int = 0
     max_tentativas: int = 3
+    #: Remendos pedidos pelo olhar (Fase B2) e o teto.
+    remendos: int = 0
+    max_remendos: int = 0
+    #: Os desenhos do pedido aprovados no validador, na ordem.
+    candidatos: list[str] = Field(default_factory=list)
+    #: A linha do olhar que concluiu o pedido.
+    olhar: str | None = None
     reservado_ate: datetime | None = None
     motivo: str | None = None
     criado_em: datetime
     atualizado_em: datetime
     resumo: PedidoResumo = Field(default_factory=PedidoResumo)
-    #: O desenho que concluiu o pedido, ou o último não aprovado.
+    #: O desenho que concluiu o pedido, o que espera o olhar, ou o último não aprovado.
     asset: AssetView | None = None
 
 
@@ -536,6 +543,67 @@ class PedidoDetalhe(PedidoView):
     leitura: dict[str, Any] = Field(default_factory=dict)
     eventos: list[PedidoEventoView] = Field(default_factory=list)
     ultimo_laudo: str | None = None
+
+
+class LicaoView(AssetFlowModel):
+    """Uma lição, como a lista da tela a mostra (Fase B2)."""
+
+    id: str
+    regra: str
+    errou: str
+    porque: str
+    tema: str
+    #: ``forma`` (fica fora do ousado) ou ``tecnica``.
+    natureza: str
+    tipo: str
+    corpo: str
+    porte: str
+    #: ``claude`` ou ``autora``.
+    origem: str
+    #: O motivo do "não gostei", como a autora escreveu.
+    texto_da_autora: str | None = None
+    contador: int = 1
+    ligada: bool = True
+    asset_id: str | None = None
+    assets: list[str] = Field(default_factory=list)
+    criada_em: datetime
+    atualizada_em: datetime
+
+
+class LicaoListResponse(AssetFlowModel):
+    items: list[LicaoView]
+    #: Os temas aceitos, com a natureza de cada um.
+    temas: dict[str, str] = Field(default_factory=dict)
+
+
+class LicaoEdicao(AssetFlowModel):
+    """O que a tela muda numa lição; campo ausente fica como está."""
+
+    regra: str | None = None
+    tema: str | None = None
+    ligada: bool | None = None
+
+
+class OpiniaoCorpo(AssetFlowModel):
+    """"Gostei" ou "não gostei", com um motivo opcional."""
+
+    gostei: bool
+    motivo: str | None = None
+
+
+class OpiniaoView(AssetFlowModel):
+    asset_id: str
+    gostei: bool
+    motivo: str | None = None
+    #: ``nota`` (só nota do asset), ``pendente`` (vai virar lição) ou ``convertida``.
+    situacao: str
+    #: A lição que a opinião virou.
+    licao: str | None = None
+    em: datetime
+
+
+class OpinioesResponse(AssetFlowModel):
+    items: dict[str, OpiniaoView] = Field(default_factory=dict)
 
 
 class PedidoListResponse(AssetFlowModel):

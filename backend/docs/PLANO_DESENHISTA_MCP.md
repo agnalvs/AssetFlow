@@ -165,6 +165,13 @@ Novos analisadores em `pixel/validation/`, com limiares em `pixel_knowledge/vali
 
 **Feito em parte antes desta fase, a pedido da autora (2026-11-25):** blocos pequenos e cor rara foram calibrados pelos pacotes de referência, com os limiares em `config/quality.yaml` (não em `pixel_knowledge/`: valem para todo pipeline Pixel, não só para o MCP), todos `a_calibrar`. Efeito: os desenhos da desenhista ficam em 99–100 e a nota só detecta ruído — até esta fase trazer medidas que distinguem qualidade. **Continua pendente aqui:** a calibração de órfãos (tira ~17 pontos de dois pacotes profissionais; fração mediana 5,5% e 6,8% contra franquia de 1%). Ver [RELATORIO_ESTADO.md](RELATORIO_ESTADO.md) §9 e §12.
 
+**Adiantado em parte pela Fase B2 do plano do app (2026-11-25):** o olho do app
+(`assetflow/referencias/olho.py`) mede o desenho contra as referências do mesmo
+porte — preenchimento, proporção, cores, tons por grupo, contorno, rampas — e o
+contraste de valor entre camadas vizinhas da receita. Só informa; não entra na
+nota. Doubles, jaggies, banding e pillow shading continuam aqui. Ver
+[OLHAR.md](OLHAR.md) §2.
+
 ### Fase 6: animação
 
 - Modelo de animação: lista de frames com `duracao_ms` e `modo_loop`.

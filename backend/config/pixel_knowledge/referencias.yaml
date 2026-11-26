@@ -51,3 +51,20 @@ porte:
   # viria só do corpo-base sem roupa do customizable-character-pack. O
   # `calibrar` continua mostrando a parte, marcada como insuficiente.
   minimo_de_pacotes: {valor: 2,   classe: style, secao: "§2", a_calibrar: true}
+
+olho:
+  # O olho do app (Fase B2): o desenho novo medido contra as referências do
+  # mesmo porte. Só informa — nenhum desvio reprova; a exceção é a guarda
+  # `iou_copia` (o desenho repete o exemplo de construção mostrado).
+  # backend/docs/OLHAR.md.
+  #
+  # Fora de [p_baixo, p_alto] das referências (peso igual por pacote) é desvio.
+  p_baixo:          {valor: 0.1,  classe: style, secao: "§17", a_calibrar: true}
+  p_alto:           {valor: 0.9,  classe: style, secao: "§17", a_calibrar: true}
+  # Camadas vizinhas da receita com valores medianos (L*) a menos disto uma da
+  # outra "têm o mesmo valor" (§3: contraste de valor antes de matiz). Na
+  # arqueira de 2026-11-25, corpo, braços e aljava deram ΔL* 0 e a capa, 2.
+  contraste_minimo: {valor: 8,    classe: style, secao: "§3", a_calibrar: true}
+  # IoU da silhueta do desenho com a do exemplo mostrado no pedido, no melhor
+  # alinhamento, a partir do qual o desenho é não aprovado por repetir o exemplo.
+  iou_copia:        {valor: 0.85, classe: semantic, secao: "§3", a_calibrar: true}

@@ -161,7 +161,7 @@ def test_ler_nao_muda_o_arquivo(tmp_path: Path):
 def test_ver_asset_num_registro_antigo(servico: ServicoDesenhista):
     png, legenda = run(servico.ver("asset_antigo00001"))
 
-    assert legenda.startswith("asset_antigo00001 · 16×16 ampliado")
+    assert legenda.startswith("asset_antigo00001 · 16×16 · ampliado 24×")
     assert Image.open(io.BytesIO(png)).size[0] > 16
 
 
@@ -179,4 +179,4 @@ def test_ver_asset_de_gaveta_e_profile_removidos(servico: ServicoDesenhista):
     """Antes, a linha era pulada e a resposta era "não há asset no histórico"."""
     _, legenda = run(servico.ver("asset_antigo00002"))
 
-    assert legenda.startswith("asset_antigo00002 · 64×64 ampliado")
+    assert legenda.startswith("asset_antigo00002 · 64×64 · ampliado 6×")

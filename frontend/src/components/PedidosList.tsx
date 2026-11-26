@@ -14,7 +14,7 @@ interface PedidosListProps {
 }
 
 /** As etapas em que o pedido está reservado por uma conversa. */
-const EM_DESENHO = new Set(["na_vez", "desenhando", "corrigindo"]);
+const EM_DESENHO = new Set(["na_vez", "desenhando", "corrigindo", "olhando"]);
 
 /**
  * A fila de pedidos (Fase B do plano do app).
@@ -41,7 +41,8 @@ export function PedidosList({
       {erro ? <p className="pedidos__erro" role="alert">{erro}</p> : null}
       {esperando ? (
         <p className="pedidos__dica">
-          Na conversa com o Claude, diga: <strong>“desenhe os pedidos pendentes do AssetFlow”</strong>.
+          No chat do Claude Code (não no campo de descrição), diga:{" "}
+          <strong>“desenhe os pedidos pendentes do AssetFlow”</strong>.
         </p>
       ) : null}
       {fila.length === 0 && !erro ? (

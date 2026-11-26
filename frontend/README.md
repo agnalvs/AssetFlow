@@ -11,6 +11,13 @@ baixar.
 > resultado sozinha (`usePedidos` consulta a lista a cada 2 s enquanto houver
 > pedido ativo). A fila de pedidos e os prontos vêm da API: recarregar a
 > página não os perde. Detalhes: [../backend/docs/PEDIDOS.md](../backend/docs/PEDIDOS.md).
+>
+> Desde a Fase B2, um pedido aprovado no validador aparece como **olhando** até
+> o Claude concluí-lo. O resultado pronto mostra a linha do olhar e os botões
+> **Gostei** e **Não gostei** (`OpiniaoControls`; com motivo, vira lição na
+> próxima conversa), e `LicoesPanel` lista as lições com o contador — editar,
+> trocar o tema, desligar, apagar. Rotas em `/api/aprendizado`; detalhes em
+> [../backend/docs/OLHAR.md](../backend/docs/OLHAR.md).
 
 ## A regra que governa esta camada
 

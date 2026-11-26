@@ -59,21 +59,22 @@ def _disputar(fila: FilaDePedidos, rotulo: str, disputado: str) -> dict:
         reservados = fila.reservar([p.id for p in candidatos], nova_leva())
         for pedido in reservados:
             fila.iniciar(pedido.id)
-            if fila.concluir(
+            if fila.aprovar(
                 pedido.id,
                 asset_id=f"asset_{rotulo}_{pedido.id}",
                 job_id=f"job_{rotulo}",
                 asset_projeto="principal",
                 laudo=rotulo,
             ) is None:
-                raise SystemExit(f"{pedido.id} reservado por {rotulo} e concluído por outro")
+                raise SystemExit(f"{pedido.id} reservado por {rotulo} e aprovado por outro")
+            fila.concluir(pedido.id, olhar=rotulo)
             meus.append(pedido.id)
 
     ganhou = False
     try:
         fila.iniciar(disputado)
         ganhou = (
-            fila.concluir(
+            fila.aprovar(
                 disputado,
                 asset_id=f"asset_{rotulo}_disputado",
                 job_id=f"job_{rotulo}",
@@ -82,6 +83,8 @@ def _disputar(fila: FilaDePedidos, rotulo: str, disputado: str) -> dict:
             )
             is not None
         )
+        if ganhou:
+            fila.concluir(disputado, olhar=rotulo)
     except TransicaoRecusada:
         ganhou = False
     return {"reservados": meus, "ganhou_o_disputado": ganhou}

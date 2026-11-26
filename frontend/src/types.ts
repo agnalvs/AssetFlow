@@ -350,6 +350,7 @@ export type PedidoEtapa =
   | "na_vez"
   | "desenhando"
   | "corrigindo"
+  | "olhando"
   | "pronto"
   | "nao_aprovado"
   | "cancelado";
@@ -358,7 +359,7 @@ export type PedidoEtapa =
 export interface Pedido {
   id: string;
   tipo: "desenho" | "ajuste";
-  situacao: "pendente" | "em_desenho" | "concluido" | "falhou" | "cancelado";
+  situacao: "pendente" | "em_desenho" | "em_revisao" | "concluido" | "falhou" | "cancelado";
   etapa: PedidoEtapa;
   texto: string;
   projeto: string;
@@ -367,6 +368,13 @@ export interface Pedido {
   origem_asset_id: string | null;
   tentativas: number;
   max_tentativas: number;
+  /** Remendos pedidos pelo olhar do Claude (Fase B2) e o teto. */
+  remendos: number;
+  max_remendos: number;
+  /** Os desenhos do pedido aprovados no validador. */
+  candidatos: string[];
+  /** A linha do olhar do Claude que concluiu o pedido. */
+  olhar: string | null;
   reservado_ate: string | null;
   motivo: string | null;
   criado_em: string;
@@ -377,8 +385,45 @@ export interface Pedido {
     cores: number | null;
     fundo: string | null;
   };
-  /** O desenho que concluiu o pedido, ou o último não aprovado. */
+  /** O desenho que concluiu o pedido, o que espera o olhar, ou o último não aprovado. */
   asset: Asset | null;
+}
+
+/** Uma lição do aprendizado (espelha `LicaoView`, Fase B2). */
+export interface Licao {
+  id: string;
+  regra: string;
+  errou: string;
+  porque: string;
+  tema: string;
+  natureza: "forma" | "tecnica";
+  tipo: string;
+  corpo: string;
+  porte: string;
+  origem: "claude" | "autora";
+  texto_da_autora: string | null;
+  contador: number;
+  ligada: boolean;
+  asset_id: string | null;
+  assets: string[];
+  criada_em: string;
+  atualizada_em: string;
+}
+
+export interface LicaoLista {
+  items: Licao[];
+  /** Tema -> natureza ("forma" ou "tecnica"). */
+  temas: Record<string, string>;
+}
+
+/** A opinião da autora sobre um asset (espelha `OpiniaoView`). */
+export interface Opiniao {
+  asset_id: string;
+  gostei: boolean;
+  motivo: string | null;
+  situacao: "nota" | "pendente" | "convertida";
+  licao: string | null;
+  em: string;
 }
 
 /** O pedido inteiro (espelha `PedidoDetalhe`). */
@@ -476,6 +521,10 @@ export interface GenerationOutcome {
   preview: PromptPreview | null;
   /** Avisos sobre este desenho, prontos para exibir. */
   warnings: string[];
+  /** O asset do desenho, para a opinião (só em pedido pronto). */
+  assetId?: string | null;
+  /** A linha do olhar do Claude que concluiu o pedido. */
+  olhar?: string | null;
 }
 
 /** Um desenho pronto na faixa "Prontos" (plano da tela §25). */

@@ -51,9 +51,11 @@ def test_ferramentas_com_descricao_curta(servidor):
 
     ferramentas = {f.name: f for f in run(cenario())}
     assert set(ferramentas) == {
+        "concluir_pedido",
         "consultar_pedido",
         "desenhar",
         "pedidos_pendentes",
+        "registrar_licao",
         "ver_asset",
         "ver_referencia",
     }
@@ -87,6 +89,19 @@ def test_ferramentas_com_descricao_curta(servidor):
     assert set(pendentes["properties"]) == {"limite"}
     assert pendentes["properties"]["limite"]["default"] == 5
 
+    concluir = ferramentas["concluir_pedido"].input_schema
+    assert set(concluir["properties"]) == {"pedido_id", "olhar", "asset_id"}
+    assert sorted(concluir.get("required", [])) == ["olhar", "pedido_id"]
+
+    licao = ferramentas["registrar_licao"].input_schema
+    assert set(licao["properties"]) == {
+        "asset_id", "tema", "errou", "porque", "regra", "geral", "mesma_que", "da_autora"
+    }
+    assert sorted(licao.get("required", [])) == ["asset_id", "errou", "porque", "regra", "tema"]
+    for esquema in (concluir, licao):
+        for parametro in esquema["properties"].values():
+            assert len(parametro["description"]) <= TETO_DA_DESCRICAO
+
 
 def test_consultar_devolve_texto(servidor):
     resultado = _chamar(servidor, "consultar_pedido", {"pedido": "cavaleiro 32x32, 8 cores"})
@@ -105,11 +120,14 @@ def test_consultar_com_molde_traz_a_receita(servidor):
     assert "molde humanoid_32x32: " in com and '"camadas":[' in com
 
 
-def test_desenhar_devolve_o_laudo(servidor):
+def test_desenhar_devolve_o_laudo_e_a_imagem_do_olhar(servidor):
     receita = json.loads(POCAO.read_text(encoding="utf-8"))
     resultado = _chamar(servidor, "desenhar", {"pedido": "poção vermelha 16x16", "receita": receita})
     assert not resultado.is_error
-    assert resultado.content[0].text.startswith("APROVADO · asset_")
+    texto, imagem = resultado.content
+    assert texto.text.startswith("APROVADO · asset_")
+    assert "olho do app" in texto.text and "olhar — na imagem" in texto.text
+    assert imagem.type == "image" and imagem.mime_type == "image/png"
 
 
 def test_erro_chega_ao_claude_em_portugues(servidor):
@@ -146,9 +164,11 @@ def test_o_servidor_sobe_por_stdio():
             return [f.name for f in (await cliente.list_tools()).tools]
 
     assert sorted(run(cenario())) == [
+        "concluir_pedido",
         "consultar_pedido",
         "desenhar",
         "pedidos_pendentes",
+        "registrar_licao",
         "ver_asset",
         "ver_referencia",
     ]

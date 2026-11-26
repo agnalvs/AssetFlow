@@ -9,6 +9,7 @@ o formato; o que entra na conversa quem decide é :mod:`.recorte`.
     luz.yaml            a direção de luz padrão do projeto
     proporcoes.yaml     medidas e regras por forma e tamanho de grade
     silhuetas/*.yaml    moldes-base: receitas da desenhista-v1 em camadas
+    olhar.yaml          a lista de verificação do olhar (Fase B2 do plano do app)
 
 A carga é tolerante como a da taxonomia: diretório ausente dá uma base vazia,
 e um arquivo fora do formato é ignorado com aviso — o boot não cai por causa
@@ -30,6 +31,8 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 import yaml
+
+from .olhar import ListasDoOlhar, OlharInvalido, ler_olhar
 
 __all__ = [
     "CLASSES",
@@ -198,6 +201,8 @@ class BaseDeConhecimento:
     luz: Luz | None = None
     formas: Mapping[str, Forma] = field(default_factory=dict)
     moldes: Mapping[tuple[str, str], Molde] = field(default_factory=dict)
+    #: A lista de verificação do olhar (``olhar.yaml``); ``None`` sem o arquivo.
+    olhar: ListasDoOlhar | None = None
     #: Um texto por arquivo ignorado na carga. Vazio numa base saudável.
     problemas: tuple[str, ...] = ()
 
@@ -237,7 +242,7 @@ class BaseDeConhecimento:
                 return None
             try:
                 return leitor(_ler_yaml(caminho), nome)
-            except (ConhecimentoInvalido, yaml.YAMLError, OSError) as exc:
+            except (ConhecimentoInvalido, OlharInvalido, yaml.YAMLError, OSError) as exc:
                 # Um arquivo torto não derruba o boot nem os outros arquivos;
                 # silêncio é que não pode haver.
                 problemas.append(f"{nome}: {exc}")
@@ -247,6 +252,7 @@ class BaseDeConhecimento:
         paletas, mestra = carregar("paletas.yaml", _ler_paletas) or ({}, None)
         luz = carregar("luz.yaml", _ler_luz)
         formas = carregar("proporcoes.yaml", _ler_proporcoes) or {}
+        olhar = carregar("olhar.yaml", ler_olhar)
 
         moldes: dict[tuple[str, str], Molde] = {}
         pasta = diretorio / "silhuetas"
@@ -272,6 +278,7 @@ class BaseDeConhecimento:
             luz=luz,
             formas=formas,
             moldes=moldes,
+            olhar=olhar,
             problemas=tuple(problemas),
         )
 

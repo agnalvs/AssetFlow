@@ -872,6 +872,7 @@ A base de conhecimento vira uma pasta `backend/config/pixel_knowledge/`, no mesm
 | `animacoes.yaml` | Frames, durações, loop e poses-chave por animação e corpo | 13, 14 |
 | `efeitos.yaml` | Fases, formas e rampa temporal por efeito | 15 |
 | `validacao.yaml` | Limiares de cada verificação da seção 17 | 17 |
+| `olhar.yaml` | A lista de verificação do olhar, por forma, cada pergunta com a seção e a regra de origem (Fase B2 do plano do app, [OLHAR.md](OLHAR.md)) | 3, 4, 6, 8, 9, 10, 17 |
 
 ### Como o conhecimento chega ao desenhista
 

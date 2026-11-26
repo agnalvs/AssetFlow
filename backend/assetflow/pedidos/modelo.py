@@ -5,17 +5,27 @@ e volta para a tela pronto. O registro guarda o que foi pedido (o corpo, como a
 tela mandou), o que o AssetFlow entendeu (a leitura, com o spec resolvido uma
 vez, na criação) e o que aconteceu (situação, tentativas, eventos, asset).
 
-As situações e como se passa de uma a outra::
+As situações e como se passa de uma a outra (Fase B2: aprovado no
+validador não é pronto; o pedido só conclui depois do olhar)::
 
-    pendente ──reserva──▶ em_desenho ──aprovado──▶ concluido
-       │                     │  ├─ não aprovado (antes do teto) ─▶ em_desenho
-       │                     │  ├─ não aprovado (no teto) ───────▶ falhou
-       │                     │  └─ devolvido à fila ─────────────▶ pendente
-       └──cancelar───────────┴──cancelar──▶ cancelado
+    pendente ──reserva──▶ em_desenho ──aprovado no validador──▶ em_revisao
+                            ├─ não aprovado (antes do teto) ──▶ em_desenho
+                            ├─ não aprovado (no teto) ────────▶ falhou
+                            └─ devolvido à fila ──────────────▶ pendente
+    em_revisao ──concluir (o olhar)───────────▶ concluido
+    em_revisao ──remendo do olhar (até o teto)─▶ em_desenho ─▶ aprovado: em_revisao
+                                                └ não aprovado: em_revisao, com o
+                                                  candidato de antes
+    em_revisao ──reserva vencida ou devolvido──▶ pendente, com os candidatos
+    pendente, em_desenho, em_revisao ──cancelar──▶ cancelado
+
+Um pendente com candidato, quando reservado, volta direto para
+``em_revisao``: falta o olhar, não um desenho novo.
 
 A **etapa** é o que a tela mostra, e é mais fina que a situação: um pedido
 ``em_desenho`` pode estar só reservado ("na vez do Claude"), sendo desenhado
-agora, ou esperando uma correção depois de um desenho não aprovado.
+agora, ou esperando uma correção depois de um desenho não aprovado; um
+``em_revisao`` está "esperando o olhar".
 """
 
 from __future__ import annotations
@@ -35,14 +45,16 @@ __all__ = ["Etapa", "Evento", "Liberdade", "Pedido", "Situacao", "Tipo"]
 class Situacao(str, Enum):
     PENDENTE = "pendente"
     EM_DESENHO = "em_desenho"
+    #: Há desenho aprovado no validador; falta o olhar do Claude (Fase B2).
+    EM_REVISAO = "em_revisao"
     CONCLUIDO = "concluido"
     FALHOU = "falhou"
     CANCELADO = "cancelado"
 
     @property
     def ativa(self) -> bool:
-        """Ainda pode mudar: pendente ou em desenho."""
-        return self in (Situacao.PENDENTE, Situacao.EM_DESENHO)
+        """Ainda pode mudar: pendente, em desenho ou em revisão."""
+        return self in (Situacao.PENDENTE, Situacao.EM_DESENHO, Situacao.EM_REVISAO)
 
 
 class Tipo(str, Enum):
@@ -62,6 +74,8 @@ class Etapa(str, Enum):
     DESENHANDO = "desenhando"
     #: Houve desenho não aprovado; a conversa ainda pode corrigir.
     CORRIGINDO = "corrigindo"
+    #: Há desenho aprovado no validador; o Claude ainda vai olhá-lo (Fase B2).
+    OLHANDO = "olhando"
     PRONTO = "pronto"
     NAO_APROVADO = "nao_aprovado"
     CANCELADO = "cancelado"
@@ -104,6 +118,20 @@ class Pedido(BaseModel):
     asset_projeto: str | None = None
     tentativas: int = 0
     max_tentativas: int
+    #: Remendos pedidos pelo olhar, e o teto (``settings.pedidos.remendos``).
+    remendos: int = 0
+    max_remendos: int = 0
+    #: Um desenho começado com candidato — um remendo — está rodando.
+    remendando: bool = False
+    #: Os desenhos do pedido aprovados no validador, na ordem; o último é o
+    #: que ``asset_id`` aponta enquanto o pedido espera o olhar.
+    candidatos: tuple[str, ...] = ()
+    #: A linha do olhar que concluiu o pedido.
+    olhar: str | None = None
+    #: O que foi entregue ao Claude com o pedido: o exemplo convertido, as
+    #: lições e os interruptores (para medir se ajudam). Gravado também no
+    #: asset (``olhar.json``).
+    envio: dict[str, Any] | None = None
     ultimo_laudo: str | None = None
     #: A reserva: qual leva de ``pedidos_pendentes`` o pegou, e até quando.
     leva: str | None = None
@@ -142,4 +170,6 @@ class Pedido(BaseModel):
         if self.reserva_vencida(agora):
             # A reserva venceu: o próximo pedidos_pendentes o devolve à fila.
             return Etapa.NA_FILA
+        if self.situacao is Situacao.EM_REVISAO:
+            return Etapa.OLHANDO
         return Etapa.CORRIGINDO if self.tentativas else Etapa.NA_VEZ

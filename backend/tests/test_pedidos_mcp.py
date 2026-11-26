@@ -80,7 +80,7 @@ def test_pendentes_reserva_o_que_entregou(servico, container):
 
 def test_pendentes_cabe_no_teto_e_deixa_o_resto_na_fila(servico, container, monkeypatch):
     pedidos = [_pedido(container, f"poção {n} 16x16") for n in range(4)]
-    um = len(run(ServicoDesenhista(container)._bloco(pedidos[0], agora_utc())))
+    um = len(run(ServicoDesenhista(container)._bloco(pedidos[0], agora_utc(), set()))[0])
     # A parte fixa é a que o serviço reserva (cabeçalho, formato e rampas);
     # cabem ela e dois pedidos, não três.
     fixo = 1000 + len(rampas_da_base(container.conhecimento))
@@ -118,21 +118,34 @@ def test_limite_vai_de_1_a_10(servico, container):
 # ---------------------------------------------------------------------------
 # desenhar(pedido_id)
 # ---------------------------------------------------------------------------
-def test_aprovado_conclui_o_pedido(servico, container):
+def test_aprovado_espera_o_olhar_e_o_concluir_fecha(servico, container):
+    """Fase B2: aprovado no validador não é pronto; o pedido conclui depois do olhar."""
     pedido = _pedido(container)
     run(servico.pedidos_pendentes())
 
     laudo = run(servico.desenhar(pedido_id=pedido.id, receita=_pocao()))
     asset = _id_do_asset(laudo)
 
-    assert laudo.splitlines()[0] == f"pedido {pedido.id}: concluído com {asset}; ele já aparece na tela"
+    assert laudo.splitlines()[0] == (
+        f"pedido {pedido.id}: aprovado no validador com {asset}; falta o seu olhar "
+        "(remendos: 0 de 2)"
+    )
     assert laudo.splitlines()[1].startswith("APROVADO · ")
+    assert f"concluir_pedido(pedido_id={pedido.id}, olhar=" in laudo
+    assert laudo.imagem.startswith(b"\x89PNG"), "a imagem do olhar vem junto do laudo"
+    revisao = container.pedidos.fila.obter(pedido.id)
+    assert revisao.situacao is Situacao.EM_REVISAO and revisao.etapa(agora_utc()) is Etapa.OLHANDO
+
+    resposta = run(servico.concluir(pedido.id, "o frasco e o líquido se leem bem"))
+
+    assert resposta.startswith(f"pedido {pedido.id}: concluído com {asset} depois do olhar")
     depois = container.pedidos.fila.obter(pedido.id)
     assert (depois.situacao, depois.asset_id, depois.asset_projeto) == (
         Situacao.CONCLUIDO,
         asset,
         "principal",
     )
+    assert depois.olhar == "o frasco e o líquido se leem bem"
     gerado = run(container.pedidos.asset(depois.asset_projeto, depois.job_id))
     assert gerado is not None and gerado.id == asset
 
@@ -248,6 +261,7 @@ def test_cancelado_durante_o_desenho_deixa_o_asset_avulso(servico, container, mo
 def test_pedido_ja_concluido_nao_recebe_outro_desenho(servico, container):
     pedido = _pedido(container)
     asset = _id_do_asset(run(servico.desenhar(pedido_id=pedido.id, receita=_pocao())))
+    run(servico.concluir(pedido.id, "bom"))
 
     with pytest.raises(ErroDoPedido, match=f"já foi concluído com {asset}"):
         run(servico.desenhar(pedido_id=pedido.id, receita=_pocao()))
@@ -287,6 +301,8 @@ def test_ajuste_remenda_o_asset_de_origem(servico, container):
         servico.desenhar(pedido_id=ajuste.id, receita={"paleta": {"r": "#2e8b57", "R": "#4fbf7f"}})
     )
     assert laudo.splitlines()[1] == f"remendo de {origem}: paleta r, R"
+    assert container.pedidos.fila.obter(ajuste.id).situacao is Situacao.EM_REVISAO
+    run(servico.concluir(ajuste.id, "o líquido verde ficou claro"))
     assert container.pedidos.fila.obter(ajuste.id).situacao is Situacao.CONCLUIDO
 
 
@@ -403,7 +419,11 @@ def test_marco_tres_pedidos_da_tela_ficam_prontos(container: AppContainer):
         assert lista.startswith("3 pedidos da tela")
         for pedido_id in ids:
             laudo = run(conversa.desenhar(pedido_id=pedido_id, receita=_pocao()))
-            assert laudo.splitlines()[0].startswith(f"pedido {pedido_id}: concluído com")
+            assert laudo.splitlines()[0].startswith(f"pedido {pedido_id}: aprovado no validador com")
+            # Aprovado não é pronto: na tela, o pedido espera o olhar.
+            etapa = {i["id"]: i for i in tela.get("/api/pedidos").json()["items"]}[pedido_id]["etapa"]
+            assert etapa == "olhando"
+            run(conversa.concluir(pedido_id, "a poção se lê bem"))
 
         itens = {item["id"]: item for item in tela.get("/api/pedidos").json()["items"]}
         for pedido_id in ids:

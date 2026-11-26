@@ -16,12 +16,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from ..aprendizado import ErroDoAprendizado, LicaoInvalida, LicaoNaoEncontrada
 from ..bootstrap import AppContainer, build_container
 from ..generation.kernel.exceptions import ErrorCode, GenerationError
 from ..pedidos import ErroDaFila, PedidoNaoEncontrado, TransicaoRecusada
 from ..settings import Settings
 from ..version import __version__
 from .routers import (
+    aprendizado,
     assets,
     capabilities,
     dev_pixel,
@@ -149,6 +151,23 @@ def create_app(
             ).model_dump(mode="json"),
         )
 
+    @app.exception_handler(ErroDoAprendizado)
+    async def _aprendizado_error_handler(_request: Request, exc: ErroDoAprendizado) -> JSONResponse:
+        """Erros das lições e opiniões (Fase B2), em português."""
+        if isinstance(exc, LicaoNaoEncontrada):
+            status_code = 404
+        elif isinstance(exc, LicaoInvalida):
+            status_code = 422
+        else:
+            status_code = 503
+            _LOG.error("lições: %s", exc)
+        return JSONResponse(
+            status_code=status_code,
+            content=ErrorResponse(
+                code=exc.codigo, message=str(exc), retryable=status_code == 503
+            ).model_dump(mode="json"),
+        )
+
     @app.exception_handler(RequestValidationError)
     async def _validation_error_handler(
         _request: Request, exc: RequestValidationError
@@ -202,6 +221,7 @@ def create_app(
     app.include_router(jobs.router)
     app.include_router(assets.router)
     app.include_router(pedidos.router)
+    app.include_router(aprendizado.router)
 
     # Diagnóstico do Pixel Exact (plano Pixel §78). Quem decide se ele
     # responde é o próprio endpoint, lendo `api.dev_endpoints` do container em

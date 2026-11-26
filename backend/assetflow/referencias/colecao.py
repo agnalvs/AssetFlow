@@ -1,14 +1,20 @@
 """A coleção ativa: o que os pacotes ativos dizem, somado, para um pedido.
 
 Ela carrega só o que já foi medido (``medidas.json``): nada é medido no boot.
-Chegam ao Claude duas coisas, e nenhuma é um desenho de terceiro em forma de
-receita:
+Chegam ao Claude três coisas:
 
 - a linha ``referências:`` do recorte, em duas partes que somem sozinhas:
   **estilo** (contorno, tons por grupo de matiz), de qualquer tamanho; e
   **porte** (cores, largura, preenchimento), só dos quadros cuja altura de
   conteúdo fica perto da altura do corpo do pedido;
-- uma imagem de exemplo, ampliada, por ``ver_referencia``.
+- uma imagem de exemplo, ampliada, por ``ver_referencia``;
+- desde a Fase B2, **um exemplo de construção**: um quadro CC0 convertido para
+  o formato de receita (:mod:`.exemplo`). Ele mostra como o pacote resolve o
+  porte; nunca é a base de um asset nem entra em remendo, e um desenho que o
+  repita é não aprovado (a guarda de :mod:`.olho`).
+
+As mesmas somas servem ao **olho do app** (:mod:`.olho`), que compara o desenho
+novo com as referências do mesmo porte e aponta só os desvios.
 
 Linha de chão, margem e ocupação do quadro não entram: o quadro das
 referências é outro, e esses números só fazem sentido dentro do mesmo quadro.
@@ -49,7 +55,14 @@ from .pacote import (
     ler_manifesto,
 )
 
-__all__ = ["LADO_DA_AMPLIACAO", "ParteDaLinha", "QuadroMedido", "ReferenciasAtivas", "quantis"]
+__all__ = [
+    "LADO_DA_AMPLIACAO",
+    "ParteDaLinha",
+    "QuadroMedido",
+    "ReferenciasAtivas",
+    "distribuicao",
+    "quantis",
+]
 
 _LOG = logging.getLogger("assetflow.referencias")
 
@@ -73,6 +86,11 @@ class QuadroMedido:
     tons_por_grupo: float | None
     contorno_tipo: str
     contorno_cor: str
+    #: Fração da borda mais escura que o vizinho de dentro (o medidor a grava).
+    contorno_escuro: float | None = None
+    #: Fração dos grupos de matiz com mais de uma cor cujos tons vizinhos se
+    #: encostam no desenho (rampa provável); ``None`` sem grupo assim.
+    rampas_provaveis: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -283,8 +301,42 @@ class ReferenciasAtivas:
         return png, legenda
 
 
+    # ------------------------------------------------------------------
+    # Fase B2: exemplo de construção e olho do app
+    # ------------------------------------------------------------------
+    def manifesto(self, pacote: str) -> Manifesto | None:
+        return next((p for p in self.pacotes if p.id == pacote), None)
+
+    def parte_do_exemplo(
+        self, tipo: str, corpo: str | None, altura: int | None, *, por_estilo: bool = False
+    ) -> ParteDaLinha:
+        """De onde sai o exemplo: o porte, se bastar; senão (ou em ``ousado``) o estilo."""
+        if not por_estilo:
+            parte = self.porte(tipo, corpo, altura)
+            if parte.suficiente:
+                return parte
+        return self.estilo(tipo, corpo)
+
+    def recortar(self, quadro: QuadroMedido) -> np.ndarray:
+        """Os pixels do conteúdo de um quadro, em 1×, recortados na caixa opaca."""
+        if self.raiz is None:
+            raise ReferenciaInvalida("coleção sem pasta de pacotes")
+        rgba = carregar(self.raiz / quadro.pacote / "original" / quadro.arquivo)
+        escala = detectar_escala(rgba)
+        if escala > 1:
+            rgba = rgba[::escala, ::escala]
+        x, y, largura, altura = quadro.caixa
+        pedaco = rgba[y : y + altura, x : x + largura]
+        opaco = pedaco[..., 3] > 0
+        if not opaco.any():
+            return np.ascontiguousarray(pedaco[:0, :0])
+        ys, xs = np.nonzero(opaco)
+        return np.ascontiguousarray(pedaco[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1])
+
+
 def _quadro(pacote: str, bruto: dict[str, Any]) -> QuadroMedido:
     contorno = bruto.get("contorno") or {}
+    rampas = [r for r in bruto.get("rampas") or [] if isinstance(r, dict)]
     return QuadroMedido(
         pacote=pacote,
         arquivo=str(bruto["arquivo"]),
@@ -300,6 +352,10 @@ def _quadro(pacote: str, bruto: dict[str, Any]) -> QuadroMedido:
         tons_por_grupo=bruto.get("tons_por_grupo"),
         contorno_tipo=str(contorno.get("tipo") or "indefinido"),
         contorno_cor=str(contorno.get("cor") or ""),
+        contorno_escuro=contorno.get("escuro"),
+        rampas_provaveis=(
+            sum(1 for r in rampas if r.get("provavel")) / len(rampas) if rampas else None
+        ),
     )
 
 
@@ -327,8 +383,10 @@ def _pesos(quadros: list[QuadroMedido]) -> list[float]:
     return [1 / por_pacote[q.pacote] for q in quadros]
 
 
-def quantis(quadros: list[QuadroMedido], valor) -> tuple[float, float, float] | None:
-    """p25, mediana e p75 de ``valor(q)``, com peso igual por pacote.
+def quantis(
+    quadros: list[QuadroMedido], valor, fracoes: tuple[float, ...] = (0.25, 0.5, 0.75)
+) -> tuple[float, ...] | None:
+    """Os quantis de ``valor(q)`` (p25, mediana e p75, por padrão), com peso igual por pacote.
 
     ``None`` quando nenhum quadro tem o valor.
     """
@@ -339,7 +397,7 @@ def quantis(quadros: list[QuadroMedido], valor) -> tuple[float, float, float] | 
         return None
     total = sum(peso for _, peso in pares)
     resultado = []
-    for fracao in (0.25, 0.5, 0.75):
+    for fracao in fracoes:
         acumulado = 0.0
         for v, peso in pares:
             acumulado += peso
@@ -347,6 +405,15 @@ def quantis(quadros: list[QuadroMedido], valor) -> tuple[float, float, float] | 
                 resultado.append(float(v))
                 break
     return tuple(resultado)
+
+
+def distribuicao(quadros: list[QuadroMedido], valor) -> dict[str, float]:
+    """A fração (peso igual por pacote) de cada valor de ``valor(q)``."""
+    contagem: Counter = Counter()
+    for q, peso in zip(quadros, _pesos(quadros)):
+        contagem[valor(q)] += peso
+    total = sum(contagem.values()) or 1.0
+    return {chave: soma / total for chave, soma in contagem.most_common()}
 
 
 def _pacotes(quadros: list[QuadroMedido]) -> str:

@@ -33,6 +33,12 @@ direita e y para baixo:
 Camadas são grupos de operações aplicados em ordem sobre a mesma grade. Uma
 camada com ``espelho`` é desenhada e depois copiada em torno do centro da
 grade (ver :func:`_espelhar`).
+
+O desenho guarda também **de qual camada é cada pixel** (a última que o
+pintou): o :attr:`Desenho.mapa_de_camadas`. A gaveta o grava no relatório do
+motor, e é por ele que o olho do app mede o contraste de valor entre partes
+vizinhas (Fase B2) — a receita é a única fonte que sabe onde termina uma
+parte e começa outra.
 """
 
 from __future__ import annotations
@@ -46,7 +52,11 @@ from PIL import Image
 
 from .receita import APAGAR, MANTER, Camada, Operacao, Receita, ReceitaInvalida
 
-__all__ = ["Desenho", "Grade", "desenhar", "para_png"]
+__all__ = ["SIMBOLOS_DE_CAMADA", "Desenho", "Grade", "desenhar", "para_png"]
+
+#: Um caractere por camada no mapa: a camada ``i`` é ``SIMBOLOS_DE_CAMADA[i]``.
+#: Da 63ª em diante, ``?``; ``.`` é transparente.
+SIMBOLOS_DE_CAMADA = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 #: O que uma célula guarda: a chave da paleta, ou ``None`` (transparente).
 Celula = str | None
@@ -102,6 +112,9 @@ class Desenho:
     #: Recortes e outras coisas que não impedem o desenho mas precisam ser
     #: ditas: "nada é corrigido em silêncio".
     avisos: tuple[str, ...] = ()
+    #: Uma linha por y: o símbolo da camada dona de cada pixel (ver
+    #: :data:`SIMBOLOS_DE_CAMADA`), ou ``.`` no transparente.
+    mapa_de_camadas: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -121,13 +134,28 @@ def desenhar(receita: Receita, largura: int, altura: int) -> Desenho:
         )
 
     grade = Grade(largura, altura)
+    donos: list[int | None] = [None] * (largura * altura)
     avisos: list[str] = []
-    for camada in receita.camadas:
-        _aplicar_camada(grade, camada, avisos)
-    return Desenho(grade=grade, avisos=tuple(avisos))
+    for indice, camada in enumerate(receita.camadas):
+        _aplicar_camada(grade, camada, avisos, donos, indice)
+    mapa = tuple(
+        "".join(
+            "." if dono is None or grade.celulas[y * largura + x] is None
+            else (SIMBOLOS_DE_CAMADA[dono] if dono < len(SIMBOLOS_DE_CAMADA) else "?")
+            for x, dono in enumerate(donos[y * largura : (y + 1) * largura])
+        )
+        for y in range(altura)
+    )
+    return Desenho(grade=grade, avisos=tuple(avisos), mapa_de_camadas=mapa)
 
 
-def _aplicar_camada(grade: Grade, camada: Camada, avisos: list[str]) -> None:
+def _aplicar_camada(
+    grade: Grade,
+    camada: Camada,
+    avisos: list[str],
+    donos: list[int | None] | None = None,
+    indice: int = 0,
+) -> None:
     """Desenha a camada e, se pedido, espelha o que ela pintou.
 
     As operações rodam sobre uma cópia de trabalho, para que o ``balde`` veja
@@ -147,6 +175,8 @@ def _aplicar_camada(grade: Grade, camada: Camada, avisos: list[str]) -> None:
 
     for (x, y), valor in escritas.items():
         grade.escrever(x, y, valor)
+        if donos is not None:
+            donos[y * grade.largura + x] = None if valor is None else indice
 
 
 def _espelhar(
